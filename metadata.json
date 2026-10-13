@@ -1,0 +1,6 @@
+{
+  "name": "HearthAway - Master Accommodation CRM Platform",
+  "description": "Unified master accommodation marketplace CRM with role-isolated workspaces for Students, B2B Partners, and Internal Sales & Management operations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

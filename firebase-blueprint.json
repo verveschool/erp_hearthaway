@@ -1,0 +1,190 @@
+{
+  "entities": {
+    "Student": {
+      "title": "Student",
+      "description": "Master student accommodation record",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string", "pattern": "^HA-[0-9]{4}-[0-9]{6}$" },
+        "fullName": { "type": "string", "maxLength": 100 },
+        "firstName": { "type": "string", "maxLength": 50 },
+        "lastName": { "type": "string", "maxLength": 50 },
+        "email": { "type": "string", "format": "email", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "whatsApp": { "type": "string", "maxLength": 30 },
+        "country": { "type": "string", "maxLength": 50 },
+        "university": { "type": "string", "maxLength": 100 },
+        "course": { "type": "string", "maxLength": 100 },
+        "intake": { "type": "string", "maxLength": 50 },
+        "destinationCountry": { "type": "string", "maxLength": 50 },
+        "destinationCity": { "type": "string", "maxLength": 50 },
+        "moveInDate": { "type": "string", "maxLength": 30 },
+        "moveOutDate": { "type": "string", "maxLength": 30 },
+        "budget": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "preferredRoom": { "type": "string", "maxLength": 50 },
+        "accommodationPreference": { "type": "string", "maxLength": 100 },
+        "occupants": { "type": "number" },
+        "passportStatus": { "type": "string", "maxLength": 50 },
+        "leadSource": { "type": "string", "maxLength": 50 },
+        "partnerId": { "type": "string", "maxLength": 50 },
+        "assignedSalesExecutiveId": { "type": "string", "maxLength": 50 },
+        "leadStatus": { "type": "string", "enum": ["New", "Contacted", "Qualified", "Lost"] },
+        "accommodationStatus": { "type": "string", "enum": ["Requirement Pending", "Options Shared", "Shortlisted", "Property Selected"] },
+        "bookingStatus": { "type": "string", "enum": ["Not Started", "Processing", "Application Submitted", "Approved", "Payment Pending", "Booked", "Cancelled", "Move-in Confirmed"] },
+        "moveInStatus": { "type": "string", "enum": ["Upcoming", "Moved In", "No Show", "Cancelled"] },
+        "commissionStatus": { "type": "string", "enum": ["Pending", "Due", "Received", "Partner Payable", "Paid"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["studentId", "fullName", "email", "leadStatus", "accommodationStatus", "bookingStatus", "moveInStatus", "commissionStatus"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Booking payment transaction with verification audit and proof uploads",
+      "type": "object",
+      "properties": {
+        "paymentId": { "type": "string", "pattern": "^PAY-[a-zA-Z0-9_-]+$" },
+        "studentId": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "bookingReference": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "paymentDate": { "type": "string" },
+        "paymentMethod": { "type": "string", "maxLength": 50 },
+        "paymentStatus": { "type": "string", "enum": ["Pending Verification", "Verified", "Rejected"] },
+        "screenshotUrl": { "type": "string" },
+        "attachments": { "type": "array" },
+        "proofBypassReason": { "type": "string" },
+        "proofBypassedBy": { "type": "string" },
+        "uploadedBy": { "type": "string" },
+        "uploadedTimestamp": { "type": "string" },
+        "verifiedBy": { "type": "string" },
+        "verificationTimestamp": { "type": "string" },
+        "remarks": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["paymentId", "studentId", "amount", "currency", "paymentStatus", "paymentMethod"]
+    },
+    "Partner": {
+      "title": "Partner",
+      "description": "B2B Educational Consultant, Bank, or VAS Partner organisation",
+      "type": "object",
+      "properties": {
+        "partnerId": { "type": "string", "pattern": "^PART-[0-9]{5}$" },
+        "companyName": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "enum": ["Consultant", "Bank", "VAS", "Education", "Referral", "Campaign", "Direct"] },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string", "maxLength": 30 },
+        "assignedManagerId": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["Active", "Onboarding", "Prospect", "Dormant"] }
+      },
+      "required": ["partnerId", "companyName", "type", "email"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "Audit trail log item for workflow events and status changes",
+      "type": "object",
+      "properties": {
+        "activityId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "leadId": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "performedBy": { "type": "object" },
+        "activityType": { "type": "string" },
+        "description": { "type": "string" },
+        "oldValue": { "type": "string" },
+        "newValue": { "type": "string" }
+      },
+      "required": ["activityId", "timestamp", "activityType", "description"]
+    },
+    "Property": {
+      "title": "Property",
+      "description": "Student accommodation property listing",
+      "type": "object",
+      "properties": {
+        "propertyId": { "type": "string" },
+        "propertyName": { "type": "string" },
+        "providerId": { "type": "string" },
+        "country": { "type": "string" },
+        "city": { "type": "string" },
+        "address": { "type": "string" },
+        "university": { "type": "string" },
+        "propertyType": { "type": "string" },
+        "verificationStatus": { "type": "string" }
+      },
+      "required": ["propertyId", "propertyName", "city", "country"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Accommodation contract booking record with rent, deposit and expected revenue",
+      "type": "object",
+      "properties": {
+        "bookingId": { "type": "string" },
+        "bookingReference": { "type": "string" },
+        "studentId": { "type": "string" },
+        "propertyName": { "type": "string" },
+        "propertyAddress": { "type": "string" },
+        "rentAmount": { "type": "number" },
+        "rentFrequency": { "type": "string" },
+        "rentCurrency": { "type": "string" },
+        "depositAmount": { "type": "number" },
+        "depositCurrency": { "type": "string" },
+        "tenancyStartDate": { "type": "string" },
+        "tenancyEndDate": { "type": "string" },
+        "commissionRate": { "type": "number" },
+        "commissionableAmount": { "type": "number" },
+        "commissionableCurrency": { "type": "string" },
+        "expectedRevenue": { "type": "number" },
+        "bookingValue": { "type": "number" },
+        "currency": { "type": "string" },
+        "bookingStatus": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["bookingId", "studentId", "propertyName", "propertyAddress", "rentAmount", "bookingStatus"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role-based workspace permissions",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "management", "sales", "finance", "partner", "student"] },
+        "partnerId": { "type": "string" }
+      },
+      "required": ["userId", "email", "role", "fullName"]
+    }
+  },
+  "firestore": {
+    "/students/{studentId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Student master records with decoupled statuses"
+    },
+    "/students/{studentId}/activities/{activityId}": {
+      "schema": { "$ref": "#/entities/Activity" },
+      "description": "Real-time audit log of student operations"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Payment transactions for student bookings"
+    },
+    "/partners/{partnerId}": {
+      "schema": { "$ref": "#/entities/Partner" },
+      "description": "B2B Partner organisations"
+    },
+    "/properties/{propertyId}": {
+      "schema": { "$ref": "#/entities/Property" },
+      "description": "Marketplace student properties"
+    },
+    "/bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/Booking" },
+      "description": "Student booking files"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile and role metadata"
+    }
+  }
+}
