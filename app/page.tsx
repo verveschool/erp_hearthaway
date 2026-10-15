@@ -82,7 +82,6 @@ export default function HomePage() {
         displayName: 'Primary Administrator',
         email: cleanEmail,
         role: 'management',
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
       };
       createAccount(adminUser);
       loginWithUser(adminUser);
@@ -128,7 +127,7 @@ export default function HomePage() {
   return (
     <div className="min-h-[75vh] flex flex-col items-center justify-center py-6 px-4 sm:px-6">
       <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 sm:p-9 shadow-xs space-y-6">
-        {/* Header */}
+        {/* Header - Clean Sign In without Logo */}
         <div className="text-center space-y-1.5">
           <h1 className="text-2xl font-extrabold text-[#1A1A1A] tracking-tight">Sign In</h1>
           <p className="text-xs text-[#6B6860]">Enter your credentials to access your workspace</p>

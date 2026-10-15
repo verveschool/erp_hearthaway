@@ -67,7 +67,7 @@ export default function PartnersPage() {
   const [filterState, setFilterState] = useState('All');
   const [filterCity, setFilterCity] = useState('All');
   const [filterAgreement, setFilterAgreement] = useState('All');
-  const [viewMode, setViewMode] = useState<'directory' | 'bifurcated'>('directory');
+  const [viewMode, setViewMode] = useState<'directory' | 'bifurcated'>('bifurcated');
 
   // Selected partner for inspecting their leads
   const [inspectPartnerId, setInspectPartnerId] = useState<string | null>(null);
@@ -1285,7 +1285,15 @@ export default function PartnersPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      alert(`Downloading executed contract for ${selectedAgreementPartner.companyName} (${selectedAgreementPartner.partnerId})...`);
+                      const docContent = `HEARTHAWAY MASTER SERVICES AGREEMENT (MSA)\nPartner: ${selectedAgreementPartner.companyName} (${selectedAgreementPartner.partnerId})\nTerritory: ${selectedAgreementPartner.city || 'Mumbai'}, ${selectedAgreementPartner.state || 'Maharashtra'}\nStatus: ${agreementStatus}\nAgreement Type: ${agreementType}\nSigned Date: ${agreementSignedDate}\nExpiry Date: ${agreementExpiryDate}\nTerms: ${agreementTerms}\nAuthorized Counterparty: ${selectedAgreementPartner.contactPerson} (${selectedAgreementPartner.email})\n\nExecuted under HearthAway Global Accommodation Partner Framework.`;
+                      const blob = new Blob([docContent], { type: 'text/plain;charset=utf-8' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${selectedAgreementPartner.partnerId}_Agreement_Executed.txt`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
                     }}
                     className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 cursor-pointer"
                   >

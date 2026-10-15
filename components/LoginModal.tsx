@@ -17,6 +17,7 @@ import {
   Trash2,
   Sparkles,
 } from 'lucide-react';
+import { ProfilePhotoModal } from '@/components/ProfilePhotoModal';
 
 const PRESET_AVATARS = [
   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=160&auto=format&fit=crop&q=80',
@@ -52,6 +53,7 @@ export function LoginModal() {
   const [editAvatarUrl, setEditAvatarUrl] = useState(currentUser?.avatarUrl || '');
   const [profileSaved, setProfileSaved] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
 
   useEffect(() => {
     if (currentUser?.uid) {
@@ -103,11 +105,43 @@ export function LoginModal() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      setEditAvatarUrl(dataUrl);
-      updateCurrentUserProfile({ avatarUrl: dataUrl });
-      setProfileSaved(true);
-      setTimeout(() => setProfileSaved(false), 2500);
+      const rawDataUrl = event.target?.result as string;
+      const img = new window.Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const targetDim = 280;
+          canvas.width = targetDim;
+          canvas.height = targetDim;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            const minDim = Math.min(img.naturalWidth || 280, img.naturalHeight || 280);
+            const startX = ((img.naturalWidth || 280) - minDim) / 2;
+            const startY = ((img.naturalHeight || 280) - minDim) / 2;
+            ctx.drawImage(img, startX, startY, minDim, minDim, 0, 0, targetDim, targetDim);
+            const compressed = canvas.toDataURL('image/jpeg', 0.88);
+            setEditAvatarUrl(compressed);
+            updateCurrentUserProfile({ avatarUrl: compressed });
+            setProfileSaved(true);
+            setTimeout(() => setProfileSaved(false), 2500);
+          } else {
+            setEditAvatarUrl(rawDataUrl);
+            updateCurrentUserProfile({ avatarUrl: rawDataUrl });
+            setProfileSaved(true);
+            setTimeout(() => setProfileSaved(false), 2500);
+          }
+        } catch {
+          setEditAvatarUrl(rawDataUrl);
+          updateCurrentUserProfile({ avatarUrl: rawDataUrl });
+          setProfileSaved(true);
+          setTimeout(() => setProfileSaved(false), 2500);
+        }
+      };
+      img.onerror = () => {
+        setEditAvatarUrl(rawDataUrl);
+        updateCurrentUserProfile({ avatarUrl: rawDataUrl });
+      };
+      img.src = rawDataUrl;
     };
     reader.onerror = () => {
       setUploadError('Error reading file. Please try again.');
@@ -258,13 +292,10 @@ export function LoginModal() {
               <div className="relative group shrink-0">
                 <div className="h-14 w-14 rounded-full overflow-hidden bg-[#00319D] text-[#FFFFFF] flex items-center justify-center ring-2 ring-[#00319D]/20 shadow-xs">
                   {editAvatarUrl ? (
-                    <Image
+                    <img
                       src={editAvatarUrl}
                       alt={editName || 'User'}
-                      width={56}
-                      height={56}
                       className="h-full w-full object-cover"
-                      referrerPolicy="no-referrer"
                     />
                   ) : (
                     <span className="text-base font-extrabold tracking-wide">
@@ -306,14 +337,23 @@ export function LoginModal() {
                 className="hidden"
               />
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-2 text-xs font-semibold text-[#00319D] hover:bg-[#00319D]/10 transition-colors cursor-pointer"
                 >
                   <Upload className="h-3.5 w-3.5" />
-                  Upload Photo from Computer
+                  Upload from Device
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPhotoModalOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#00319D] px-3 py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs cursor-pointer"
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                  Take with Camera
                 </button>
 
                 {editAvatarUrl && (
@@ -404,6 +444,19 @@ export function LoginModal() {
           </div>
         )}
       </div>
+
+      <ProfilePhotoModal
+        isOpen={isPhotoModalOpen}
+        onClose={() => setIsPhotoModalOpen(false)}
+        currentAvatarUrl={editAvatarUrl || currentUser?.avatarUrl}
+        userName={editName || currentUser?.displayName || currentUser?.email}
+        onSavePhoto={(newPhotoUrl) => {
+          setEditAvatarUrl(newPhotoUrl);
+          updateCurrentUserProfile({ avatarUrl: newPhotoUrl });
+          setProfileSaved(true);
+          setTimeout(() => setProfileSaved(false), 2000);
+        }}
+      />
     </div>
   );
 }

@@ -6,6 +6,8 @@ import {
   INITIAL_PAYMENTS,
   INITIAL_ACTIVITIES,
   INITIAL_STUDENTS,
+  INITIAL_PARTNERS,
+  INITIAL_USERS,
 } from '@/lib/mock-data';
 
 export const dynamic = 'force-dynamic';
@@ -28,24 +30,25 @@ async function getOrInitStore(): Promise<AppStore> {
   try {
     const raw = await readFile(STORE_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
-    return {
-      bookings: parsed.bookings || [],
-      payments: parsed.payments || [],
-      activities: parsed.activities || [],
-      students: parsed.students || [],
-      partners: parsed.partners || [],
-      users: parsed.users || [],
+    const store: AppStore = {
+      bookings: parsed.bookings && parsed.bookings.length > 0 ? parsed.bookings : INITIAL_BOOKINGS,
+      payments: parsed.payments && parsed.payments.length > 0 ? parsed.payments : INITIAL_PAYMENTS,
+      activities: parsed.activities && parsed.activities.length > 0 ? parsed.activities : INITIAL_ACTIVITIES,
+      students: parsed.students && parsed.students.length > 0 ? parsed.students : INITIAL_STUDENTS,
+      partners: parsed.partners && parsed.partners.length > 0 ? parsed.partners : INITIAL_PARTNERS,
+      users: parsed.users && parsed.users.length > 0 ? parsed.users : INITIAL_USERS,
       lastUpdated: parsed.lastUpdated || new Date().toISOString(),
     };
+    return store;
   } catch (err) {
     // Initialize default store
     const initialStore: AppStore = {
-      bookings: [],
-      payments: [],
-      activities: [],
-      students: [],
-      partners: [],
-      users: [],
+      bookings: INITIAL_BOOKINGS,
+      payments: INITIAL_PAYMENTS,
+      activities: INITIAL_ACTIVITIES,
+      students: INITIAL_STUDENTS,
+      partners: INITIAL_PARTNERS,
+      users: INITIAL_USERS,
       lastUpdated: new Date().toISOString(),
     };
     await writeFile(STORE_FILE, JSON.stringify(initialStore, null, 2), 'utf-8');

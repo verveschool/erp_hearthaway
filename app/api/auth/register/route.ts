@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       role: role || 'portfolio_owner',
       partnerId: role === 'partner' ? `partner-${Date.now()}` : undefined,
       partnerName: role === 'partner' ? (partnerName || 'Independent Partner') : undefined,
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+      avatarUrl: undefined,
     };
 
     return NextResponse.json({ success: true, user: newUser });

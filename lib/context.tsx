@@ -205,52 +205,93 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   // Restore authenticated session from localStorage if present
   useEffect(() => {
     try {
+      const savedProfile = typeof window !== 'undefined' ? localStorage.getItem('hearthaway_current_user_profile') : null;
+      if (savedProfile) {
+        try {
+          const parsed = JSON.parse(savedProfile);
+          if (parsed && parsed.uid) {
+            queueMicrotask(() => {
+              setCurrentUser(parsed);
+              setIsAuthenticated(true);
+            });
+          }
+        } catch {}
+      }
+
       const savedUid = typeof window !== 'undefined' ? localStorage.getItem('hearthaway_auth_uid') : null;
-      if (savedUid) {
+      if (savedUid && availableUsers.length > 0) {
         const found = availableUsers.find((u) => u.uid === savedUid);
         if (found) {
           queueMicrotask(() => {
             setCurrentUser(found);
             setIsAuthenticated(true);
           });
-        } else {
-          // If the saved UID doesn't match any real existing user, clear stale session
-          try {
-            localStorage.removeItem('hearthaway_auth_uid');
-          } catch {}
         }
       }
-    } catch {
-      // localStorage may be unavailable in some contexts
-    }
+    } catch {}
   }, [availableUsers]);
 
-  // Hydrate from persistent store on mount
+  // Hydrate from persistent store & local backup on mount
   useEffect(() => {
     let isMounted = true;
     async function loadStore() {
+      // 1. Instant hydration from client local storage if available
+      try {
+        const localStudents = localStorage.getItem('hearthaway_backup_students');
+        if (localStudents && isMounted) {
+          const parsed = JSON.parse(localStudents);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            queueMicrotask(() => setStudents(parsed));
+          }
+        }
+        const localPartners = localStorage.getItem('hearthaway_backup_partners');
+        if (localPartners && isMounted) {
+          const parsed = JSON.parse(localPartners);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            queueMicrotask(() => setPartners(parsed));
+          }
+        }
+        const localUsers = localStorage.getItem('hearthaway_backup_users');
+        if (localUsers && isMounted) {
+          const parsed = JSON.parse(localUsers);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            queueMicrotask(() => setAvailableUsers(parsed));
+          }
+        }
+      } catch {}
+
+      // 2. Fetch authoritative data from server API store
       try {
         const res = await fetch('/api/store');
         if (res.ok) {
           const data = await res.json();
           if (isMounted) {
-            if (Array.isArray(data.bookings)) {
+            if (Array.isArray(data.bookings) && data.bookings.length > 0) {
               setBookings(data.bookings);
             }
-            if (Array.isArray(data.payments)) {
+            if (Array.isArray(data.payments) && data.payments.length > 0) {
               setPayments(data.payments);
             }
-            if (Array.isArray(data.activities)) {
+            if (Array.isArray(data.activities) && data.activities.length > 0) {
               setActivities(data.activities);
             }
-            if (Array.isArray(data.students)) {
+            if (Array.isArray(data.students) && data.students.length > 0) {
               setStudents(data.students);
+              try {
+                localStorage.setItem('hearthaway_backup_students', JSON.stringify(data.students));
+              } catch {}
             }
-            if (Array.isArray(data.partners)) {
+            if (Array.isArray(data.partners) && data.partners.length > 0) {
               setPartners(data.partners);
+              try {
+                localStorage.setItem('hearthaway_backup_partners', JSON.stringify(data.partners));
+              } catch {}
             }
-            if (Array.isArray(data.users)) {
+            if (Array.isArray(data.users) && data.users.length > 0) {
               setAvailableUsers(data.users);
+              try {
+                localStorage.setItem('hearthaway_backup_users', JSON.stringify(data.users));
+              } catch {}
             }
           }
         }
@@ -276,6 +317,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     partnerName?: string;
     phone?: string;
     university?: string;
+    avatarUrl?: string;
   }): AppUser => {
     const isPartner = data.role === 'partner';
     const partnerId = isPartner ? `PART-${Math.floor(10000 + Math.random() * 90000)}` : undefined;
@@ -287,17 +329,22 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       role: data.role,
       partnerId,
       partnerName: isPartner ? (data.partnerName || 'Independent Partner') : undefined,
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+      avatarUrl: data.avatarUrl || undefined, // Clean initials badge by default until custom photo upload
     };
 
     setAvailableUsers((prev) => {
       const filtered = prev.filter((u) => u.email.toLowerCase() !== newUser.email);
-      return [newUser, ...filtered];
+      const updated = [newUser, ...filtered];
+      try {
+        localStorage.setItem('hearthaway_backup_users', JSON.stringify(updated));
+      } catch {}
+      return updated;
     });
     setCurrentUser(newUser);
     setIsAuthenticated(true);
     try {
       localStorage.setItem('hearthaway_auth_uid', newUser.uid);
+      localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(newUser));
     } catch (e) {}
 
     // Persist new user in store
@@ -316,12 +363,17 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       const updated = { ...prev, ...updates };
       setAvailableUsers((list) => {
         const index = list.findIndex((u) => u.uid === updated.uid);
+        let next: AppUser[];
         if (index >= 0) {
-          const next = [...list];
+          next = [...list];
           next[index] = updated;
-          return next;
+        } else {
+          next = [...list, updated];
         }
-        return [...list, updated];
+        try {
+          localStorage.setItem('hearthaway_backup_users', JSON.stringify(next));
+        } catch {}
+        return next;
       });
 
       // Persist to store API
@@ -333,6 +385,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
       try {
         localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(updated));
+        if (updated.uid) {
+          localStorage.setItem('hearthaway_auth_uid', updated.uid);
+        }
       } catch (e) {}
 
       return updated;
@@ -345,6 +400,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     setIsAuthenticated(true);
     try {
       localStorage.setItem('hearthaway_auth_uid', user.uid);
+      localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(user));
     } catch (e) {}
     setIsLoginModalOpen(false);
   };
@@ -369,7 +425,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           email: userEmail,
           displayName: user.displayName || 'Authenticated User',
           role: isSuperAdmin ? 'management' : 'portfolio_owner',
-          avatarUrl: user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
+          avatarUrl: user.photoURL || undefined,
         };
         createAccount(newAppUser);
         loginWithUser(newAppUser);
@@ -383,6 +439,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     signOut(auth).catch(() => {});
     try {
       localStorage.removeItem('hearthaway_auth_uid');
+      localStorage.removeItem('hearthaway_current_user_profile');
     } catch (e) {}
     setCurrentUser(DEFAULT_EMPTY_USER);
     setIsAuthenticated(false);

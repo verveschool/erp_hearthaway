@@ -12,17 +12,16 @@ interface BrandLogoProps {
 }
 
 export function BrandLogo({
-  size = 34,
+  size = 36,
   className = '',
 }: BrandLogoProps) {
   return (
     <Image
-      src="/brand/hearthaway-wordmark.svg"
+      src="/brand/hearthaway_icon_transparent_tight.svg"
       alt="HearthAway"
-      width={Math.round(size * 3.5)}
+      width={size}
       height={size}
       className={`object-contain select-none ${className}`}
-      style={{ height: size, width: 'auto' }}
       priority
     />
   );
