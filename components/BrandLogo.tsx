@@ -17,12 +17,12 @@ export function BrandLogo({
 }: BrandLogoProps) {
   return (
     <Image
-      src="/brand/hearthaway_icon_transparent_tight.svg"
+      src="/brand/hearthaway-wordmark.svg"
       alt="HearthAway"
-      width={size}
+      width={Math.round(size * 3.5)}
       height={size}
       className={`object-contain select-none ${className}`}
-      style={{ width: size, height: size }}
+      style={{ height: size, width: 'auto' }}
       priority
     />
   );

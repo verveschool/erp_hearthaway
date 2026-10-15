@@ -116,13 +116,13 @@ export function Navbar() {
         {/* Brand Anchor: Official Attached Transparent Icon */}
         <div className="flex items-center gap-6 lg:gap-8">
           <Link href="/" className="flex items-center focus:outline-none group">
-            <div className="relative h-9 w-9 flex items-center justify-center transition-transform group-hover:scale-105">
+            <div className="relative h-8 w-auto flex items-center transition-transform group-hover:scale-105">
               <Image
-                src="/brand/hearthaway_icon_transparent_tight.svg"
+                src="/brand/hearthaway-wordmark.svg"
                 alt="HearthAway"
-                width={36}
+                width={128}
                 height={36}
-                className="h-full w-full object-contain select-none"
+                className="h-8 w-auto object-contain select-none"
                 priority
               />
             </div>
@@ -152,48 +152,74 @@ export function Navbar() {
           )}
         </div>
 
-        {/* Right Section: Obvious Account Controls & Persona Switcher */}
+        {/* Right Section: Clean Account Controls & Photo */}
         <div className="flex items-center gap-2.5">
           {isAuthenticated ? (
             <div className="relative">
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center gap-2.5 rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] px-3 py-1.5 hover:bg-[#E8E6E1]/60 transition-all text-left focus:outline-none cursor-pointer"
+                className="flex items-center gap-2 rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] px-2.5 py-1.5 hover:bg-[#E8E6E1]/60 transition-all text-left focus:outline-none cursor-pointer"
               >
-                <div className="relative h-7 w-7 rounded-full overflow-hidden ring-1 ring-[#E8E6E1] shrink-0">
-                  <Image
-                    src={currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
-                    alt={currentUser.displayName}
-                    width={28}
-                    height={28}
-                    className="h-full w-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
+                <div className="relative h-7 w-7 rounded-full overflow-hidden ring-1 ring-[#E8E6E1] shrink-0 bg-[#00319D] text-[#FFFFFF] flex items-center justify-center">
+                  {currentUser.avatarUrl ? (
+                    <Image
+                      src={currentUser.avatarUrl}
+                      alt={currentUser.displayName || 'User'}
+                      width={28}
+                      height={28}
+                      className="h-full w-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span className="text-[11px] font-bold">
+                      {(currentUser.displayName || currentUser.email || 'HA')
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </span>
+                  )}
                 </div>
                 <div className="hidden sm:block">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-[#1A1A1A] leading-tight">
-                      {currentUser.displayName}
-                    </span>
-                    <span className="rounded bg-[#00319D]/10 px-1.5 py-0.2 text-[10px] font-bold text-[#00319D] tracking-tight">
-                      {formatRoleLabel(currentUser.role)}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#6B6860] truncate max-w-[150px]">
-                    {currentUser.role === 'partner' ? (currentUser.partnerName || currentUser.partnerId) : currentUser.email}
-                  </p>
+                  <span className="text-xs font-semibold text-[#1A1A1A] leading-tight block">
+                    {currentUser.displayName || 'My Account'}
+                  </span>
                 </div>
                 <ChevronDown className="h-3.5 w-3.5 text-[#6B6860]" />
               </button>
 
               {dropdownOpen && (
                 <div className="absolute right-0 mt-2 w-80 rounded-xl bg-[#FFFFFF] p-2 shadow-lg ring-1 ring-[#1A1A1A]/5 z-50 border border-[#E8E6E1] animate-in fade-in slide-in-from-top-1 duration-150">
-                  <div className="px-3 py-2.5 border-b border-[#E8E6E1] mb-1">
-                    <p className="text-xs font-bold text-[#1A1A1A]">{currentUser.displayName}</p>
-                    <p className="text-[11px] text-[#6B6860]">{currentUser.email}</p>
-                    <div className="mt-1 flex items-center gap-1 text-[10px] text-[#00319D] font-semibold">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[#FCC20A]" />
-                      Active Role: <strong>{formatRoleLabel(currentUser.role)}</strong>
+                  <div className="px-3 py-2.5 border-b border-[#E8E6E1] mb-1 flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full overflow-hidden bg-[#00319D] text-[#FFFFFF] flex items-center justify-center shrink-0 ring-1 ring-[#E8E6E1]">
+                      {currentUser.avatarUrl ? (
+                        <Image
+                          src={currentUser.avatarUrl}
+                          alt={currentUser.displayName || 'User'}
+                          width={40}
+                          height={40}
+                          className="h-full w-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <span className="text-xs font-bold">
+                          {(currentUser.displayName || currentUser.email || 'HA')
+                            .split(' ')
+                            .map((n) => n[0])
+                            .join('')
+                            .slice(0, 2)
+                            .toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#1A1A1A] truncate">{currentUser.displayName || 'Authorized User'}</p>
+                      <p className="text-[11px] text-[#6B6860] truncate">{currentUser.email}</p>
+                      <div className="mt-0.5 flex items-center gap-1 text-[10px] text-[#00319D] font-semibold">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#FCC20A]" />
+                        <span>Role: <strong>{formatRoleLabel(currentUser.role)}</strong></span>
+                      </div>
                     </div>
                   </div>
 
@@ -206,7 +232,7 @@ export function Navbar() {
                       className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] text-left transition-colors"
                     >
                       <Settings className="h-3.5 w-3.5 text-[#00319D]" />
-                      Account Settings &amp; Profile
+                      Account Settings &amp; Upload Photo
                     </button>
 
                     <button

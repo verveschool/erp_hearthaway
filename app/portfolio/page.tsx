@@ -64,17 +64,25 @@ export default function PortfolioPage() {
     if (currentUser.role === 'portfolio_owner') {
       return currentUser.uid;
     }
-    return portfolioOwners[0]?.uid || 'user-po-001';
+    return 'all';
   });
 
   // Effective Owner ID: strictly enforce that portfolio_owner role cannot inspect others
   const effectiveOwnerId = currentUser.role === 'portfolio_owner' ? currentUser.uid : selectedOwnerId;
-  const activeOwner = portfolioOwners.find((po) => po.uid === effectiveOwnerId) || {
-    uid: effectiveOwnerId,
-    displayName: currentUser.displayName,
-    email: currentUser.email,
-    role: 'portfolio_owner',
-  };
+  const activeOwner =
+    effectiveOwnerId === 'all'
+      ? {
+          uid: 'all',
+          displayName: 'All Portfolio Owners (Organization Wide)',
+          email: 'Organization-wide partner & lead rollups',
+          role: 'management',
+        }
+      : portfolioOwners.find((po) => po.uid === effectiveOwnerId) || {
+          uid: effectiveOwnerId,
+          displayName: currentUser.displayName,
+          email: currentUser.email,
+          role: 'portfolio_owner',
+        };
 
   // State for search, filters, and active tab
   const [activeTab, setActiveTab] = useState<'leads' | 'partners'>('leads');
@@ -88,16 +96,26 @@ export default function PortfolioPage() {
   const [reassignModalPartnerId, setReassignModalPartnerId] = useState<string | null>(null);
   const [newOwnerTargetId, setNewOwnerTargetId] = useState<string>('');
 
-  // 1. Partners onboarded by the active Portfolio Owner
+  // 1. Partners onboarded by the active Portfolio Owner (or all partners if viewing 'all')
   const onboardedPartners = useMemo(() => {
-    return partners.filter((p) => p.portfolioOwnerId === effectiveOwnerId);
-  }, [partners, effectiveOwnerId]);
+    if (effectiveOwnerId === 'all') {
+      return partners;
+    }
+    const matching = partners.filter((p) => p.portfolioOwnerId === effectiveOwnerId);
+    if (matching.length === 0 && isManagement) {
+      return partners;
+    }
+    return matching;
+  }, [partners, effectiveOwnerId, isManagement]);
 
   // 2. Leads dynamically derived from those onboarded partners
   const portfolioLeads = useMemo(() => {
+    if (effectiveOwnerId === 'all' || (isManagement && onboardedPartners.length === partners.length)) {
+      return students;
+    }
     const partnerIds = new Set(onboardedPartners.map((p) => p.partnerId));
     return students.filter((s) => partnerIds.has(s.partnerId));
-  }, [students, onboardedPartners]);
+  }, [students, onboardedPartners, effectiveOwnerId, isManagement, partners.length]);
 
   // Portfolio level metrics
   const metrics = useMemo(() => {
@@ -195,6 +213,7 @@ export default function PortfolioPage() {
                   onChange={(e) => setSelectedOwnerId(e.target.value)}
                   className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-bold text-[#1A1A1A] focus:outline-none focus:border-[#00319D] cursor-pointer"
                 >
+                  <option value="all">All Portfolios ({partners.length} partners)</option>
                   {portfolioOwners.map((owner) => (
                     <option key={owner.uid} value={owner.uid}>
                       {owner.displayName} ({partners.filter((p) => p.portfolioOwnerId === owner.uid).length} partners)

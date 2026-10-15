@@ -76,6 +76,7 @@ interface HearthAwayContextType {
     explicitPartnerName?: string
   ) => { importedCount: number; duplicatesCount: number; errorsCount: number; importedLeads: Student[] };
   onboardNewPartner: (partnerData: any) => Partner;
+  updatePartner: (partnerId: string, updates: Partial<Partner>) => void;
   submitPartnerLead: (lead: {
     fullName: string;
     phone: string;
@@ -313,9 +314,27 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const updateCurrentUserProfile = (updates: Partial<AppUser>) => {
     setCurrentUser((prev) => {
       const updated = { ...prev, ...updates };
-      setAvailableUsers((list) =>
-        list.map((u) => (u.uid === updated.uid ? updated : u))
-      );
+      setAvailableUsers((list) => {
+        const index = list.findIndex((u) => u.uid === updated.uid);
+        if (index >= 0) {
+          const next = [...list];
+          next[index] = updated;
+          return next;
+        }
+        return [...list, updated];
+      });
+
+      // Persist to store API
+      fetch('/api/store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save_user', payload: updated }),
+      }).catch((err) => console.warn('Could not persist user update to store:', err));
+
+      try {
+        localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(updated));
+      } catch (e) {}
+
       return updated;
     });
   };
@@ -457,8 +476,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   // Reassign a Partner's Portfolio Owner (Relational update automatically rolls up across all that partner's leads!)
   const reassignPartnerPortfolioOwner = (partnerId: string, newOwnerId: string, newOwnerName: string) => {
-    setPartners((prev) =>
-      prev.map((p) => {
+    setPartners((prev) => {
+      const updated = prev.map((p) => {
         if (p.partnerId === partnerId || p.id === partnerId) {
           return {
             ...p,
@@ -469,14 +488,26 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           };
         }
         return p;
-      })
-    );
+      });
+
+      fetch('/api/store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_all', payload: { partners: updated } }),
+      }).catch((err) => console.error('Failed to persist partner reassignment:', err));
+
+      try {
+        localStorage.setItem('hearthaway_backup_partners', JSON.stringify(updated));
+      } catch (e) {}
+
+      return updated;
+    });
   };
 
   // Reassign Sales Owner on a lead (independent of partner & portfolio owner)
   const reassignLeadSalesOwner = (studentId: string, newSalesOwnerId: string, newSalesOwnerName: string) => {
-    setStudents((prev) =>
-      prev.map((s) => {
+    setStudents((prev) => {
+      const updated = prev.map((s) => {
         if (s.studentId === studentId || s.id === studentId) {
           logStudentActivity(
             s.studentId,
@@ -497,18 +528,78 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           };
         }
         return s;
-      })
-    );
+      });
+
+      fetch('/api/store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_all', payload: { students: updated } }),
+      }).catch((err) => console.error('Failed to persist sales owner reassignment:', err));
+
+      try {
+        localStorage.setItem('hearthaway_backup_students', JSON.stringify(updated));
+      } catch (e) {}
+
+      return updated;
+    });
   };
 
-  // Onboard New Partner with required Portfolio Owner
+  // Onboard New Partner with required Portfolio Owner, City, State and Agreement
   const onboardNewPartner = (partnerData: any): Partner => {
     const newPartner: Partner = {
       id: `part-${partnerData.partnerId.toLowerCase()}`,
+      city: partnerData.city || 'Mumbai',
+      state: partnerData.state || 'Maharashtra',
+      country: partnerData.country || 'India',
+      agreementStatus: partnerData.agreementStatus || 'Active',
+      agreementType: partnerData.agreementType || 'Master Services Agreement (MSA)',
+      agreementTerms: partnerData.agreementTerms || '20% Net Revenue Commission, 30-day payout window',
+      agreementSignedDate: partnerData.agreementSignedDate || new Date().toISOString().split('T')[0],
+      agreementExpiryDate: partnerData.agreementExpiryDate || new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+      agreementDocumentUrl: partnerData.agreementDocumentUrl || '',
       ...partnerData,
     };
-    setPartners((prev) => [newPartner, ...prev]);
+
+    setPartners((prev) => {
+      const updated = [newPartner, ...prev];
+      fetch('/api/store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_all', payload: { partners: updated } }),
+      }).catch((err) => console.error('Failed to persist partner:', err));
+
+      try {
+        localStorage.setItem('hearthaway_backup_partners', JSON.stringify(updated));
+      } catch (e) {}
+
+      return updated;
+    });
+
     return newPartner;
+  };
+
+  // Update Partner (including Agreement Details, City, State, Status)
+  const updatePartner = (partnerId: string, updates: Partial<Partner>) => {
+    setPartners((prev) => {
+      const updated = prev.map((p) => {
+        if (p.partnerId === partnerId || p.id === partnerId) {
+          return { ...p, ...updates };
+        }
+        return p;
+      });
+
+      fetch('/api/store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_all', payload: { partners: updated } }),
+      }).catch((err) => console.error('Failed to persist partner update:', err));
+
+      try {
+        localStorage.setItem('hearthaway_backup_partners', JSON.stringify(updated));
+      } catch (e) {}
+
+      return updated;
+    });
   };
 
   // CSV Bulk Lead Import
@@ -614,13 +705,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         createdAt: formattedTimestamp,
         updatedAt: formattedTimestamp,
         notes: lead.notes || 'Imported via CSV Bulk Upload.',
-        // Archival & Test Record identification
-        isTestRecord: true,
-        archivalStatus: 'Flagged For Archival',
-        archivalTag: 'CSV Import Validation',
-        archivalReason: 'Imported during CSV batch validation test',
-        flaggedAt: formattedTimestamp,
-        flaggedBy: currentUser.displayName,
+        // Production Record Identification
+        isTestRecord: false,
+        archivalStatus: 'Active',
       };
 
       newRecords.push(record);
@@ -634,6 +721,11 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'sync_all', payload: { students: updated } }),
         }).catch((err) => console.error('Failed to persist imported leads:', err));
+
+        try {
+          localStorage.setItem('hearthaway_backup_students', JSON.stringify(updated));
+        } catch (e) {}
+
         return updated;
       });
     }
@@ -760,8 +852,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       notes?: string;
     }
   ) => {
-    setStudents((prev) =>
-      prev.map((s) => {
+    setStudents((prev) => {
+      const updated = prev.map((s) => {
         if (s.studentId !== studentId && s.id !== studentId) return s;
 
         const now = new Date();
@@ -824,8 +916,20 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           ...updates,
           updatedAt: updatedTime,
         };
-      })
-    );
+      });
+
+      fetch('/api/store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_all', payload: { students: updated } }),
+      }).catch((err) => console.error('Failed to persist student status updates:', err));
+
+      try {
+        localStorage.setItem('hearthaway_backup_students', JSON.stringify(updated));
+      } catch (e) {}
+
+      return updated;
+    });
   };
 
   // Record Property Booking (Student 1 -> Many Property Bookings)
@@ -1317,6 +1421,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         reassignLeadSalesOwner,
         bulkImportPartnerLeads,
         onboardNewPartner,
+        updatePartner,
         submitPartnerLead,
         updateStudentDecoupledStatus,
         recordPropertyBooking,

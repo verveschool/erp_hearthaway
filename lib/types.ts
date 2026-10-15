@@ -182,6 +182,18 @@ export type Payment = z.infer<typeof PaymentSchema>;
 // ==========================================
 // PARTNER SCHEMA (B2B)
 // ==========================================
+export const AgreementStatusSchema = z.enum([
+  'Signed',
+  'Active',
+  'Pending Review',
+  'Under Review',
+  'Pending Signature',
+  'Draft',
+  'Expired',
+  'Terminated',
+]);
+export type AgreementStatus = z.infer<typeof AgreementStatusSchema>;
+
 export const PartnerSchema = z.object({
   id: z.string(),
   partnerId: z.string().regex(/^PART-\d{5}$/), // e.g. PART-00482
@@ -191,13 +203,21 @@ export const PartnerSchema = z.object({
   email: z.string().email(),
   phone: z.string(),
   website: z.string().optional(),
+  city: z.string().default('Mumbai'),
+  state: z.string().default('Maharashtra'),
+  country: z.string().default('India'),
   countries: z.array(z.string()).default([]),
   cities: z.array(z.string()).default([]),
   portfolioOwnerId: z.string(),
   portfolioOwnerName: z.string(),
   assignedManagerId: z.string().optional().default(''),
   assignedManagerName: z.string().optional().default(''),
-  agreementStatus: z.enum(['Signed', 'Pending Review', 'Draft']).default('Signed'),
+  agreementStatus: AgreementStatusSchema.default('Active'),
+  agreementType: z.string().default('Master Services Agreement (MSA)'),
+  agreementSignedDate: z.string().optional(),
+  agreementExpiryDate: z.string().optional(),
+  agreementTerms: z.string().optional().default('20% Net Revenue Commission, 30-day payout window'),
+  agreementDocumentUrl: z.string().optional(),
   status: z.enum(['Active', 'Prospect', 'Contacted', 'Negotiation', 'Onboarding', 'Dormant']).default('Active'),
   onboardingDate: z.string(),
   commissionRate: z.number().default(20), // % of HearthAway revenue

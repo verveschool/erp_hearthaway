@@ -108,6 +108,32 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      case 'save_partner': {
+        const partner = payload;
+        const existingIdx = (store.partners || []).findIndex(
+          (p) => p.partnerId === partner.partnerId || p.id === partner.id
+        );
+        if (existingIdx >= 0) {
+          store.partners[existingIdx] = { ...store.partners[existingIdx], ...partner };
+        } else {
+          store.partners = [partner, ...(store.partners || [])];
+        }
+        break;
+      }
+
+      case 'save_student': {
+        const student = payload;
+        const existingIdx = (store.students || []).findIndex(
+          (s) => s.studentId === student.studentId || s.id === student.id
+        );
+        if (existingIdx >= 0) {
+          store.students[existingIdx] = { ...store.students[existingIdx], ...student };
+        } else {
+          store.students = [student, ...(store.students || [])];
+        }
+        break;
+      }
+
       case 'save_user': {
         const user = payload;
         const existingIdx = (store.users || []).findIndex(
