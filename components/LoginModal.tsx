@@ -219,10 +219,9 @@ export function LoginModal() {
                   <input
                     type="email"
                     required
-                    placeholder="name@hearthaway.com"
                     value={signinEmail}
                     onChange={(e) => setSigninEmail(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-hidden"
+                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-hidden"
                   />
                 </div>
               </div>
@@ -235,10 +234,9 @@ export function LoginModal() {
                   <Key className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
                   <input
                     type="password"
-                    placeholder="••••••••••••"
                     value={signinPassword}
                     onChange={(e) => setSigninPassword(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-hidden"
+                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-hidden"
                   />
                 </div>
               </div>
@@ -250,45 +248,6 @@ export function LoginModal() {
                 Sign In to System
               </button>
             </form>
-
-            <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-[#E8E6E1]"></div>
-              <span className="flex-shrink mx-3 text-[10px] uppercase font-bold text-[#6B6860] tracking-wider">
-                Or Quick Switch Authorized Account
-              </span>
-              <div className="flex-grow border-t border-[#E8E6E1]"></div>
-            </div>
-
-            {/* Quick 1-Click Role Switcher */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
-              {availableUsers.map((user) => (
-                <button
-                  key={user.uid}
-                  onClick={() => {
-                    loginWithUser(user);
-                    setIsLoginModalOpen(false);
-                  }}
-                  className={`flex items-center gap-2.5 p-2 rounded-lg border text-left transition-all ${
-                    currentUser.uid === user.uid
-                      ? 'border-[#00319D] bg-[#00319D]/5'
-                      : 'border-[#E8E6E1] bg-[#FFFFFF] hover:bg-[#F7F6F3]'
-                  }`}
-                >
-                  <Image
-                    src={user.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
-                    alt={user.displayName}
-                    width={28}
-                    height={28}
-                    className="h-7 w-7 rounded-full object-cover shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-[#1A1A1A] truncate">{user.displayName}</p>
-                    <p className="text-[10px] text-[#00319D] font-medium">{roleLabels[user.role] || user.role}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
           </div>
         )}
 

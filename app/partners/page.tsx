@@ -168,7 +168,7 @@ export default function PartnersPage() {
   // CSV Template Downloader
   const handleDownloadTemplate = () => {
     const csvContent =
-      'Full Name,Email,Phone,University,Destination City,Destination Country,Intake,Budget,Move In Date,Notes\n' +
+      'Full Name,Email,Phone,University,Destination City,Country,Intake,Budget,Move In Date,Notes\n' +
       'Ananya Sharma,ananya.s@example.com,+91 98200 11223,University College London,London,United Kingdom,Sep 2026,380,2026-09-15,Prefers walking distance to Bloomsbury campus\n' +
       'Zubair Khan,zubair.khan@example.com,+971 50 123 4567,University of Manchester,Manchester,United Kingdom,Sep 2026,320,2026-09-12,En-suite room requirement with student visa\n' +
       'Mei Lin,mei.lin@example.com,+852 9123 4567,University of Edinburgh,Edinburgh,United Kingdom,Jan 2027,350,2027-01-08,Postgraduate student looking for quiet residence\n';
@@ -196,24 +196,37 @@ export default function PartnersPage() {
     }
 
     const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
-    const reqHeaders = ['full name', 'email', 'phone', 'university', 'destination city'];
-    const missingHeaders = reqHeaders.filter((rh) => !headers.includes(rh));
+
+    const findHeaderIdx = (...possibleNames: string[]) => {
+      for (const name of possibleNames) {
+        const idx = headers.indexOf(name);
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    };
+
+    const nameIdx = findHeaderIdx('full name', 'name', 'student name', 'student');
+    const emailIdx = findHeaderIdx('email', 'email address', 'student email');
+    const phoneIdx = findHeaderIdx('phone', 'phone number', 'mobile', 'contact number', 'whatsapp');
+    const uniIdx = findHeaderIdx('university', 'uni', 'college', 'institution', 'target university');
+    const cityIdx = findHeaderIdx('destination city', 'city', 'destination', 'target city');
+    const countryIdx = findHeaderIdx('country', 'destination country', 'target country');
+    const intakeIdx = findHeaderIdx('intake', 'session', 'start date', 'term');
+    const budgetIdx = findHeaderIdx('budget', 'weekly budget', 'rent budget');
+    const moveInIdx = findHeaderIdx('move in date', 'move-in date', 'move in', 'check in date');
+    const notesIdx = findHeaderIdx('notes', 'remarks', 'comments', 'preferences');
+
+    const missingHeaders: string[] = [];
+    if (nameIdx === -1) missingHeaders.push('Full Name');
+    if (emailIdx === -1) missingHeaders.push('Email');
+    if (phoneIdx === -1) missingHeaders.push('Phone');
+    if (uniIdx === -1) missingHeaders.push('University');
+    if (cityIdx === -1) missingHeaders.push('Destination City');
 
     if (missingHeaders.length > 0) {
       setCsvParseError(`CSV is missing required columns: ${missingHeaders.join(', ')}`);
       return;
     }
-
-    const nameIdx = headers.indexOf('full name');
-    const emailIdx = headers.indexOf('email');
-    const phoneIdx = headers.indexOf('phone');
-    const uniIdx = headers.indexOf('university');
-    const cityIdx = headers.indexOf('destination city');
-    const countryIdx = headers.indexOf('destination country');
-    const intakeIdx = headers.indexOf('intake');
-    const budgetIdx = headers.indexOf('budget');
-    const moveInIdx = headers.indexOf('move in date');
-    const notesIdx = headers.indexOf('notes');
 
     const parsed: any[] = [];
     const errors: any[] = [];
@@ -311,7 +324,7 @@ export default function PartnersPage() {
 
   const handleUseSampleCSV = () => {
     const sample =
-      'Full Name,Email,Phone,University,Destination City,Destination Country,Intake,Budget,Move In Date,Notes\n' +
+      'Full Name,Email,Phone,University,Destination City,Country,Intake,Budget,Move In Date,Notes\n' +
       'Karan Varma,karan.varma@example.com,+91 98111 22334,Imperial College London,London,United Kingdom,Sep 2026,420,2026-09-18,Engineering MSc candidate\n' +
       'Pooja Nair,pooja.nair@example.com,+91 98222 33445,University of Manchester,Manchester,United Kingdom,Sep 2026,310,2026-09-10,Requires studio with kitchenette\n' +
       'Harshul Mehta,harshul@hearthaway.com,+44 7700 900123,UCL,London,United Kingdom,Sep 2026,350,2026-09-15,Duplicate test lead\n' +
@@ -802,7 +815,7 @@ export default function PartnersPage() {
                       Download Standard CSV Template
                     </h4>
                     <p className="text-[11px] text-[#6B6860] mt-0.5">
-                      Pre-formatted with required headers: Full Name, Email, Phone, University, Destination City.
+                      Pre-formatted standard columns: Full Name, Email, Phone, University, Destination City, Country.
                     </p>
                   </div>
                   <button

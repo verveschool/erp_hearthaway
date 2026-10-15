@@ -19,6 +19,7 @@ interface AppStore {
   activities: any[];
   students: any[];
   partners: any[];
+  users: any[];
   lastUpdated: string;
 }
 
@@ -33,6 +34,7 @@ async function getOrInitStore(): Promise<AppStore> {
       activities: parsed.activities || [],
       students: parsed.students || [],
       partners: parsed.partners || [],
+      users: parsed.users || [],
       lastUpdated: parsed.lastUpdated || new Date().toISOString(),
     };
   } catch (err) {
@@ -43,6 +45,7 @@ async function getOrInitStore(): Promise<AppStore> {
       activities: [],
       students: [],
       partners: [],
+      users: [],
       lastUpdated: new Date().toISOString(),
     };
     await writeFile(STORE_FILE, JSON.stringify(initialStore, null, 2), 'utf-8');
@@ -105,11 +108,38 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      case 'save_user': {
+        const user = payload;
+        const existingIdx = (store.users || []).findIndex(
+          (u) => u.uid === user.uid || u.email?.toLowerCase() === user.email?.toLowerCase()
+        );
+        if (existingIdx >= 0) {
+          store.users[existingIdx] = { ...store.users[existingIdx], ...user };
+        } else {
+          store.users = [user, ...(store.users || [])];
+        }
+        break;
+      }
+
+      case 'clear_all_data': {
+        store.bookings = [];
+        store.payments = [];
+        store.activities = [];
+        store.students = [];
+        store.partners = [];
+        if (payload?.clearUsers) {
+          store.users = [];
+        }
+        break;
+      }
+
       case 'sync_all': {
         if (payload.bookings) store.bookings = payload.bookings;
         if (payload.payments) store.payments = payload.payments;
         if (payload.activities) store.activities = payload.activities;
         if (payload.students) store.students = payload.students;
+        if (payload.partners) store.partners = payload.partners;
+        if (payload.users) store.users = payload.users;
         break;
       }
 

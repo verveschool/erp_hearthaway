@@ -14,8 +14,8 @@ export const metadata: Metadata = {
   title: 'HearthAway - Master Accommodation CRM Platform',
   description: 'Unified master accommodation marketplace CRM with role-isolated workspaces for Students, B2B Partners, and Internal Sales & Management operations.',
   icons: {
-    icon: '/brand/hearthaway-icon-dark.svg',
-    apple: '/brand/hearthaway-icon-dark.svg',
+    icon: '/brand/hearthaway_icon_transparent.svg',
+    apple: '/brand/hearthaway_icon_transparent.svg',
   },
   openGraph: {
     title: 'HearthAway - Master Accommodation CRM Platform',
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({children}: {children: React.ReactNode}) {
   return (
-    <html lang="en" className={manrope.variable}>
+    <html lang="en" className={manrope.variable} suppressHydrationWarning>
       <body className={`${manrope.className} bg-[#F7F6F3] text-[#1A1A1A] antialiased`} suppressHydrationWarning>
         <ClientShell>{children}</ClientShell>
       </body>

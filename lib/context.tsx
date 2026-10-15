@@ -177,11 +177,18 @@ interface HearthAwayContextType {
   flagAllTestRecords: () => Promise<void>;
 }
 
+const DEFAULT_EMPTY_USER: AppUser = {
+  uid: '',
+  email: '',
+  displayName: '',
+  role: 'portfolio_owner',
+};
+
 const HearthAwayContext = createContext<HearthAwayContextType | undefined>(undefined);
 
 export function HearthAwayProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<AppUser>(INITIAL_USERS[0]); // Harshul Mehta (Sales)
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [currentUser, setCurrentUser] = useState<AppUser>(DEFAULT_EMPTY_USER);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [authModalTab, setAuthModalTab] = useState<'signin' | 'signup' | 'manage'>('signin');
   const [availableUsers, setAvailableUsers] = useState<AppUser[]>(INITIAL_USERS);
@@ -193,6 +200,29 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const [activities, setActivities] = useState<Activity[]>(INITIAL_ACTIVITIES);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [hideTestRecords, setHideTestRecords] = useState<boolean>(false);
+
+  // Restore authenticated session from localStorage if present
+  useEffect(() => {
+    try {
+      const savedUid = typeof window !== 'undefined' ? localStorage.getItem('hearthaway_auth_uid') : null;
+      if (savedUid) {
+        const found = availableUsers.find((u) => u.uid === savedUid);
+        if (found) {
+          queueMicrotask(() => {
+            setCurrentUser(found);
+            setIsAuthenticated(true);
+          });
+        } else {
+          // If the saved UID doesn't match any real existing user, clear stale session
+          try {
+            localStorage.removeItem('hearthaway_auth_uid');
+          } catch {}
+        }
+      }
+    } catch {
+      // localStorage may be unavailable in some contexts
+    }
+  }, [availableUsers]);
 
   // Hydrate from persistent store on mount
   useEffect(() => {
@@ -217,6 +247,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
             }
             if (Array.isArray(data.partners)) {
               setPartners(data.partners);
+            }
+            if (Array.isArray(data.users)) {
+              setAvailableUsers(data.users);
             }
           }
         }
@@ -247,8 +280,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const partnerId = isPartner ? `PART-${Math.floor(10000 + Math.random() * 90000)}` : undefined;
     
     const newUser: AppUser = {
-      uid: `user-custom-${Date.now()}`,
-      email: data.email,
+      uid: `user-${Date.now()}`,
+      email: data.email.toLowerCase().trim(),
       displayName: data.displayName,
       role: data.role,
       partnerId,
@@ -256,9 +289,23 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
     };
 
-    setAvailableUsers((prev) => [newUser, ...prev]);
+    setAvailableUsers((prev) => {
+      const filtered = prev.filter((u) => u.email.toLowerCase() !== newUser.email);
+      return [newUser, ...filtered];
+    });
     setCurrentUser(newUser);
     setIsAuthenticated(true);
+    try {
+      localStorage.setItem('hearthaway_auth_uid', newUser.uid);
+    } catch (e) {}
+
+    // Persist new user in store
+    fetch('/api/store', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'save_user', payload: newUser }),
+    }).catch((err) => console.warn('Could not persist user to store:', err));
+
     setIsLoginModalOpen(false);
     return newUser;
   };
@@ -277,6 +324,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const loginWithUser = (user: AppUser) => {
     setCurrentUser(user);
     setIsAuthenticated(true);
+    try {
+      localStorage.setItem('hearthaway_auth_uid', user.uid);
+    } catch (e) {}
     setIsLoginModalOpen(false);
   };
 
@@ -285,24 +335,24 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
+      const userEmail = (user.email || '').toLowerCase();
       
-      // Determine if this user is configured in INITIAL_USERS or superadmin
-      const matched = INITIAL_USERS.find(
-        (u) => u.email.toLowerCase() === (user.email || '').toLowerCase()
+      const matched = availableUsers.find(
+        (u) => u.email.toLowerCase() === userEmail
       );
 
       if (matched) {
         loginWithUser(matched);
       } else {
-        // Super admin email default
-        const isSuperAdmin = user.email === 'tribeverve@gmail.com';
+        const isSuperAdmin = userEmail === 'tribeverve@gmail.com';
         const newAppUser: AppUser = {
           uid: user.uid,
-          email: user.email || 'user@example.com',
+          email: userEmail,
           displayName: user.displayName || 'Authenticated User',
-          role: isSuperAdmin ? 'admin' : 'portfolio_owner',
+          role: isSuperAdmin ? 'management' : 'portfolio_owner',
           avatarUrl: user.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
         };
+        createAccount(newAppUser);
         loginWithUser(newAppUser);
       }
     } catch (err) {
@@ -312,18 +362,22 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   const logout = () => {
     signOut(auth).catch(() => {});
+    try {
+      localStorage.removeItem('hearthaway_auth_uid');
+    } catch (e) {}
+    setCurrentUser(DEFAULT_EMPTY_USER);
     setIsAuthenticated(false);
   };
 
   // Route-level permission evaluator
   const canAccessRoute = (pathname?: string | null): AccessCheckResult => {
     const path = pathname || '/';
-    // Public routes: /
-    if (path === '/' || path === '') {
+    // Public routes: / and /sign-up
+    if (path === '/' || path === '' || path === '/sign-up') {
       return { allowed: true, requiredRoles: [] };
     }
 
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !currentUser?.uid) {
       return { allowed: false, requiredRoles: [], reason: 'unauthenticated' };
     }
 

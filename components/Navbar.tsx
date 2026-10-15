@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useHearthAway } from '@/lib/context';
-import { BrandLogo } from '@/components/BrandLogo';
 import {
   Layers,
   Users,
@@ -29,8 +28,6 @@ export function Navbar() {
   const router = useRouter();
   const {
     currentUser,
-    setCurrentUser,
-    availableUsers,
     isAuthenticated,
     logout,
     openAuthModal,
@@ -45,22 +42,6 @@ export function Navbar() {
   const flaggedPayments = payments.filter((p) => p.isTestRecord || p.archivalStatus === 'Flagged For Archival').length;
   const flaggedBookings = bookings.filter((b) => b.isTestRecord || b.archivalStatus === 'Flagged For Archival').length;
   const totalFlagged = flaggedStudents + flaggedPayments + flaggedBookings;
-
-  const handleSelectRole = (user: AppUser) => {
-    setCurrentUser(user);
-    setDropdownOpen(false);
-    if (user.role === 'management' || user.role === 'admin') {
-      router.push('/portfolio');
-    } else if (user.role === 'portfolio_owner') {
-      router.push('/portfolio');
-    } else if (user.role === 'partner') {
-      router.push('/partners');
-    } else if (user.role === 'finance') {
-      router.push('/finance');
-    } else {
-      router.push('/sales');
-    }
-  };
 
   const isManagement = currentUser.role === 'management' || currentUser.role === 'admin';
 
@@ -132,10 +113,19 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-[#E8E6E1] bg-[#FFFFFF]/95 backdrop-blur-md">
       <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        {/* Brand Anchor */}
+        {/* Brand Anchor: Official Attached Transparent Icon */}
         <div className="flex items-center gap-6 lg:gap-8">
-          <Link href="/" className="flex items-center focus:outline-none">
-            <BrandLogo variant="light" size={36} subtitle="Student Accommodation Platform" />
+          <Link href="/" className="flex items-center focus:outline-none group">
+            <div className="relative h-9 w-9 flex items-center justify-center transition-transform group-hover:scale-105">
+              <Image
+                src="/brand/hearthaway_icon_transparent_tight.svg"
+                alt="HearthAway"
+                width={36}
+                height={36}
+                className="h-full w-full object-contain select-none"
+                priority
+              />
+            </div>
           </Link>
 
           {/* Role-Based Module Navigation: Portfolio | Partners | Sales | Finance */}
@@ -223,6 +213,7 @@ export function Navbar() {
                       onClick={() => {
                         logout();
                         setDropdownOpen(false);
+                        router.push('/');
                       }}
                       className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 text-left transition-colors"
                     >
@@ -230,67 +221,19 @@ export function Navbar() {
                       Sign Out
                     </button>
                   </div>
-
-                  {/* Persona Switcher for Quick Role Testing */}
-                  <div className="mt-2 pt-2 border-t border-[#E8E6E1]">
-                    <span className="px-2.5 text-[10px] font-bold text-[#6B6860] uppercase tracking-wider block mb-1.5">
-                      Switch User &amp; Role (Testing):
-                    </span>
-                    <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
-                      {availableUsers.map((user) => {
-                        const isCurrent = user.uid === currentUser.uid;
-                        return (
-                          <button
-                            key={user.uid}
-                            onClick={() => handleSelectRole(user)}
-                            className={`w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${
-                              isCurrent
-                                ? 'bg-[#00319D]/10 font-bold text-[#00319D]'
-                                : 'hover:bg-[#F7F6F3] text-[#1A1A1A]'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="relative h-5 w-5 rounded-full overflow-hidden shrink-0">
-                                <Image
-                                  src={user.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
-                                  alt=""
-                                  width={20}
-                                  height={20}
-                                  className="h-full w-full object-cover"
-                                  referrerPolicy="no-referrer"
-                                />
-                              </div>
-                              <span className="truncate text-[11px]">{user.displayName}</span>
-                            </div>
-                            <span className="text-[10px] font-semibold text-[#6B6860] ml-2 shrink-0">
-                              {formatRoleLabel(user.role)}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => openAuthModal('signin')}
-                className="flex items-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] transition-colors"
+            pathname === '/sign-up' && (
+              <Link
+                href="/"
+                className="flex items-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3.5 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] transition-colors"
               >
                 <LogIn className="h-3.5 w-3.5 text-[#00319D]" />
                 Sign In
-              </button>
-
-              <button
-                onClick={() => openAuthModal('signup')}
-                className="flex items-center gap-1.5 rounded-lg bg-[#00319D] px-3.5 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs"
-              >
-                <UserPlus className="h-3.5 w-3.5" />
-                Create Account
-              </button>
-            </div>
+              </Link>
+            )
           )}
         </div>
       </div>

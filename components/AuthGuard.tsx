@@ -45,26 +45,19 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             <span className="inline-block rounded-md bg-[#F7F6F3] border border-[#E8E6E1] px-2.5 py-0.5 text-[10px] font-bold text-[#00319D] uppercase tracking-wider">
               Account Required
             </span>
-            <h2 className="text-xl font-bold text-[#1A1A1A]">Sign In or Create an Account</h2>
+            <h2 className="text-xl font-bold text-[#1A1A1A]">Sign In Required</h2>
             <p className="text-xs text-[#6B6860] leading-relaxed">
-              The workspace at <strong className="font-mono text-[#1A1A1A]">{pathname}</strong> requires an authenticated account to protect student data and tenancy records.
+              The workspace at <strong className="font-mono text-[#1A1A1A]">{pathname}</strong> requires an authorized account to protect operational records.
             </p>
           </div>
 
           <div className="space-y-2.5">
-            <button
-              onClick={() => setIsLoginModalOpen(true)}
-              className="w-full rounded-lg bg-[#00319D] px-4 py-2.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors"
-            >
-              Sign In to Your Account
-            </button>
-
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6B6860] hover:text-[#1A1A1A] transition-colors"
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#00319D] px-4 py-2.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors"
             >
-              <Home className="h-3.5 w-3.5" />
-              Return to HearthAway Home
+              Go to Sign In
+              <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </div>

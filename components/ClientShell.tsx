@@ -6,7 +6,7 @@ import { Navbar } from '@/components/Navbar';
 import { StudentDetailDrawer } from '@/components/StudentDetailDrawer';
 import { AuthGuard } from '@/components/AuthGuard';
 import { LoginModal } from '@/components/LoginModal';
-import { BrandLogo } from '@/components/BrandLogo';
+import Image from 'next/image';
 
 export function ClientShell({ children }: { children: React.ReactNode }) {
   return (
@@ -18,9 +18,14 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         </main>
         <footer className="border-t border-[#E8E6E1] bg-[#FFFFFF] py-6 text-xs text-[#6B6860]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2.5">
-              <BrandLogo variant="light" size={24} showWordmark={false} />
-              <span className="font-semibold text-[#1A1A1A]">HearthAway</span>
+            <div className="flex items-center">
+              <Image
+                src="/brand/hearthaway_icon_transparent_tight.svg"
+                alt="HearthAway"
+                width={24}
+                height={24}
+                className="h-6 w-6 object-contain select-none opacity-90 hover:opacity-100 transition-opacity"
+              />
             </div>
             <div className="text-[11px] text-[#6B6860]">
               © 2026 JIRAIYA EDUCATION LLP

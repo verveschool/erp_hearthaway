@@ -1654,6 +1654,17 @@ export function StudentDetailDrawer() {
                           <span className="text-[10px] text-[#6B6860]">{act.timestamp}</span>
                         </div>
                         <p className="text-[#6B6860]">{act.description}</p>
+                        {act.oldValue && act.newValue && (
+                          <div className="flex items-center gap-1.5 pt-1 text-[11px]">
+                            <span className="rounded bg-[#F7F6F3] border border-[#E8E6E1] px-2 py-0.5 text-[#6B6860]">
+                              {act.oldValue}
+                            </span>
+                            <span className="text-[#6B6860] font-bold">→</span>
+                            <span className="rounded bg-[#00319D]/10 border border-[#00319D]/20 px-2 py-0.5 font-bold text-[#00319D]">
+                              {act.newValue}
+                            </span>
+                          </div>
+                        )}
                         <div className="pt-1 text-[10px] text-[#6B6860] flex items-center gap-1.5">
                           <User className="h-3 w-3" />
                           <span>Logged by: <strong className="text-[#1A1A1A]">{act.performedBy.name}</strong> ({act.performedBy.role})</span>
