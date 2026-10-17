@@ -16,6 +16,9 @@ import {
   Camera,
   Trash2,
   Sparkles,
+  AlertCircle,
+  ArrowLeft,
+  Send,
 } from 'lucide-react';
 import { ProfilePhotoModal } from '@/components/ProfilePhotoModal';
 
@@ -37,6 +40,8 @@ export function LoginModal() {
     availableUsers,
     currentUser,
     loginWithUser,
+    loginWithEmailPassword,
+    resetPassword,
     createAccount,
     updateCurrentUserProfile,
     logout,
@@ -47,6 +52,13 @@ export function LoginModal() {
   // Sign in state
   const [signinEmail, setSigninEmail] = useState('');
   const [signinPassword, setSigninPassword] = useState('');
+
+  // Password recovery state
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetError, setResetError] = useState('');
 
   // Profile update state
   const [editName, setEditName] = useState(currentUser?.displayName || '');
@@ -66,25 +78,33 @@ export function LoginModal() {
 
   if (!isLoginModalOpen) return null;
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanEmail = signinEmail.toLowerCase().trim();
     if (!cleanEmail) return;
 
-    const match = availableUsers.find(
-      (u) => u.email.toLowerCase() === cleanEmail
-    );
-    if (match) {
-      loginWithUser(match);
-      setIsLoginModalOpen(false);
-    } else {
-      const newUser = createAccount({
-        displayName: cleanEmail.split('@')[0] || 'Operations Specialist',
-        email: cleanEmail,
-        role: 'portfolio_owner',
-      });
-      loginWithUser(newUser);
-      setIsLoginModalOpen(false);
+    await loginWithEmailPassword(cleanEmail, signinPassword);
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    setResetSuccess(false);
+
+    const cleanEmail = (forgotEmail || signinEmail).toLowerCase().trim();
+    if (!cleanEmail) {
+      setResetError('Please enter a valid work email address.');
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      await resetPassword(cleanEmail);
+      setResetSuccess(true);
+    } catch (err: any) {
+      setResetError(err?.message || 'Unable to send password reset email. Please verify your email address.');
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -239,48 +259,142 @@ export function LoginModal() {
           </button>
         </div>
 
-        {/* TAB 1: SIGN IN */}
+        {/* TAB 1: SIGN IN / FORGOT PASSWORD */}
         {authModalTab === 'signin' && (
           <div className="space-y-4">
-            <form onSubmit={handleSignIn} className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
-                  <input
-                    type="email"
-                    required
-                    value={signinEmail}
-                    onChange={(e) => setSigninEmail(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-hidden"
-                  />
+            {!isForgotPassword ? (
+              <form onSubmit={handleSignIn} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
+                    <input
+                      type="email"
+                      required
+                      value={signinEmail}
+                      onChange={(e) => setSigninEmail(e.target.value)}
+                      className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-hidden"
+                      placeholder="e.g. alex@hearthaway.com"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
-                  Password
-                </label>
-                <div className="relative">
-                  <Key className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
-                  <input
-                    type="password"
-                    value={signinPassword}
-                    onChange={(e) => setSigninPassword(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-hidden"
-                  />
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-[#1A1A1A]">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsForgotPassword(true);
+                        setForgotEmail(signinEmail);
+                        setResetSuccess(false);
+                        setResetError('');
+                      }}
+                      className="text-[11px] font-semibold text-[#00319D] hover:underline cursor-pointer"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Key className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
+                    <input
+                      type="password"
+                      value={signinPassword}
+                      onChange={(e) => setSigninPassword(e.target.value)}
+                      className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-hidden"
+                      placeholder="••••••••"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <button
-                type="submit"
-                className="w-full rounded-lg bg-[#00319D] py-2.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs cursor-pointer"
-              >
-                Sign In to System
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-[#00319D] py-2.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <LogIn className="h-4 w-4" />
+                  <span>Sign In to System</span>
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div className="rounded-lg bg-[#00319D]/5 border border-[#00319D]/15 p-3 flex items-start gap-2.5">
+                  <Key className="h-4 w-4 text-[#00319D] shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-xs font-bold text-[#00319D]">Recover Account Access</h4>
+                    <p className="text-[11px] text-[#6B6860] mt-0.5">
+                      Enter your account email below. We&apos;ll send a password reset link directly via Firebase Authentication.
+                    </p>
+                  </div>
+                </div>
+
+                {resetSuccess && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 flex items-start gap-2 text-xs text-emerald-800">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Password Reset Link Sent!</p>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        Please check your email inbox for instructions to reset your password.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {resetError && (
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 flex items-start gap-2 text-xs text-rose-800">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Reset Request Failed</p>
+                      <p className="text-[11px] text-rose-700 mt-0.5">{resetError}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
+                    Registered Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
+                    <input
+                      type="email"
+                      required
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-hidden"
+                      placeholder="e.g. user@hearthaway.com"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsForgotPassword(false);
+                      setResetSuccess(false);
+                      setResetError('');
+                    }}
+                    className="flex-1 rounded-lg border border-[#E8E6E1] py-2 text-xs font-semibold text-[#6B6860] hover:bg-[#F7F6F3] transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Back to Sign In
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={resetLoading}
+                    className="flex-1 rounded-lg bg-[#00319D] py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    <span>{resetLoading ? 'Sending...' : 'Send Reset Link'}</span>
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         )}
 

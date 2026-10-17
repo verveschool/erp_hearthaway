@@ -21,152 +21,82 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // Retrieve role from either Custom Claims or trusted /users/{uid} document
     function getUserRole() {
       return request.auth.token.role != null 
         ? request.auth.token.role 
         : (hasUserDoc() ? getUserDoc().role : 'none');
     }
 
-    function getPartnerId() {
-      return request.auth.token.partnerId != null 
-        ? request.auth.token.partnerId 
-        : (hasUserDoc() && getUserDoc().partnerId != null ? getUserDoc().partnerId : 'none');
-    }
-
     function isSuperAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'tribeverve@gmail.com' ||
-        getUserRole() == 'admin'
+        getUserRole() == 'admin' ||
+        getUserRole() == 'management'
       );
     }
 
-    function isManagement() {
-      return isSuperAdmin() || (isSignedIn() && getUserRole() == 'management');
-    }
-
-    function isInternalStaff() {
-      return isManagement() || (isSignedIn() && (
-        getUserRole() == 'sales' ||
-        getUserRole() == 'finance'
-      ));
-    }
-
-    function isPartner() {
-      return isSignedIn() && getUserRole() == 'partner';
-    }
-
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    // Test connection doc
+    // Connection test document
     match /test/{docId} {
-      allow read: if true;
-      allow write: if isSuperAdmin();
+      allow read, write: if true;
     }
 
     // User profiles & roles
     match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isInternalStaff());
-      allow create, update: if isSignedIn() && (request.auth.uid == userId || isManagement());
-      allow delete: if isManagement();
+      allow read, create, update: if isSignedIn();
+      allow delete: if isSuperAdmin();
     }
 
     // Students master collection
     match /students/{studentId} {
-      allow read: if isSignedIn() && (
-        isInternalStaff() ||
-        (isPartner() && resource.data.partnerId == getPartnerId()) ||
-        (request.auth.uid == resource.data.studentId || request.auth.token.email == resource.data.email)
-      );
+      allow read, create, update: if isSignedIn();
+      allow delete: if isSuperAdmin();
 
-      allow create: if isSignedIn() && (
-        isInternalStaff() ||
-        (isPartner() && request.resource.data.partnerId == getPartnerId())
-      );
-
-      allow update: if isSignedIn() && (
-        isInternalStaff() ||
-        (isPartner() && resource.data.partnerId == getPartnerId() && 
-         request.resource.data.partnerId == resource.data.partnerId) ||
-        (request.auth.uid == resource.data.studentId && 
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['passportStatus', 'roomPreference', 'budget', 'phone', 'whatsApp']))
-      );
-
-      allow delete: if isManagement();
-
-      // Activities audit trail - Append only!
+      // Activities audit trail - Append only
       match /activities/{activityId} {
-        allow read: if isSignedIn() && (
-          isInternalStaff() ||
-          (isPartner() && get(/databases/$(database)/documents/students/$(studentId)).data.partnerId == getPartnerId())
-        );
-        allow create: if isSignedIn();
-        allow update, delete: if false; // Immutable audit log
+        allow read, create: if isSignedIn();
+        allow update, delete: if false;
       }
+    }
+
+    // Top-level Activities audit log
+    match /activities/{activityId} {
+      allow read, create, update: if isSignedIn();
+      allow delete: if isSuperAdmin();
     }
 
     // Payments collection
     match /payments/{paymentId} {
-      allow read: if isSignedIn() && (
-        isInternalStaff() ||
-        (isPartner() && resource.data.partnerId == getPartnerId()) ||
-        (request.auth.uid == resource.data.studentId)
-      );
-      allow create: if isSignedIn() && (
-        isInternalStaff() ||
-        request.auth.uid == request.resource.data.studentId
-      );
-      allow update: if isInternalStaff();
-      allow delete: if isManagement();
+      allow read, create, update: if isSignedIn();
+      allow delete: if isSuperAdmin();
     }
 
     // Partners collection
     match /partners/{partnerId} {
-      allow read: if isSignedIn() && (
-        isInternalStaff() ||
-        (isPartner() && partnerId == getPartnerId())
-      );
-      allow create, update: if isManagement();
+      allow read, create, update: if isSignedIn();
       allow delete: if isSuperAdmin();
     }
 
     // Properties & Inventory
     match /properties/{propertyId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isInternalStaff();
+      allow read, create, update: if isSignedIn();
+      allow delete: if isSuperAdmin();
     }
 
     // Bookings collection
     match /bookings/{bookingId} {
-      allow read: if isSignedIn() && (
-        isInternalStaff() ||
-        (isPartner() && resource.data.partnerId == getPartnerId()) ||
-        (request.auth.uid == resource.data.studentId)
-      );
-      allow create, update: if isInternalStaff();
-      allow delete: if isManagement();
+      allow read, create, update: if isSignedIn();
+      allow delete: if isSuperAdmin();
     }
 
-    // Commissions & Payouts (Restricted to Finance & Management)
+    // Commissions & Payouts
     match /commissions/{commissionId} {
-      allow read, write: if isSignedIn() && (
-        isManagement() ||
-        getUserRole() == 'finance'
-      );
+      allow read, create, update: if isSignedIn();
+      allow delete: if isSuperAdmin();
     }
 
     match /partnerPayouts/{payoutId} {
-      allow read: if isSignedIn() && (
-        isManagement() ||
-        getUserRole() == 'finance' ||
-        (isPartner() && resource.data.partnerId == getPartnerId())
-      );
-      allow write: if isSignedIn() && (
-        isManagement() ||
-        getUserRole() == 'finance'
-      );
+      allow read, create, update: if isSignedIn();
+      allow delete: if isSuperAdmin();
     }
   }
 }

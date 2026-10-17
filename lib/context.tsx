@@ -25,8 +25,24 @@ import {
   INITIAL_PAYMENTS,
   INITIAL_ACTIVITIES,
 } from './mock-data';
-import { auth } from './firebase';
-import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { auth, db, handleFirestoreError, OperationType } from './firebase';
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+} from 'firebase/auth';
+import {
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  onSnapshot,
+} from 'firebase/firestore';
 
 interface AccessCheckResult {
   allowed: boolean;
@@ -43,6 +59,8 @@ interface HearthAwayContextType {
   isAuthenticated: boolean;
   loginWithUser: (user: AppUser) => void;
   loginWithGoogle: () => Promise<void>;
+  loginWithEmailPassword: (email: string, password?: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   logout: () => void;
   isLoginModalOpen: boolean;
   setIsLoginModalOpen: (open: boolean) => void;
@@ -56,6 +74,7 @@ interface HearthAwayContextType {
     partnerName?: string;
     phone?: string;
     university?: string;
+    avatarUrl?: string;
   }) => AppUser;
   updateCurrentUserProfile: (updates: Partial<AppUser>) => void;
   canAccessRoute: (pathname?: string | null) => AccessCheckResult;
@@ -202,106 +221,131 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [hideTestRecords, setHideTestRecords] = useState<boolean>(false);
 
-  // Restore authenticated session from localStorage if present
+  // Real-time Firebase Firestore Sync & Auth state listener
   useEffect(() => {
-    try {
-      const savedProfile = typeof window !== 'undefined' ? localStorage.getItem('hearthaway_current_user_profile') : null;
-      if (savedProfile) {
+    const unsubAuth = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
         try {
-          const parsed = JSON.parse(savedProfile);
-          if (parsed && parsed.uid) {
-            queueMicrotask(() => {
+          const userRef = doc(db, 'users', fbUser.uid);
+          const snap = await getDoc(userRef);
+          if (snap.exists()) {
+            const profile = snap.data() as AppUser;
+            setCurrentUser(profile);
+            setIsAuthenticated(true);
+            try {
+              localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(profile));
+              localStorage.setItem('hearthaway_auth_uid', profile.uid);
+            } catch {}
+          } else {
+            const cleanEmail = (fbUser.email || '').toLowerCase().trim();
+            const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com';
+            const newUser: AppUser = {
+              uid: fbUser.uid,
+              email: cleanEmail,
+              displayName: fbUser.displayName || cleanEmail.split('@')[0] || 'User',
+              role: isSuperAdmin ? 'management' : 'portfolio_owner',
+              avatarUrl: fbUser.photoURL || undefined,
+            };
+            await setDoc(userRef, newUser);
+            setCurrentUser(newUser);
+            setIsAuthenticated(true);
+            try {
+              localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(newUser));
+              localStorage.setItem('hearthaway_auth_uid', newUser.uid);
+            } catch {}
+          }
+        } catch (err) {
+          console.warn('Error fetching Firestore user profile:', err);
+        }
+      } else {
+        try {
+          const savedProfile = typeof window !== 'undefined' ? localStorage.getItem('hearthaway_current_user_profile') : null;
+          if (savedProfile) {
+            const parsed = JSON.parse(savedProfile);
+            if (parsed && parsed.uid) {
               setCurrentUser(parsed);
               setIsAuthenticated(true);
-            });
+            }
           }
         } catch {}
       }
+    });
 
-      const savedUid = typeof window !== 'undefined' ? localStorage.getItem('hearthaway_auth_uid') : null;
-      if (savedUid && availableUsers.length > 0) {
-        const found = availableUsers.find((u) => u.uid === savedUid);
-        if (found) {
-          queueMicrotask(() => {
-            setCurrentUser(found);
-            setIsAuthenticated(true);
-          });
-        }
+    // Real-time Firestore snapshot listeners across all connected users & devices
+    const unsubStudents = onSnapshot(
+      collection(db, 'students'),
+      (snapshot) => {
+        const list = snapshot.docs.map((docSnap) => docSnap.data() as Student);
+        setStudents(list);
+      },
+      (err) => {
+        console.warn('Students listener status:', err.message);
       }
-    } catch {}
-  }, [availableUsers]);
+    );
 
-  // Hydrate from persistent store & local backup on mount
-  useEffect(() => {
-    let isMounted = true;
-    async function loadStore() {
-      // 1. Instant hydration from client local storage if available
-      try {
-        const localStudents = localStorage.getItem('hearthaway_backup_students');
-        if (localStudents && isMounted) {
-          const parsed = JSON.parse(localStudents);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            queueMicrotask(() => setStudents(parsed));
-          }
-        }
-        const localPartners = localStorage.getItem('hearthaway_backup_partners');
-        if (localPartners && isMounted) {
-          const parsed = JSON.parse(localPartners);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            queueMicrotask(() => setPartners(parsed));
-          }
-        }
-        const localUsers = localStorage.getItem('hearthaway_backup_users');
-        if (localUsers && isMounted) {
-          const parsed = JSON.parse(localUsers);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            queueMicrotask(() => setAvailableUsers(parsed));
-          }
-        }
-      } catch {}
-
-      // 2. Fetch authoritative data from server API store
-      try {
-        const res = await fetch('/api/store');
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted) {
-            if (Array.isArray(data.bookings) && data.bookings.length > 0) {
-              setBookings(data.bookings);
-            }
-            if (Array.isArray(data.payments) && data.payments.length > 0) {
-              setPayments(data.payments);
-            }
-            if (Array.isArray(data.activities) && data.activities.length > 0) {
-              setActivities(data.activities);
-            }
-            if (Array.isArray(data.students) && data.students.length > 0) {
-              setStudents(data.students);
-              try {
-                localStorage.setItem('hearthaway_backup_students', JSON.stringify(data.students));
-              } catch {}
-            }
-            if (Array.isArray(data.partners) && data.partners.length > 0) {
-              setPartners(data.partners);
-              try {
-                localStorage.setItem('hearthaway_backup_partners', JSON.stringify(data.partners));
-              } catch {}
-            }
-            if (Array.isArray(data.users) && data.users.length > 0) {
-              setAvailableUsers(data.users);
-              try {
-                localStorage.setItem('hearthaway_backup_users', JSON.stringify(data.users));
-              } catch {}
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Could not load persistent store:', err);
+    const unsubPartners = onSnapshot(
+      collection(db, 'partners'),
+      (snapshot) => {
+        const list = snapshot.docs.map((docSnap) => docSnap.data() as Partner);
+        setPartners(list);
+      },
+      (err) => {
+        console.warn('Partners listener status:', err.message);
       }
-    }
-    loadStore();
+    );
+
+    const unsubBookings = onSnapshot(
+      collection(db, 'bookings'),
+      (snapshot) => {
+        const list = snapshot.docs.map((docSnap) => docSnap.data() as Booking);
+        setBookings(list);
+      },
+      (err) => {
+        console.warn('Bookings listener status:', err.message);
+      }
+    );
+
+    const unsubPayments = onSnapshot(
+      collection(db, 'payments'),
+      (snapshot) => {
+        const list = snapshot.docs.map((docSnap) => docSnap.data() as Payment);
+        setPayments(list);
+      },
+      (err) => {
+        console.warn('Payments listener status:', err.message);
+      }
+    );
+
+    const unsubActivities = onSnapshot(
+      collection(db, 'activities'),
+      (snapshot) => {
+        const list = snapshot.docs.map((docSnap) => docSnap.data() as Activity);
+        setActivities(list);
+      },
+      (err) => {
+        console.warn('Activities listener status:', err.message);
+      }
+    );
+
+    const unsubUsers = onSnapshot(
+      collection(db, 'users'),
+      (snapshot) => {
+        const list = snapshot.docs.map((docSnap) => docSnap.data() as AppUser);
+        setAvailableUsers(list);
+      },
+      (err) => {
+        console.warn('Users listener status:', err.message);
+      }
+    );
+
     return () => {
-      isMounted = false;
+      unsubAuth();
+      unsubStudents();
+      unsubPartners();
+      unsubBookings();
+      unsubPayments();
+      unsubActivities();
+      unsubUsers();
     };
   }, []);
 
@@ -321,25 +365,19 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   }): AppUser => {
     const isPartner = data.role === 'partner';
     const partnerId = isPartner ? `PART-${Math.floor(10000 + Math.random() * 90000)}` : undefined;
-    
+    const uid = `user-${Date.now()}`;
+    const cleanEmail = data.email.toLowerCase().trim();
+
     const newUser: AppUser = {
-      uid: `user-${Date.now()}`,
-      email: data.email.toLowerCase().trim(),
+      uid,
+      email: cleanEmail,
       displayName: data.displayName,
       role: data.role,
       partnerId,
       partnerName: isPartner ? (data.partnerName || 'Independent Partner') : undefined,
-      avatarUrl: data.avatarUrl || undefined, // Clean initials badge by default until custom photo upload
+      avatarUrl: data.avatarUrl || undefined,
     };
 
-    setAvailableUsers((prev) => {
-      const filtered = prev.filter((u) => u.email.toLowerCase() !== newUser.email);
-      const updated = [newUser, ...filtered];
-      try {
-        localStorage.setItem('hearthaway_backup_users', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
     setCurrentUser(newUser);
     setIsAuthenticated(true);
     try {
@@ -347,54 +385,30 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(newUser));
     } catch (e) {}
 
-    // Persist new user in store
-    fetch('/api/store', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'save_user', payload: newUser }),
-    }).catch((err) => console.warn('Could not persist user to store:', err));
+    setDoc(doc(db, 'users', uid), newUser).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `users/${uid}`);
+    });
 
     setIsLoginModalOpen(false);
     return newUser;
   };
 
   const updateCurrentUserProfile = (updates: Partial<AppUser>) => {
-    setCurrentUser((prev) => {
-      const updated = { ...prev, ...updates };
-      setAvailableUsers((list) => {
-        const index = list.findIndex((u) => u.uid === updated.uid);
-        let next: AppUser[];
-        if (index >= 0) {
-          next = [...list];
-          next[index] = updated;
-        } else {
-          next = [...list, updated];
-        }
-        try {
-          localStorage.setItem('hearthaway_backup_users', JSON.stringify(next));
-        } catch {}
-        return next;
-      });
+    if (!currentUser?.uid) return;
+    const updated = { ...currentUser, ...updates };
+    setCurrentUser(updated);
+    try {
+      localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(updated));
+      if (updated.uid) {
+        localStorage.setItem('hearthaway_auth_uid', updated.uid);
+      }
+    } catch (e) {}
 
-      // Persist to store API
-      fetch('/api/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save_user', payload: updated }),
-      }).catch((err) => console.warn('Could not persist user update to store:', err));
-
-      try {
-        localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(updated));
-        if (updated.uid) {
-          localStorage.setItem('hearthaway_auth_uid', updated.uid);
-        }
-      } catch (e) {}
-
-      return updated;
+    setDoc(doc(db, 'users', currentUser.uid), updated, { merge: true }).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.uid}`);
     });
   };
 
-  // Login handler
   const loginWithUser = (user: AppUser) => {
     setCurrentUser(user);
     setIsAuthenticated(true);
@@ -410,29 +424,127 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      const userEmail = (user.email || '').toLowerCase();
-      
-      const matched = availableUsers.find(
-        (u) => u.email.toLowerCase() === userEmail
-      );
+      const userEmail = (user.email || '').toLowerCase().trim();
+      const userRef = doc(db, 'users', user.uid);
 
-      if (matched) {
-        loginWithUser(matched);
-      } else {
+      let profile: AppUser;
+      try {
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          profile = snap.data() as AppUser;
+        } else {
+          const isSuperAdmin = userEmail === 'tribeverve@gmail.com';
+          profile = {
+            uid: user.uid,
+            email: userEmail,
+            displayName: user.displayName || 'Authenticated User',
+            role: isSuperAdmin ? 'management' : 'portfolio_owner',
+            avatarUrl: user.photoURL || undefined,
+          };
+          await setDoc(userRef, profile);
+        }
+      } catch {
         const isSuperAdmin = userEmail === 'tribeverve@gmail.com';
-        const newAppUser: AppUser = {
+        profile = {
           uid: user.uid,
           email: userEmail,
           displayName: user.displayName || 'Authenticated User',
           role: isSuperAdmin ? 'management' : 'portfolio_owner',
           avatarUrl: user.photoURL || undefined,
         };
-        createAccount(newAppUser);
-        loginWithUser(newAppUser);
       }
+
+      setCurrentUser(profile);
+      setIsAuthenticated(true);
+      try {
+        localStorage.setItem('hearthaway_auth_uid', profile.uid);
+        localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(profile));
+      } catch (e) {}
+
+      setIsLoginModalOpen(false);
     } catch (err) {
-      console.warn('Google sign-in completed or cancelled:', err);
+      console.warn('Google sign-in error:', err);
     }
+  };
+
+  const loginWithEmailPassword = async (email: string, password?: string) => {
+    const cleanEmail = email.toLowerCase().trim();
+    if (!cleanEmail) return;
+
+    if (password && password.length >= 6) {
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
+        const fbUser = userCredential.user;
+        const userRef = doc(db, 'users', fbUser.uid);
+        const snap = await getDoc(userRef);
+        let profile: AppUser;
+        if (snap.exists()) {
+          profile = snap.data() as AppUser;
+        } else {
+          const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com';
+          profile = {
+            uid: fbUser.uid,
+            email: cleanEmail,
+            displayName: fbUser.displayName || cleanEmail.split('@')[0],
+            role: isSuperAdmin ? 'management' : 'portfolio_owner',
+          };
+          await setDoc(userRef, profile);
+        }
+        setCurrentUser(profile);
+        setIsAuthenticated(true);
+        try {
+          localStorage.setItem('hearthaway_auth_uid', profile.uid);
+          localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(profile));
+        } catch (e) {}
+        setIsLoginModalOpen(false);
+        return;
+      } catch (err) {
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+          const fbUser = userCredential.user;
+          const userRef = doc(db, 'users', fbUser.uid);
+          const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com';
+          const profile: AppUser = {
+            uid: fbUser.uid,
+            email: cleanEmail,
+            displayName: cleanEmail.split('@')[0],
+            role: isSuperAdmin ? 'management' : 'portfolio_owner',
+          };
+          await setDoc(userRef, profile);
+          setCurrentUser(profile);
+          setIsAuthenticated(true);
+          try {
+            localStorage.setItem('hearthaway_auth_uid', profile.uid);
+            localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(profile));
+          } catch (e) {}
+          setIsLoginModalOpen(false);
+          return;
+        } catch (signUpErr) {
+          console.warn('Firebase email auth fallback:', signUpErr);
+        }
+      }
+    }
+
+    const match = availableUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (match) {
+      loginWithUser(match);
+    } else {
+      const newUser = createAccount({
+        displayName: cleanEmail.split('@')[0] || 'Operations Specialist',
+        email: cleanEmail,
+        role: cleanEmail === 'tribeverve@gmail.com' ? 'management' : 'portfolio_owner',
+      });
+      loginWithUser(newUser);
+    }
+    setIsLoginModalOpen(false);
+  };
+
+  const resetPassword = async (email: string): Promise<void> => {
+    const cleanEmail = email.toLowerCase().trim();
+    if (!cleanEmail) {
+      throw new Error('Please enter a valid email address.');
+    }
+    await sendPasswordResetEmail(auth, cleanEmail);
   };
 
   const logout = () => {
@@ -445,10 +557,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     setIsAuthenticated(false);
   };
 
-  // Route-level permission evaluator
   const canAccessRoute = (pathname?: string | null): AccessCheckResult => {
     const path = pathname || '/';
-    // Public routes: / and /sign-up
     if (path === '/' || path === '' || path === '/sign-up') {
       return { allowed: true, requiredRoles: [] };
     }
@@ -459,33 +569,28 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
     const role = currentUser.role;
 
-    // Management & Admin have full management access across all modules
     if (role === 'admin' || role === 'management') {
       return { allowed: true, requiredRoles: [] };
     }
 
-    // Module 1: Portfolio (management, admin, portfolio_owner)
     if (path.startsWith('/portfolio') || path.startsWith('/internal/management')) {
       const requiredRoles: UserRole[] = ['admin', 'management', 'portfolio_owner'];
       const allowed = requiredRoles.includes(role);
       return { allowed, requiredRoles, reason: allowed ? undefined : 'insufficient_role' };
     }
 
-    // Module 2: Partners (management, admin, partner)
     if (path.startsWith('/partners') || path.startsWith('/partner')) {
       const requiredRoles: UserRole[] = ['admin', 'management', 'partner'];
       const allowed = requiredRoles.includes(role);
       return { allowed, requiredRoles, reason: allowed ? undefined : 'insufficient_role' };
     }
 
-    // Module 3: Sales (management, admin, sales)
     if (path.startsWith('/sales') || path.startsWith('/internal/sales')) {
       const requiredRoles: UserRole[] = ['admin', 'management', 'sales'];
       const allowed = requiredRoles.includes(role);
       return { allowed, requiredRoles, reason: allowed ? undefined : 'insufficient_role' };
     }
 
-    // Module 4: Finance (management, admin, finance)
     if (path.startsWith('/finance') || path.startsWith('/internal/finance')) {
       const requiredRoles: UserRole[] = ['admin', 'management', 'finance'];
       const allowed = requiredRoles.includes(role);
@@ -495,7 +600,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     return { allowed: true, requiredRoles: [] };
   };
 
-  // Helper to append real-time audit log
   const logStudentActivity = (
     studentId: string,
     activityType: string,
@@ -512,15 +616,16 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       minute: '2-digit',
     });
 
+    const actId = `act-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const newActivity: Activity = {
-      id: `act-${Date.now()}`,
+      id: actId,
       activityId: `ACT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
       studentId,
       timestamp: formattedTimestamp,
       performedBy: {
-        userId: currentUser.uid,
-        name: currentUser.displayName,
-        role: currentUser.role,
+        userId: currentUser.uid || 'system',
+        name: currentUser.displayName || 'System User',
+        role: currentUser.role || 'management',
       },
       activityType,
       description,
@@ -528,138 +633,94 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       newValue,
     };
 
-    setActivities((prev) => [newActivity, ...prev]);
+    setDoc(doc(db, 'activities', actId), newActivity).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `activities/${actId}`);
+    });
   };
 
-  // Reassign a Partner's Portfolio Owner (Relational update automatically rolls up across all that partner's leads!)
   const reassignPartnerPortfolioOwner = (partnerId: string, newOwnerId: string, newOwnerName: string) => {
-    setPartners((prev) => {
-      const updated = prev.map((p) => {
-        if (p.partnerId === partnerId || p.id === partnerId) {
-          return {
-            ...p,
-            portfolioOwnerId: newOwnerId,
-            portfolioOwnerName: newOwnerName,
-            assignedManagerId: newOwnerId,
-            assignedManagerName: newOwnerName,
-          };
-        }
-        return p;
-      });
-
-      fetch('/api/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync_all', payload: { partners: updated } }),
-      }).catch((err) => console.error('Failed to persist partner reassignment:', err));
-
-      try {
-        localStorage.setItem('hearthaway_backup_partners', JSON.stringify(updated));
-      } catch (e) {}
-
-      return updated;
-    });
+    const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
+    if (partner) {
+      const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
+      updateDoc(doc(db, 'partners', docId), {
+        portfolioOwnerId: newOwnerId,
+        portfolioOwnerName: newOwnerName,
+        assignedManagerId: newOwnerId,
+        assignedManagerName: newOwnerName,
+      }).catch((err) => handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`));
+    }
   };
 
-  // Reassign Sales Owner on a lead (independent of partner & portfolio owner)
   const reassignLeadSalesOwner = (studentId: string, newSalesOwnerId: string, newSalesOwnerName: string) => {
-    setStudents((prev) => {
-      const updated = prev.map((s) => {
-        if (s.studentId === studentId || s.id === studentId) {
-          logStudentActivity(
-            s.studentId,
-            'Sales Owner Reassigned',
-            `Sales owner changed from ${s.assignedSalesExecutiveName} to ${newSalesOwnerName}`
-          );
-          return {
-            ...s,
-            assignedSalesExecutiveId: newSalesOwnerId,
-            assignedSalesExecutiveName: newSalesOwnerName,
-            updatedAt: new Date().toLocaleString('en-GB', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-          };
-        }
-        return s;
-      });
-
-      fetch('/api/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync_all', payload: { students: updated } }),
-      }).catch((err) => console.error('Failed to persist sales owner reassignment:', err));
-
-      try {
-        localStorage.setItem('hearthaway_backup_students', JSON.stringify(updated));
-      } catch (e) {}
-
-      return updated;
-    });
+    const student = students.find((s) => s.studentId === studentId || s.id === studentId);
+    if (student) {
+      const docId = student.id || `std-${student.studentId.toLowerCase()}`;
+      logStudentActivity(
+        student.studentId,
+        'Sales Owner Reassigned',
+        `Sales owner changed from ${student.assignedSalesExecutiveName} to ${newSalesOwnerName}`
+      );
+      updateDoc(doc(db, 'students', docId), {
+        assignedSalesExecutiveId: newSalesOwnerId,
+        assignedSalesExecutiveName: newSalesOwnerName,
+        updatedAt: new Date().toLocaleString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      }).catch((err) => handleFirestoreError(err, OperationType.WRITE, `students/${docId}`));
+    }
   };
 
-  // Onboard New Partner with required Portfolio Owner, City, State and Agreement
   const onboardNewPartner = (partnerData: any): Partner => {
+    const partnerIdStr = partnerData.partnerId || `PART-${Math.floor(10000 + Math.random() * 90000)}`;
+    const docId = `part-${partnerIdStr.toLowerCase()}`;
     const newPartner: Partner = {
-      id: `part-${partnerData.partnerId.toLowerCase()}`,
+      id: docId,
+      partnerId: partnerIdStr,
+      companyName: partnerData.companyName || 'New Partner',
+      type: partnerData.type || 'Study Abroad Consultant',
+      contactPerson: partnerData.contactPerson || 'Contact Person',
+      email: partnerData.email || 'partner@example.com',
+      phone: partnerData.phone || '+91 98765 43210',
       city: partnerData.city || 'Mumbai',
       state: partnerData.state || 'Maharashtra',
       country: partnerData.country || 'India',
+      countries: partnerData.countries || [],
+      cities: partnerData.cities || [],
+      portfolioOwnerId: partnerData.portfolioOwnerId || currentUser.uid || 'usr-admin-primary',
+      portfolioOwnerName: partnerData.portfolioOwnerName || currentUser.displayName || 'Primary Administrator',
       agreementStatus: partnerData.agreementStatus || 'Active',
       agreementType: partnerData.agreementType || 'Master Services Agreement (MSA)',
       agreementTerms: partnerData.agreementTerms || '20% Net Revenue Commission, 30-day payout window',
       agreementSignedDate: partnerData.agreementSignedDate || new Date().toISOString().split('T')[0],
-      agreementExpiryDate: partnerData.agreementExpiryDate || new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+      agreementExpiryDate: partnerData.agreementExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       agreementDocumentUrl: partnerData.agreementDocumentUrl || '',
+      status: partnerData.status || 'Active',
+      onboardingDate: partnerData.onboardingDate || new Date().toISOString().split('T')[0],
+      commissionRate: partnerData.commissionRate || 20,
       ...partnerData,
     };
 
-    setPartners((prev) => {
-      const updated = [newPartner, ...prev];
-      fetch('/api/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync_all', payload: { partners: updated } }),
-      }).catch((err) => console.error('Failed to persist partner:', err));
-
-      try {
-        localStorage.setItem('hearthaway_backup_partners', JSON.stringify(updated));
-      } catch (e) {}
-
-      return updated;
+    setDoc(doc(db, 'partners', docId), newPartner).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
     });
 
     return newPartner;
   };
 
-  // Update Partner (including Agreement Details, City, State, Status)
   const updatePartner = (partnerId: string, updates: Partial<Partner>) => {
-    setPartners((prev) => {
-      const updated = prev.map((p) => {
-        if (p.partnerId === partnerId || p.id === partnerId) {
-          return { ...p, ...updates };
-        }
-        return p;
+    const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
+    if (partner) {
+      const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
+      updateDoc(doc(db, 'partners', docId), updates).catch((err) => {
+        handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
       });
-
-      fetch('/api/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync_all', payload: { partners: updated } }),
-      }).catch((err) => console.error('Failed to persist partner update:', err));
-
-      try {
-        localStorage.setItem('hearthaway_backup_partners', JSON.stringify(updated));
-      } catch (e) {}
-
-      return updated;
-    });
+    }
   };
 
-  // CSV Bulk Lead Import
   const bulkImportPartnerLeads = (
     incomingLeads: Array<any>,
     explicitPartnerId?: string,
@@ -695,13 +756,11 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       const cleanEmail = (lead.email || '').toLowerCase().trim();
       const cleanPhone = (lead.phone || '').replace(/\D/g, '');
 
-      // Validation check
       if (!lead.fullName || !cleanEmail || !lead.university) {
         errorsCount++;
         return;
       }
 
-      // Duplicate check
       if (existingEmails.has(cleanEmail) || (cleanPhone && existingPhones.has(cleanPhone))) {
         duplicatesCount++;
         return;
@@ -722,8 +781,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           ? salesReps[index % salesReps.length]
           : { uid: 'user-emp-001', displayName: 'Harshul Mehta' };
 
+      const docId = `std-${generatedId.toLowerCase()}`;
       const record: Student = {
-        id: `std-${generatedId.toLowerCase()}`,
+        id: docId,
         studentId: generatedId,
         firstName,
         lastName,
@@ -762,30 +822,15 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         createdAt: formattedTimestamp,
         updatedAt: formattedTimestamp,
         notes: lead.notes || 'Imported via CSV Bulk Upload.',
-        // Production Record Identification
         isTestRecord: false,
         archivalStatus: 'Active',
       };
 
       newRecords.push(record);
-    });
-
-    if (newRecords.length > 0) {
-      setStudents((prev) => {
-        const updated = [...newRecords, ...prev];
-        fetch('/api/store', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'sync_all', payload: { students: updated } }),
-        }).catch((err) => console.error('Failed to persist imported leads:', err));
-
-        try {
-          localStorage.setItem('hearthaway_backup_students', JSON.stringify(updated));
-        } catch (e) {}
-
-        return updated;
+      setDoc(doc(db, 'students', docId), record).catch((err) => {
+        handleFirestoreError(err, OperationType.WRITE, `students/${docId}`);
       });
-    }
+    });
 
     return {
       importedCount: newRecords.length,
@@ -795,7 +840,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     };
   };
 
-  // Partner Lead Submission Form Action
   const submitPartnerLead = (lead: {
     fullName: string;
     phone: string;
@@ -829,8 +873,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       minute: '2-digit',
     });
 
+    const docId = `std-${generatedId.toLowerCase()}`;
     const newStudent: Student = {
-      id: `std-${generatedId.toLowerCase()}`,
+      id: docId,
       studentId: generatedId,
       firstName,
       lastName,
@@ -868,20 +913,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       priority: 'High',
       nextFollowUpAt: 'Within 2 hours (SLA)',
       lastContactAt: 'Never',
-      firstContactAt: undefined,
       createdAt: formattedTimestamp,
       updatedAt: formattedTimestamp,
       notes: lead.notes || 'Submitted via Partners module.',
     };
 
-    setStudents((prev) => {
-      const updated = [newStudent, ...prev];
-      fetch('/api/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync_all', payload: { students: updated } }),
-      }).catch((err) => console.error('Failed to persist lead:', err));
-      return updated;
+    setDoc(doc(db, 'students', docId), newStudent).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `students/${docId}`);
     });
 
     logStudentActivity(
@@ -895,7 +933,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     return newStudent;
   };
 
-  // Decoupled Status Updates
   const updateStudentDecoupledStatus = (
     studentId: string,
     updates: {
@@ -909,87 +946,73 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       notes?: string;
     }
   ) => {
-    setStudents((prev) => {
-      const updated = prev.map((s) => {
-        if (s.studentId !== studentId && s.id !== studentId) return s;
+    const student = students.find((s) => s.studentId === studentId || s.id === studentId);
+    if (!student) return;
 
-        const now = new Date();
-        const updatedTime = now.toLocaleString('en-GB', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
+    const docId = student.id || `std-${student.studentId.toLowerCase()}`;
+    const now = new Date();
+    const updatedTime = now.toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
-        if (updates.leadStatus && updates.leadStatus !== s.leadStatus) {
-          logStudentActivity(
-            s.studentId,
-            'Lead Stage Change',
-            `Changed Lead Status from "${s.leadStatus}" to "${updates.leadStatus}"`,
-            s.leadStatus,
-            updates.leadStatus
-          );
-        }
-        if (updates.accommodationStatus && updates.accommodationStatus !== s.accommodationStatus) {
-          logStudentActivity(
-            s.studentId,
-            'Accommodation Status Change',
-            `Changed Accommodation Status from "${s.accommodationStatus}" to "${updates.accommodationStatus}"`,
-            s.accommodationStatus,
-            updates.accommodationStatus
-          );
-        }
-        if (updates.bookingStatus && updates.bookingStatus !== s.bookingStatus) {
-          logStudentActivity(
-            s.studentId,
-            'Booking Status Change',
-            `Changed Booking Status from "${s.bookingStatus}" to "${updates.bookingStatus}"`,
-            s.bookingStatus,
-            updates.bookingStatus
-          );
-        }
-        if (updates.moveInStatus && updates.moveInStatus !== s.moveInStatus) {
-          logStudentActivity(
-            s.studentId,
-            'Move-in Status Change',
-            `Changed Move-in Status from "${s.moveInStatus}" to "${updates.moveInStatus}"`,
-            s.moveInStatus,
-            updates.moveInStatus
-          );
-        }
-        if (updates.commissionStatus && updates.commissionStatus !== s.commissionStatus) {
-          logStudentActivity(
-            s.studentId,
-            'Commission Status Change',
-            `Changed Commission Status from "${s.commissionStatus}" to "${updates.commissionStatus}"`,
-            s.commissionStatus,
-            updates.commissionStatus
-          );
-        }
+    if (updates.leadStatus && updates.leadStatus !== student.leadStatus) {
+      logStudentActivity(
+        student.studentId,
+        'Lead Stage Change',
+        `Changed Lead Status from "${student.leadStatus}" to "${updates.leadStatus}"`,
+        student.leadStatus,
+        updates.leadStatus
+      );
+    }
+    if (updates.accommodationStatus && updates.accommodationStatus !== student.accommodationStatus) {
+      logStudentActivity(
+        student.studentId,
+        'Accommodation Status Change',
+        `Changed Accommodation Status from "${student.accommodationStatus}" to "${updates.accommodationStatus}"`,
+        student.accommodationStatus,
+        updates.accommodationStatus
+      );
+    }
+    if (updates.bookingStatus && updates.bookingStatus !== student.bookingStatus) {
+      logStudentActivity(
+        student.studentId,
+        'Booking Status Change',
+        `Changed Booking Status from "${student.bookingStatus}" to "${updates.bookingStatus}"`,
+        student.bookingStatus,
+        updates.bookingStatus
+      );
+    }
+    if (updates.moveInStatus && updates.moveInStatus !== student.moveInStatus) {
+      logStudentActivity(
+        student.studentId,
+        'Move-in Status Change',
+        `Changed Move-in Status from "${student.moveInStatus}" to "${updates.moveInStatus}"`,
+        student.moveInStatus,
+        updates.moveInStatus
+      );
+    }
+    if (updates.commissionStatus && updates.commissionStatus !== student.commissionStatus) {
+      logStudentActivity(
+        student.studentId,
+        'Commission Status Change',
+        `Changed Commission Status from "${student.commissionStatus}" to "${updates.commissionStatus}"`,
+        student.commissionStatus,
+        updates.commissionStatus
+      );
+    }
 
-        return {
-          ...s,
-          ...updates,
-          updatedAt: updatedTime,
-        };
-      });
-
-      fetch('/api/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync_all', payload: { students: updated } }),
-      }).catch((err) => console.error('Failed to persist student status updates:', err));
-
-      try {
-        localStorage.setItem('hearthaway_backup_students', JSON.stringify(updated));
-      } catch (e) {}
-
-      return updated;
+    updateDoc(doc(db, 'students', docId), {
+      ...updates,
+      updatedAt: updatedTime,
+    }).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `students/${docId}`);
     });
   };
 
-  // Record Property Booking (Student 1 -> Many Property Bookings)
   const recordPropertyBooking = async (bookingData: {
     studentId: string;
     propertyName: string;
@@ -1025,8 +1048,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       ((bookingData.commissionableAmount * bookingData.commissionRate) / 100).toFixed(2)
     );
 
+    const docId = `bk-${Date.now()}`;
     const newBooking: Booking = {
-      id: `bk-${Date.now()}`,
+      id: docId,
       bookingId,
       bookingReference: bookingData.bookingReference || `REF-${bookingSeq}`,
       studentId: bookingData.studentId,
@@ -1066,14 +1090,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       totalPaid: 0,
     };
 
-    setBookings((prev) => [newBooking, ...prev]);
-
-    // Persist to server store
-    fetch('/api/store', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'save_booking', payload: newBooking }),
-    }).catch((err) => console.error('Failed to persist booking:', err));
+    setDoc(doc(db, 'bookings', docId), newBooking).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `bookings/${docId}`);
+    });
 
     if (bookingData.bookingStatus === 'Confirmed') {
       updateStudentDecoupledStatus(bookingData.studentId, {
@@ -1099,6 +1118,10 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     bookingId: string,
     updates: Partial<Booking>
   ): Promise<void> => {
+    const booking = bookings.find((b) => b.bookingId === bookingId || b.id === bookingId);
+    if (!booking) return;
+
+    const docId = booking.id || `bk-${booking.bookingId.toLowerCase()}`;
     const now = new Date();
     const formattedTimestamp = now.toLocaleString('en-GB', {
       day: '2-digit',
@@ -1108,46 +1131,30 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       minute: '2-digit',
     });
 
-    let updatedTarget: Booking | null = null;
+    const commissionRate = updates.commissionRate !== undefined ? updates.commissionRate : booking.commissionRate;
+    const commissionableAmount = updates.commissionableAmount !== undefined ? updates.commissionableAmount : booking.commissionableAmount;
+    const expectedRevenue = Number(((commissionableAmount * commissionRate) / 100).toFixed(2));
 
-    setBookings((prev) =>
-      prev.map((b) => {
-        if (b.bookingId !== bookingId && b.id !== bookingId) return b;
+    const fieldsToUpdate = {
+      ...updates,
+      commissionRate,
+      commissionableAmount,
+      expectedRevenue,
+      updatedBy: `${currentUser.displayName} (${currentUser.role})`,
+      updatedAt: formattedTimestamp,
+    };
 
-        const commissionRate = updates.commissionRate !== undefined ? updates.commissionRate : b.commissionRate;
-        const commissionableAmount = updates.commissionableAmount !== undefined ? updates.commissionableAmount : b.commissionableAmount;
-        const expectedRevenue = Number(((commissionableAmount * commissionRate) / 100).toFixed(2));
+    updateDoc(doc(db, 'bookings', docId), fieldsToUpdate).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `bookings/${docId}`);
+    });
 
-        const updated: Booking = {
-          ...b,
-          ...updates,
-          commissionRate,
-          commissionableAmount,
-          expectedRevenue,
-          updatedBy: `${currentUser.displayName} (${currentUser.role})`,
-          updatedAt: formattedTimestamp,
-        };
-        updatedTarget = updated;
-        return updated;
-      })
+    logStudentActivity(
+      booking.studentId,
+      'Property Booking Updated',
+      `Property booking ${bookingId} (${updates.propertyName || booking.propertyName}) updated by ${currentUser.displayName}. Status: ${updates.bookingStatus || booking.bookingStatus}. Expected Revenue: ${updates.commissionableCurrency || booking.commissionableCurrency} ${expectedRevenue.toFixed(2)}.`
     );
-
-    if (updatedTarget) {
-      fetch('/api/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save_booking', payload: updatedTarget }),
-      }).catch((err) => console.error('Failed to persist booking update:', err));
-
-      logStudentActivity(
-        (updatedTarget as Booking).studentId,
-        'Property Booking Updated',
-        `Property booking ${bookingId} (${(updatedTarget as Booking).propertyName}) updated by ${currentUser.displayName}. Status: ${(updatedTarget as Booking).bookingStatus}. Expected Revenue: ${(updatedTarget as Booking).commissionableCurrency} ${(updatedTarget as Booking).expectedRevenue.toFixed(2)}.`
-      );
-    }
   };
 
-  // Upload Payment Event (Booking 1 -> Many Payments) with Payment Proofs
   const uploadPaymentTransaction = async (data: {
     studentId: string;
     bookingId?: string;
@@ -1175,8 +1182,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
     const primaryAttachmentUrl = data.attachments?.[0]?.fileUrl || data.screenshotUrl || '';
 
+    const docId = `pay-${Date.now()}`;
     const newPayment: Payment = {
-      id: `pay-${Date.now()}`,
+      id: docId,
       paymentId,
       studentId: data.studentId,
       studentName: student?.fullName || 'Student',
@@ -1198,14 +1206,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       partnerId: student?.partnerId,
     };
 
-    setPayments((prev) => [newPayment, ...prev]);
-
-    // Persist to server store
-    fetch('/api/store', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'save_payment', payload: newPayment }),
-    }).catch((err) => console.error('Failed to persist payment:', err));
+    setDoc(doc(db, 'payments', docId), newPayment).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `payments/${docId}`);
+    });
 
     updateStudentDecoupledStatus(data.studentId, {
       bookingStatus: 'Payment Pending',
@@ -1228,12 +1231,15 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     return newPayment;
   };
 
-  // Verify Payment by Finance/Management
   const verifyPaymentTransaction = async (
     paymentId: string,
     decision: 'Verified' | 'Rejected',
     remarks?: string
   ): Promise<void> => {
+    const payment = payments.find((p) => p.paymentId === paymentId || p.id === paymentId);
+    if (!payment) return;
+
+    const docId = payment.id || `pay-${payment.paymentId.toLowerCase()}`;
     const now = new Date();
     const formattedTimestamp = now.toLocaleString('en-GB', {
       day: '2-digit',
@@ -1243,46 +1249,29 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       minute: '2-digit',
     });
 
-    let updatedPmt: Payment | null = null;
-
-    setPayments((prev) =>
-      prev.map((p) => {
-        if (p.paymentId !== paymentId && p.id !== paymentId) return p;
-
-        logStudentActivity(
-          p.studentId,
-          decision === 'Verified' ? 'Payment Verified' : 'Payment Rejected',
-          `Payment ${p.paymentId} (${p.currency} ${p.amount}) was ${decision.toLowerCase()} by ${currentUser.displayName} (${currentUser.role}). ${remarks ? `Note: ${remarks}` : ''}`,
-          p.paymentStatus,
-          decision
-        );
-
-        if (decision === 'Verified') {
-          updateStudentDecoupledStatus(p.studentId, {
-            bookingStatus: 'Booked',
-            commissionStatus: 'Due',
-          });
-        }
-
-        const updated: Payment = {
-          ...p,
-          paymentStatus: decision,
-          verifiedBy: `${currentUser.displayName} (${currentUser.role})`,
-          verificationTimestamp: formattedTimestamp,
-          remarks: remarks ? `${p.remarks || ''} | ${remarks}` : p.remarks,
-        };
-        updatedPmt = updated;
-        return updated;
-      })
+    logStudentActivity(
+      payment.studentId,
+      decision === 'Verified' ? 'Payment Verified' : 'Payment Rejected',
+      `Payment ${payment.paymentId} (${payment.currency} ${payment.amount}) was ${decision.toLowerCase()} by ${currentUser.displayName} (${currentUser.role}). ${remarks ? `Note: ${remarks}` : ''}`,
+      payment.paymentStatus,
+      decision
     );
 
-    if (updatedPmt) {
-      fetch('/api/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save_payment', payload: updatedPmt }),
-      }).catch((err) => console.error('Failed to persist payment verification:', err));
+    if (decision === 'Verified') {
+      updateStudentDecoupledStatus(payment.studentId, {
+        bookingStatus: 'Booked',
+        commissionStatus: 'Due',
+      });
     }
+
+    updateDoc(doc(db, 'payments', docId), {
+      paymentStatus: decision,
+      verifiedBy: `${currentUser.displayName} (${currentUser.role})`,
+      verificationTimestamp: formattedTimestamp,
+      remarks: remarks ? `${payment.remarks || ''} | ${remarks}` : payment.remarks,
+    }).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `payments/${docId}`);
+    });
   };
 
   const flagRecordForArchival = async (
@@ -1294,161 +1283,47 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const timestamp = new Date().toISOString();
     const flaggedBy = currentUser.displayName;
 
-    if (type === 'student') {
-      setStudents((prev) =>
-        prev.map((s) =>
-          s.id === id || s.studentId === id
-            ? {
-                ...s,
-                isTestRecord: true,
-                archivalStatus: 'Flagged For Archival',
-                archivalTag: tag,
-                archivalReason: reason,
-                flaggedAt: timestamp,
-                flaggedBy,
-              }
-            : s
-        )
-      );
-    } else if (type === 'payment') {
-      setPayments((prev) =>
-        prev.map((p) =>
-          p.id === id || p.paymentId === id
-            ? {
-                ...p,
-                isTestRecord: true,
-                archivalStatus: 'Flagged For Archival',
-                archivalTag: tag,
-                archivalReason: reason,
-                flaggedAt: timestamp,
-                flaggedBy,
-              }
-            : p
-        )
-      );
-    } else if (type === 'booking') {
-      setBookings((prev) =>
-        prev.map((b) =>
-          b.id === id || b.bookingId === id
-            ? {
-                ...b,
-                isTestRecord: true,
-                archivalStatus: 'Flagged For Archival',
-                archivalTag: tag,
-                archivalReason: reason,
-                flaggedAt: timestamp,
-                flaggedBy,
-              }
-            : b
-        )
-      );
-    }
+    const targetCollection =
+      type === 'student' ? 'students' : type === 'payment' ? 'payments' : type === 'booking' ? 'bookings' : 'partners';
 
-    try {
-      await fetch('/api/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'flag_record',
-          payload: {
-            type,
-            id,
-            isTestRecord: true,
-            archivalStatus: 'Flagged For Archival',
-            archivalTag: tag,
-            archivalReason: reason,
-            flaggedBy,
-          },
-        }),
-      });
-    } catch (err) {
-      console.error('Failed to flag record for archival:', err);
-    }
+    const updates = {
+      isTestRecord: true,
+      archivalStatus: 'Flagged For Archival',
+      archivalTag: tag,
+      archivalReason: reason,
+      flaggedAt: timestamp,
+      flaggedBy,
+    };
+
+    updateDoc(doc(db, targetCollection, id), updates).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `${targetCollection}/${id}`);
+    });
   };
 
   const unflagRecordForArchival = async (
     type: 'student' | 'payment' | 'booking' | 'partner',
     id: string
   ) => {
-    if (type === 'student') {
-      setStudents((prev) =>
-        prev.map((s) =>
-          s.id === id || s.studentId === id
-            ? {
-                ...s,
-                isTestRecord: false,
-                archivalStatus: 'Active',
-                archivalTag: undefined,
-                archivalReason: undefined,
-              }
-            : s
-        )
-      );
-    } else if (type === 'payment') {
-      setPayments((prev) =>
-        prev.map((p) =>
-          p.id === id || p.paymentId === id
-            ? {
-                ...p,
-                isTestRecord: false,
-                archivalStatus: 'Active',
-                archivalTag: undefined,
-                archivalReason: undefined,
-              }
-            : p
-        )
-      );
-    } else if (type === 'booking') {
-      setBookings((prev) =>
-        prev.map((b) =>
-          b.id === id || b.bookingId === id
-            ? {
-                ...b,
-                isTestRecord: false,
-                archivalStatus: 'Active',
-                archivalTag: undefined,
-                archivalReason: undefined,
-              }
-            : b
-        )
-      );
-    }
+    const targetCollection =
+      type === 'student' ? 'students' : type === 'payment' ? 'payments' : type === 'booking' ? 'bookings' : 'partners';
 
-    try {
-      await fetch('/api/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'flag_record',
-          payload: { type, id, isTestRecord: false, archivalStatus: 'Active' },
-        }),
-      });
-    } catch (err) {
-      console.error('Failed to unflag record:', err);
-    }
+    const updates = {
+      isTestRecord: false,
+      archivalStatus: 'Active',
+    };
+
+    updateDoc(doc(db, targetCollection, id), updates).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `${targetCollection}/${id}`);
+    });
   };
 
   const flagAllTestRecords = async () => {
-    try {
-      const res = await fetch('/api/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'flag_test_records',
-          payload: { flaggedBy: currentUser.displayName },
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.store) {
-          if (data.store.students) setStudents(data.store.students);
-          if (data.store.payments) setPayments(data.store.payments);
-          if (data.store.bookings) setBookings(data.store.bookings);
-        }
+    // Flag students with test tags
+    students.forEach((s) => {
+      if (s.isTestRecord) {
+        flagRecordForArchival('student', s.id);
       }
-    } catch (err) {
-      console.error('Failed to flag test records:', err);
-    }
+    });
   };
 
   return (
@@ -1460,6 +1335,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         isAuthenticated,
         loginWithUser,
         loginWithGoogle,
+        loginWithEmailPassword,
+        resetPassword,
         logout,
         isLoginModalOpen,
         setIsLoginModalOpen,
