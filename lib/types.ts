@@ -334,4 +334,6 @@ export interface AppUser {
   partnerId?: string; // set if role is 'partner'
   partnerName?: string;
   avatarUrl?: string;
+  isApproved?: boolean;
+  status?: 'pending' | 'approved' | 'rejected';
 }

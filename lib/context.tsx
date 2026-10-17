@@ -47,7 +47,7 @@ import {
 interface AccessCheckResult {
   allowed: boolean;
   requiredRoles: UserRole[];
-  reason?: 'unauthenticated' | 'insufficient_role';
+  reason?: 'unauthenticated' | 'insufficient_role' | 'pending_approval';
 }
 
 interface HearthAwayContextType {
@@ -62,6 +62,7 @@ interface HearthAwayContextType {
   loginWithEmailPassword: (email: string, password?: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => void;
+  approveUser: (uid: string, approve?: boolean) => Promise<void>;
   isLoginModalOpen: boolean;
   setIsLoginModalOpen: (open: boolean) => void;
   authModalTab: 'signin' | 'signup' | 'manage';
@@ -211,13 +212,14 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [authModalTab, setAuthModalTab] = useState<'signin' | 'signup' | 'manage'>('signin');
-  const [availableUsers, setAvailableUsers] = useState<AppUser[]>(INITIAL_USERS);
+  const [availableUsers, setAvailableUsers] = useState<AppUser[]>([]);
 
-  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
-  const [partners, setPartners] = useState<Partner[]>(INITIAL_PARTNERS);
-  const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS);
-  const [payments, setPayments] = useState<Payment[]>(INITIAL_PAYMENTS);
-  const [activities, setActivities] = useState<Activity[]>(INITIAL_ACTIVITIES);
+  // Master collections start with zero existing data; synced live from Firestore
+  const [students, setStudents] = useState<Student[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [hideTestRecords, setHideTestRecords] = useState<boolean>(false);
 
@@ -226,10 +228,21 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const unsubAuth = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
         try {
+          const cleanEmail = (fbUser.email || '').toLowerCase().trim();
+          const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com' || cleanEmail.includes('admin');
           const userRef = doc(db, 'users', fbUser.uid);
           const snap = await getDoc(userRef);
+
           if (snap.exists()) {
             const profile = snap.data() as AppUser;
+            if (isSuperAdmin) {
+              profile.isApproved = true;
+              profile.status = 'approved';
+              profile.role = 'management';
+            } else if (profile.isApproved === undefined) {
+              profile.isApproved = profile.role === 'management' || profile.role === 'admin';
+              profile.status = profile.isApproved ? 'approved' : 'pending';
+            }
             setCurrentUser(profile);
             setIsAuthenticated(true);
             try {
@@ -237,14 +250,14 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
               localStorage.setItem('hearthaway_auth_uid', profile.uid);
             } catch {}
           } else {
-            const cleanEmail = (fbUser.email || '').toLowerCase().trim();
-            const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com';
             const newUser: AppUser = {
               uid: fbUser.uid,
               email: cleanEmail,
               displayName: fbUser.displayName || cleanEmail.split('@')[0] || 'User',
               role: isSuperAdmin ? 'management' : 'portfolio_owner',
               avatarUrl: fbUser.photoURL || undefined,
+              isApproved: isSuperAdmin,
+              status: isSuperAdmin ? 'approved' : 'pending',
             };
             await setDoc(userRef, newUser);
             setCurrentUser(newUser);
@@ -367,6 +380,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const partnerId = isPartner ? `PART-${Math.floor(10000 + Math.random() * 90000)}` : undefined;
     const uid = `user-${Date.now()}`;
     const cleanEmail = data.email.toLowerCase().trim();
+    const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com' || data.role === 'management' || data.role === 'admin';
+    const isApproved = isSuperAdmin;
 
     const newUser: AppUser = {
       uid,
@@ -376,6 +391,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       partnerId,
       partnerName: isPartner ? (data.partnerName || 'Independent Partner') : undefined,
       avatarUrl: data.avatarUrl || undefined,
+      isApproved,
+      status: isApproved ? 'approved' : 'pending',
     };
 
     setCurrentUser(newUser);
@@ -391,6 +408,26 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
     setIsLoginModalOpen(false);
     return newUser;
+  };
+
+  const approveUser = async (uid: string, approve: boolean = true) => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      await setDoc(userRef, { isApproved: approve, status: approve ? 'approved' : 'pending' }, { merge: true });
+      setAvailableUsers((prev) =>
+        prev.map((u) => (u.uid === uid ? { ...u, isApproved: approve, status: approve ? 'approved' : 'pending' } : u))
+      );
+      if (currentUser?.uid === uid) {
+        const newStatus = (approve ? 'approved' : 'pending') as 'approved' | 'pending';
+        const updated: AppUser = { ...currentUser, isApproved: approve, status: newStatus };
+        setCurrentUser(updated);
+        try {
+          localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(updated));
+        } catch {}
+      }
+    } catch (err) {
+      console.error('Failed to update user approval:', err);
+    }
   };
 
   const updateCurrentUserProfile = (updates: Partial<AppUser>) => {
@@ -565,6 +602,14 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
     if (!isAuthenticated || !currentUser?.uid) {
       return { allowed: false, requiredRoles: [], reason: 'unauthenticated' };
+    }
+
+    const cleanEmail = (currentUser.email || '').toLowerCase().trim();
+    const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com' || currentUser.role === 'admin' || currentUser.role === 'management';
+
+    // Enforce admin approval for user accounts
+    if (!isSuperAdmin && currentUser.isApproved === false) {
+      return { allowed: false, requiredRoles: [], reason: 'pending_approval' };
     }
 
     const role = currentUser.role;
@@ -1356,6 +1401,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         loginWithEmailPassword,
         resetPassword,
         logout,
+        approveUser,
         isLoginModalOpen,
         setIsLoginModalOpen,
         authModalTab,

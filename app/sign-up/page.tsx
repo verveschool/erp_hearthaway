@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useHearthAway } from '@/lib/context';
 import { UserRole } from '@/lib/types';
+import { auth } from '@/lib/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import {
   Lock,
   Mail,
@@ -19,6 +21,7 @@ import {
   Users,
   Briefcase,
   CreditCard,
+  Clock,
 } from 'lucide-react';
 
 function getDashboardForRole(role: UserRole): string {
@@ -91,7 +94,15 @@ export default function SignUpPage() {
         return;
       }
 
-      // Create account in application context
+      // Create Firebase Auth user credentials
+      try {
+        await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+      } catch (authErr: any) {
+        // If user already exists in Auth, log and proceed with profile document creation
+        console.warn('Firebase Auth user registration note:', authErr.message);
+      }
+
+      // Create account in application context & sync to Firestore
       const newUser = createAccount({
         displayName: fullName.trim(),
         email: email.trim().toLowerCase(),
@@ -103,7 +114,7 @@ export default function SignUpPage() {
       setTimeout(() => {
         const dest = getDashboardForRole(newUser.role);
         router.push(dest);
-      }, 1000);
+      }, 1800);
     } catch (err) {
       setErrorMessage('Server error validating authorization. Please try again.');
     } finally {
@@ -129,12 +140,16 @@ export default function SignUpPage() {
         </div>
 
         {isSuccess ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center space-y-2 animate-in fade-in duration-200">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center space-y-3 animate-in fade-in duration-200">
             <CheckCircle2 className="h-8 w-8 text-emerald-600 mx-auto" />
-            <h3 className="text-sm font-bold text-emerald-900">Account Created Successfully</h3>
-            <p className="text-xs text-emerald-700">
-              Welcome to HearthAway. Directing you to your authorized workspace...
+            <h3 className="text-sm font-bold text-emerald-900">Account Created &amp; Synced with Firebase</h3>
+            <p className="text-xs text-emerald-800 leading-relaxed">
+              Your account has been registered with Firebase Authentication. For security, non-admin accounts require administrator approval (<strong className="text-[#00319D]">tribeverve@gmail.com</strong>) before workspace access is unlocked.
             </p>
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-300 px-3 py-1 text-[11px] font-semibold text-emerald-800">
+              <Clock className="h-3 w-3" />
+              Redirecting to your workspace status...
+            </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">

@@ -23,6 +23,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     isAuthenticated,
     currentUser,
     setIsLoginModalOpen,
+    logout,
   } = useHearthAway();
 
   const access = canAccessRoute(pathname);
@@ -59,6 +60,54 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
               Go to Sign In
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Case 2: Pending Administrator Approval
+  if (access.reason === 'pending_approval') {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center py-12 px-4 sm:px-6">
+        <div className="w-full max-w-lg rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 text-center shadow-xs space-y-6">
+          <div className="h-12 w-12 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center mx-auto">
+            <Lock className="h-5 w-5 text-amber-600" />
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="inline-block rounded-md bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 uppercase tracking-wider">
+              Pending Administrator Approval
+            </span>
+            <h2 className="text-xl font-bold text-[#1A1A1A]">Account Awaiting Approval</h2>
+            <p className="text-xs text-[#6B6860] leading-relaxed">
+              Your account for <strong className="text-[#1A1A1A]">{currentUser.displayName || currentUser.email}</strong> is registered in Firebase, but new user registrations require approval from an authorized administrator before workspace access is granted.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-4 text-xs text-left space-y-2">
+            <div className="flex items-center justify-between text-[#6B6860] text-[10px] font-bold uppercase tracking-wider">
+              <span>Account Status</span>
+              <span className="text-amber-700 font-mono font-bold">AWAITING APPROVAL</span>
+            </div>
+            <div className="space-y-1 text-[#1A1A1A]">
+              <div>Email: <strong>{currentUser.email}</strong></div>
+              <div>Assigned Role: <strong className="uppercase">{currentUser.role}</strong></div>
+              <div>System Administrator: <strong className="text-[#00319D]">tribeverve@gmail.com</strong></div>
+            </div>
+            <p className="text-[11px] text-[#6B6860] pt-1">
+              Once an administrator approves your account, your workspace will activate in real time without needing to log out.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-center gap-2 pt-1">
+            <button
+              onClick={() => logout()}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-4 py-2 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] transition-colors cursor-pointer"
+            >
+              <LogOut className="h-3.5 w-3.5 text-[#6B6860]" />
+              Sign Out
+            </button>
           </div>
         </div>
       </div>
