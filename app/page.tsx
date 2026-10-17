@@ -174,7 +174,6 @@ export default function HomePage() {
                     setErrorMessage('');
                   }}
                   className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden transition-all"
-                  placeholder="e.g. alex@hearthaway.com"
                 />
               </div>
             </div>
@@ -203,7 +202,6 @@ export default function HomePage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden transition-all"
-                  placeholder="••••••••"
                 />
               </div>
             </div>
@@ -254,7 +252,6 @@ export default function HomePage() {
                     setErrorMessage('');
                   }}
                   className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden transition-all"
-                  placeholder="e.g. user@hearthaway.com"
                 />
               </div>
             </div>

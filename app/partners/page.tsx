@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useHearthAway } from '@/lib/context';
 import { Partner, Student } from '@/lib/types';
+import { exportToCSV } from '@/lib/export-csv';
 import {
   Users,
   Building,
@@ -176,6 +177,52 @@ export default function PartnersPage() {
     const targetId = isPartner ? activePartnerId : activeInspectedPartner?.partnerId;
     return students.filter((s) => s.partnerId === targetId);
   }, [students, isPartner, activePartnerId, activeInspectedPartner]);
+
+  const handleExportPartnerListCSV = () => {
+    exportToCSV(
+      `hearthaway-partner-list-${new Date().toISOString().split('T')[0]}`,
+      [
+        { header: 'Partner ID', accessor: (p) => p.partnerId },
+        { header: 'Company Name', accessor: (p) => p.companyName },
+        { header: 'Partner Type', accessor: (p) => p.type },
+        { header: 'Contact Person', accessor: (p) => p.contactPerson },
+        { header: 'Email Address', accessor: (p) => p.email },
+        { header: 'Phone Number', accessor: (p) => p.phone },
+        { header: 'City', accessor: (p) => p.city },
+        { header: 'State', accessor: (p) => p.state },
+        { header: 'Country', accessor: (p) => p.country },
+        { header: 'Portfolio Owner', accessor: (p) => p.portfolioOwnerName || '' },
+        { header: 'Agreement Status', accessor: (p) => p.agreementStatus },
+        { header: 'Agreement Type', accessor: (p) => p.agreementType },
+        { header: 'Commission Rate (%)', accessor: (p) => `${p.commissionRate}%` },
+        { header: 'Onboarding Date', accessor: (p) => p.onboardingDate },
+        { header: 'Status', accessor: (p) => p.status },
+      ],
+      filteredPartners
+    );
+  };
+
+  const handleExportPartnerLeadsCSV = () => {
+    exportToCSV(
+      `hearthaway-partner-leads-${new Date().toISOString().split('T')[0]}`,
+      [
+        { header: 'Student ID', accessor: (s) => s.studentId },
+        { header: 'Full Name', accessor: (s) => s.fullName },
+        { header: 'Email', accessor: (s) => s.email },
+        { header: 'Phone', accessor: (s) => s.phone },
+        { header: 'University', accessor: (s) => s.university },
+        { header: 'Destination City', accessor: (s) => s.destinationCity },
+        { header: 'Destination Country', accessor: (s) => s.destinationCountry },
+        { header: 'Intake', accessor: (s) => s.intake },
+        { header: 'Lead Status', accessor: (s) => s.leadStatus },
+        { header: 'Booking Status', accessor: (s) => s.bookingStatus },
+        { header: 'Sales Owner', accessor: (s) => s.assignedSalesExecutiveName },
+        { header: 'Budget', accessor: (s) => `${s.currency || 'GBP'} ${s.budget}` },
+        { header: 'Created Date', accessor: (s) => s.createdAt },
+      ],
+      partnerLeads
+    );
+  };
 
   // Onboard New Partner Form State
   const [newCompanyName, setNewCompanyName] = useState('');
@@ -593,6 +640,18 @@ export default function PartnersPage() {
                 Bulk CSV Upload
               </button>
 
+              {!isPartner && (
+                <button
+                  onClick={handleExportPartnerListCSV}
+                  disabled={filteredPartners.length === 0}
+                  className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3.5 py-2 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all shadow-2xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Download partner directory as CSV"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Export Partner List ({filteredPartners.length})
+                </button>
+              )}
+
               {isPartner && (
                 <button
                   onClick={() => setShowSingleLeadModal(true)}
@@ -687,9 +746,20 @@ export default function PartnersPage() {
                     Leads submitted by {currentPartnerRecord?.companyName || currentUser.partnerName || 'your agency'}.
                   </p>
                 </div>
-                <span className="text-xs font-semibold text-[#00319D]">
-                  {partnerLeads.length} Leads
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-[#00319D]">
+                    {partnerLeads.length} Leads
+                  </span>
+                  <button
+                    onClick={handleExportPartnerLeadsCSV}
+                    disabled={partnerLeads.length === 0}
+                    className="flex items-center gap-1 rounded-md border border-[#00319D] bg-[#00319D]/5 px-2.5 py-1 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+                    title="Export sourced leads to CSV"
+                  >
+                    <Download className="h-3 w-3" />
+                    Export CSV
+                  </button>
+                </div>
               </div>
 
               {partnerLeads.length === 0 ? (

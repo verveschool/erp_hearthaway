@@ -168,10 +168,14 @@ export function Navbar() {
                 >
                   <div className="relative h-8 w-8 rounded-full overflow-hidden ring-1 ring-[#E8E6E1] shrink-0 bg-[#00319D] text-[#FFFFFF] flex items-center justify-center">
                     {currentUser.avatarUrl ? (
-                      <img
+                      <Image
                         src={currentUser.avatarUrl}
                         alt={currentUser.displayName || 'User'}
+                        width={32}
+                        height={32}
                         className="h-full w-full object-cover"
+                        referrerPolicy="no-referrer"
+                        unoptimized
                       />
                     ) : (
                       <span className="text-[11px] font-bold">
@@ -214,10 +218,14 @@ export function Navbar() {
                       <div className="relative group shrink-0">
                         <div className="h-12 w-12 rounded-full overflow-hidden bg-[#00319D] text-[#FFFFFF] flex items-center justify-center ring-2 ring-[#00319D]/20 shadow-xs">
                           {currentUser.avatarUrl ? (
-                            <img
+                            <Image
                               src={currentUser.avatarUrl}
                               alt={currentUser.displayName || 'User'}
+                              width={48}
+                              height={48}
                               className="h-full w-full object-cover"
+                              referrerPolicy="no-referrer"
+                              unoptimized
                             />
                           ) : (
                             <span className="text-sm font-extrabold tracking-wide">

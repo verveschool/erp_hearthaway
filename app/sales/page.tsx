@@ -19,7 +19,9 @@ import {
   Layers,
   ArrowUpDown,
   Building,
+  Download,
 } from 'lucide-react';
+import { exportToCSV } from '@/lib/export-csv';
 
 export default function SalesPage() {
   const {
@@ -110,6 +112,32 @@ export default function SalesPage() {
     setNewLeadEmail('');
     setNewLeadPhone('');
     setNewLeadUni('');
+  };
+
+  const handleExportSalesLeadsCSV = () => {
+    exportToCSV(
+      `hearthaway-sales-leads-${new Date().toISOString().split('T')[0]}`,
+      [
+        { header: 'Student ID', accessor: (s) => s.studentId },
+        { header: 'Full Name', accessor: (s) => s.fullName },
+        { header: 'Email', accessor: (s) => s.email },
+        { header: 'Phone', accessor: (s) => s.phone },
+        { header: 'Sourcing Partner', accessor: (s) => s.partnerName || s.partnerId },
+        { header: 'Partner ID', accessor: (s) => s.partnerId },
+        { header: 'Sales Owner', accessor: (s) => s.assignedSalesExecutiveName },
+        { header: 'University', accessor: (s) => s.university },
+        { header: 'Destination City', accessor: (s) => s.destinationCity },
+        { header: 'Destination Country', accessor: (s) => s.destinationCountry },
+        { header: 'Intake', accessor: (s) => s.intake },
+        { header: 'Lead Status', accessor: (s) => s.leadStatus },
+        { header: 'Booking Status', accessor: (s) => s.bookingStatus },
+        { header: 'Priority', accessor: (s) => s.priority || 'Medium' },
+        { header: 'Budget', accessor: (s) => `${s.currency || 'GBP'} ${s.budget}` },
+        { header: 'Next Follow Up', accessor: (s) => s.nextFollowUpAt || '' },
+        { header: 'Created Date', accessor: (s) => s.createdAt },
+      ],
+      filteredStudents
+    );
   };
 
   return (
@@ -241,6 +269,16 @@ export default function SalesPage() {
                 <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
               </select>
+
+              <button
+                onClick={handleExportSalesLeadsCSV}
+                disabled={filteredStudents.length === 0}
+                className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-2 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+                title="Download current leads table as CSV"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>Export CSV ({filteredStudents.length})</span>
+              </button>
             </div>
           </div>
 

@@ -19,7 +19,9 @@ import {
   Building,
   Layers,
   X,
+  Download,
 } from 'lucide-react';
+import { exportToCSV } from '@/lib/export-csv';
 
 export default function FinancePage() {
   const {
@@ -122,6 +124,68 @@ export default function FinancePage() {
     setShowRecordModal(false);
     setRecordAmount('');
     setRecordRemarks('');
+  };
+
+  const handleExportPaymentsCSV = () => {
+    exportToCSV(
+      `hearthaway-payments-${new Date().toISOString().split('T')[0]}`,
+      [
+        { header: 'Payment ID', accessor: (p) => p.paymentId },
+        { header: 'Student ID', accessor: (p) => p.studentId },
+        { header: 'Student Name', accessor: (p) => p.studentName || '' },
+        { header: 'Amount', accessor: (p) => p.amount },
+        { header: 'Currency', accessor: (p) => p.currency },
+        { header: 'Payment Method', accessor: (p) => p.paymentMethod },
+        { header: 'Payment Date', accessor: (p) => p.paymentDate },
+        { header: 'Uploaded By', accessor: (p) => p.uploadedBy },
+        { header: 'Payment Status', accessor: (p) => p.paymentStatus },
+        { header: 'Verified By', accessor: (p) => p.verifiedBy || '' },
+        { header: 'Verification Time', accessor: (p) => p.verificationTimestamp || '' },
+        { header: 'Remarks', accessor: (p) => p.remarks || '' },
+      ],
+      filteredPayments
+    );
+  };
+
+  const handleExportBookingsCSV = () => {
+    exportToCSV(
+      `hearthaway-bookings-${new Date().toISOString().split('T')[0]}`,
+      [
+        { header: 'Booking ID', accessor: (b) => b.bookingId },
+        { header: 'Booking Reference', accessor: (b) => b.bookingReference || '' },
+        { header: 'Student ID', accessor: (b) => b.studentId },
+        { header: 'Student Name', accessor: (b) => b.studentName },
+        { header: 'Sourcing Partner', accessor: (b) => b.partnerName || b.partnerId },
+        { header: 'Partner ID', accessor: (b) => b.partnerId },
+        { header: 'Property Name', accessor: (b) => b.propertyName },
+        { header: 'Property Address', accessor: (b) => b.propertyAddress },
+        { header: 'Booking Value (£)', accessor: (b) => b.bookingValue },
+        { header: 'Commission Expected (£)', accessor: (b) => b.providerCommissionExpected || 0 },
+        { header: 'Commission (%)', accessor: (b) => b.providerCommissionPercent || 0 },
+        { header: 'Partner Payout (£)', accessor: (b) => b.partnerPayoutAmount || 0 },
+        { header: 'Tenancy Start', accessor: (b) => b.tenancyStartDate },
+        { header: 'Tenancy End', accessor: (b) => b.tenancyEndDate },
+        { header: 'Booking Status', accessor: (b) => b.bookingStatus },
+      ],
+      bookings
+    );
+  };
+
+  const handleExportCommissionsCSV = () => {
+    exportToCSV(
+      `hearthaway-partner-commissions-${new Date().toISOString().split('T')[0]}`,
+      [
+        { header: 'Partner ID', accessor: (p) => p.partnerId },
+        { header: 'Company Name', accessor: (p) => p.companyName },
+        { header: 'Portfolio Owner', accessor: (p) => p.portfolioOwnerName || '' },
+        { header: 'Booked Count', accessor: (p) => p.bookedCount },
+        { header: 'Gross Booking Value (£)', accessor: (p) => p.grossValue },
+        { header: 'HearthAway Commission (£)', accessor: (p) => p.expectedHearthAwayCommission },
+        { header: 'Partner Payable (£)', accessor: (p) => p.partnerPayable },
+        { header: 'Commission Rate (%)', accessor: (p) => `${p.commissionRate}%` },
+      ],
+      partnerCommissionLedger
+    );
   };
 
   return (
@@ -238,16 +302,28 @@ export default function FinancePage() {
                 />
               </div>
 
-              <select
-                value={filterPaymentStatus}
-                onChange={(e) => setFilterPaymentStatus(e.target.value)}
-                className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-              >
-                <option value="All">All Statuses</option>
-                <option value="Pending Verification">Pending Verification</option>
-                <option value="Verified">Verified</option>
-                <option value="Rejected">Rejected</option>
-              </select>
+              <div className="flex items-center gap-2">
+                <select
+                  value={filterPaymentStatus}
+                  onChange={(e) => setFilterPaymentStatus(e.target.value)}
+                  className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="Pending Verification">Pending Verification</option>
+                  <option value="Verified">Verified</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+
+                <button
+                  onClick={handleExportPaymentsCSV}
+                  disabled={filteredPayments.length === 0}
+                  className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-2 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+                  title="Download payments table as CSV"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Export CSV ({filteredPayments.length})</span>
+                </button>
+              </div>
             </div>
 
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
@@ -343,9 +419,25 @@ export default function FinancePage() {
 
         {/* TAB 2: BOOKINGS LEDGER */}
         {activeTab === 'bookings' && (
-          <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
+              <span className="text-xs text-[#6B6860]">
+                Showing <strong>{bookings.length}</strong> tenancies booked across partner accommodations
+              </span>
+              <button
+                onClick={handleExportBookingsCSV}
+                disabled={bookings.length === 0}
+                className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-1.5 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs self-start sm:self-auto"
+                title="Download bookings table as CSV"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>Export Bookings CSV ({bookings.length})</span>
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
                 <thead className="bg-[#F7F6F3] text-[#6B6860] uppercase text-[10px] tracking-wider border-b border-[#E8E6E1]">
                   <tr>
                     <th className="py-3 px-4 font-bold">Booking ID</th>
@@ -391,13 +483,30 @@ export default function FinancePage() {
               </table>
             </div>
           </div>
+        </div>
         )}
 
         {/* TAB 3: PARTNER COMMISSIONS */}
         {activeTab === 'commissions' && (
-          <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
+              <span className="text-xs text-[#6B6860]">
+                Showing commission ledgers for <strong>{partnerCommissionLedger.length}</strong> active partners
+              </span>
+              <button
+                onClick={handleExportCommissionsCSV}
+                disabled={partnerCommissionLedger.length === 0}
+                className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-1.5 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs self-start sm:self-auto"
+                title="Download partner commission ledger as CSV"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>Export Commissions CSV ({partnerCommissionLedger.length})</span>
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
                 <thead className="bg-[#F7F6F3] text-[#6B6860] uppercase text-[10px] tracking-wider border-b border-[#E8E6E1]">
                   <tr>
                     <th className="py-3 px-4 font-bold">Partner Agency</th>
@@ -437,6 +546,7 @@ export default function FinancePage() {
               </table>
             </div>
           </div>
+        </div>
         )}
       </div>
 

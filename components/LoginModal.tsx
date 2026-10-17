@@ -276,7 +276,6 @@ export function LoginModal() {
                       value={signinEmail}
                       onChange={(e) => setSigninEmail(e.target.value)}
                       className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-hidden"
-                      placeholder="e.g. alex@hearthaway.com"
                     />
                   </div>
                 </div>
@@ -306,7 +305,6 @@ export function LoginModal() {
                       value={signinPassword}
                       onChange={(e) => setSigninPassword(e.target.value)}
                       className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-hidden"
-                      placeholder="••••••••"
                     />
                   </div>
                 </div>
@@ -365,7 +363,6 @@ export function LoginModal() {
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
                       className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-hidden"
-                      placeholder="e.g. user@hearthaway.com"
                     />
                   </div>
                 </div>
@@ -406,10 +403,14 @@ export function LoginModal() {
               <div className="relative group shrink-0">
                 <div className="h-14 w-14 rounded-full overflow-hidden bg-[#00319D] text-[#FFFFFF] flex items-center justify-center ring-2 ring-[#00319D]/20 shadow-xs">
                   {editAvatarUrl ? (
-                    <img
+                    <Image
                       src={editAvatarUrl}
                       alt={editName || 'User'}
+                      width={56}
+                      height={56}
                       className="h-full w-full object-cover"
+                      referrerPolicy="no-referrer"
+                      unoptimized
                     />
                   ) : (
                     <span className="text-base font-extrabold tracking-wide">

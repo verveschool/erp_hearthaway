@@ -154,13 +154,12 @@ export default function SignUpPage() {
               <input
                 type="password"
                 required
-                placeholder="Enter passcode"
                 value={passcode}
                 onChange={(e) => {
                   setPasscode(e.target.value);
                   setErrorMessage('');
                 }}
-                className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden font-mono transition-all"
+                className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden font-mono transition-all"
               />
               <p className="text-[10px] text-[#6B6860]">
                 Access is restricted to authorized personnel with assigned passcodes.
@@ -256,10 +255,9 @@ export default function SignUpPage() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Rachel Adams"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden transition-all"
+                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden transition-all"
                   />
                 </div>
               </div>
@@ -273,10 +271,9 @@ export default function SignUpPage() {
                   <input
                     type="email"
                     required
-                    placeholder="rachel@hearthaway.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden transition-all"
+                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden transition-all"
                   />
                 </div>
               </div>
@@ -290,10 +287,9 @@ export default function SignUpPage() {
                     <Building className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
                     <input
                       type="text"
-                      placeholder="e.g. Apex Global Education Ltd"
                       value={partnerOrg}
                       onChange={(e) => setPartnerOrg(e.target.value)}
-                      className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden transition-all"
+                      className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden transition-all"
                     />
                   </div>
                 </div>
@@ -307,10 +303,9 @@ export default function SignUpPage() {
                   <Key className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
                   <input
                     type="password"
-                    placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden transition-all"
+                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden transition-all"
                   />
                 </div>
               </div>

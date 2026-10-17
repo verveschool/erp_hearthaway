@@ -6,6 +6,7 @@ import { Navbar } from '@/components/Navbar';
 import { StudentDetailDrawer } from '@/components/StudentDetailDrawer';
 import { AuthGuard } from '@/components/AuthGuard';
 import { LoginModal } from '@/components/LoginModal';
+import { SupportAgentChatbot } from '@/components/SupportAgentChatbot';
 import Image from 'next/image';
 
 export function ClientShell({ children }: { children: React.ReactNode }) {
@@ -35,6 +36,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         </footer>
         <StudentDetailDrawer />
         <LoginModal />
+        <SupportAgentChatbot />
       </div>
     </HearthAwayProvider>
   );

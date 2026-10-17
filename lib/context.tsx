@@ -642,6 +642,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
     if (partner) {
       const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
+      logStudentActivity(
+        partner.partnerId,
+        'Partner Portfolio Owner Reassigned',
+        `Partner "${partner.companyName}" (${partner.partnerId}) reassigned from ${partner.portfolioOwnerName || 'Unassigned'} to ${newOwnerName} by ${currentUser.displayName}.`,
+        partner.portfolioOwnerName || 'Unassigned',
+        newOwnerName
+      );
       updateDoc(doc(db, 'partners', docId), {
         portfolioOwnerId: newOwnerId,
         portfolioOwnerName: newOwnerName,
@@ -708,6 +715,12 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
     });
 
+    logStudentActivity(
+      partnerIdStr,
+      'Partner Onboarded',
+      `New partner "${newPartner.companyName}" (${partnerIdStr}) onboarded under Portfolio Owner ${newPartner.portfolioOwnerName} with ${newPartner.agreementType}.`
+    );
+
     return newPartner;
   };
 
@@ -715,6 +728,11 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
     if (partner) {
       const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
+      logStudentActivity(
+        partner.partnerId,
+        'Partner Updated',
+        `Partner "${partner.companyName}" (${partner.partnerId}) profile / agreement terms updated by ${currentUser.displayName}.`
+      );
       updateDoc(doc(db, 'partners', docId), updates).catch((err) => {
         handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
       });

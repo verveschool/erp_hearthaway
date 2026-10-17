@@ -264,10 +264,14 @@ export function ProfilePhotoModal({
           <div className="relative">
             <div className="h-16 w-16 rounded-full overflow-hidden bg-[#00319D] text-[#FFFFFF] flex items-center justify-center ring-2 ring-[#00319D]/20 shadow-xs shrink-0">
               {previewPhoto ? (
-                <img
+                <Image
                   src={previewPhoto}
                   alt={userName}
+                  width={64}
+                  height={64}
                   className="h-full w-full object-cover"
+                  referrerPolicy="no-referrer"
+                  unoptimized
                 />
               ) : (
                 <span className="text-lg font-extrabold tracking-wide">
@@ -385,10 +389,14 @@ export function ProfilePhotoModal({
           <div className="space-y-3">
             <div className="relative rounded-xl overflow-hidden bg-black aspect-square max-w-[280px] mx-auto border border-[#E8E6E1] flex items-center justify-center">
               {capturedPhoto ? (
-                <img
+                <Image
                   src={capturedPhoto}
                   alt="Captured snapshot"
+                  width={280}
+                  height={280}
                   className="h-full w-full object-cover"
+                  referrerPolicy="no-referrer"
+                  unoptimized
                 />
               ) : (
                 <video
