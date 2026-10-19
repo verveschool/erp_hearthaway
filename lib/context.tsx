@@ -415,6 +415,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       const partnerRecord: Partner = {
         id: `part-${partnerId!.toLowerCase()}`,
         partnerId: partnerId!,
+        accountUid: uid,
         companyName: data.partnerName || data.displayName,
         type: 'Study Abroad Consultant',
         contactPerson: data.displayName,
@@ -435,7 +436,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         agreementDocumentUrl: '',
         status: 'Onboarding',
         onboardingDate: new Date().toISOString().split('T')[0],
-        commissionRate: 20,
+        commissionRate: 40,
       };
       setDoc(doc(db, 'partners', partnerRecord.id), partnerRecord, { merge: true }).catch((err) => {
         handleFirestoreError(err, OperationType.WRITE, `partners/${partnerRecord.id}`);
