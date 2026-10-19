@@ -81,7 +81,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             </span>
             <h2 className="text-xl font-bold text-[#1A1A1A]">Account Awaiting Approval</h2>
             <p className="text-xs text-[#6B6860] leading-relaxed">
-              Your account for <strong className="text-[#1A1A1A]">{currentUser.displayName || currentUser.email}</strong> is registered in Firebase, but new user registrations require approval from an authorized administrator before workspace access is granted.
+              Your account for <strong className="text-[#1A1A1A]">{currentUser.displayName || currentUser.email}</strong> does not currently have access to this workspace.
             </p>
           </div>
 
@@ -96,7 +96,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
               <div>System Administrator: <strong className="text-[#00319D]">tribeverve@gmail.com</strong></div>
             </div>
             <p className="text-[11px] text-[#6B6860] pt-1">
-              Once an administrator approves your account, your workspace will activate in real time without needing to log out.
+              Contact a workspace administrator if you believe your role is missing or incorrect.
             </p>
           </div>
 

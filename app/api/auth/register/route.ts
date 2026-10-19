@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
       partnerId: role === 'partner' ? `partner-${Date.now()}` : undefined,
       partnerName: role === 'partner' ? (partnerName || 'Independent Partner') : undefined,
       avatarUrl: undefined,
+      isApproved: true,
+      status: 'approved',
     };
 
     return NextResponse.json({ success: true, user: newUser });

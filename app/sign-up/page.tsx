@@ -128,7 +128,7 @@ export default function SignUpPage() {
             <CheckCircle2 className="h-8 w-8 text-emerald-600 mx-auto" />
             <h3 className="text-sm font-bold text-emerald-900">Account Created &amp; Synced with Firebase</h3>
             <p className="text-xs text-emerald-800 leading-relaxed">
-              Your account has been registered with Firebase Authentication. For security, non-admin accounts require administrator approval (<strong className="text-[#00319D]">tribeverve@gmail.com</strong>) before workspace access is unlocked.
+              Your account has been registered with Firebase Authentication and is ready to use. Workspace access is enabled automatically for every new account.
             </p>
             <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-300 px-3 py-1 text-[11px] font-semibold text-emerald-800">
               <Clock className="h-3 w-3" />

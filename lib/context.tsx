@@ -237,9 +237,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           const snap = await getDoc(userRef);
 
           if (snap.exists()) {
-            const profile = snap.data() as AppUser;
-            profile.isApproved = true;
-            profile.status = 'approved';
+            const profile = {
+              ...(snap.data() as AppUser),
+              // Account access is automatic; approval is no longer a server/admin step.
+              isApproved: true,
+              status: 'approved' as const,
+            };
+            await setDoc(userRef, { isApproved: true, status: 'approved' }, { merge: true });
             if (isSuperAdmin) {
               profile.role = 'management';
             }
@@ -382,8 +386,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const uid = auth.currentUser?.uid || `user-${Date.now()}`;
     const cleanEmail = data.email.toLowerCase().trim();
     const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com' || data.role === 'management' || data.role === 'admin';
-    const isApproved = isSuperAdmin;
-
     const newUser: AppUser = {
       uid,
       email: cleanEmail,
@@ -641,11 +643,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
     const cleanEmail = (currentUser.email || '').toLowerCase().trim();
     const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com' || currentUser.role === 'admin' || currentUser.role === 'management';
-
-    // Enforce admin approval for user accounts
-    if (!isSuperAdmin && currentUser.isApproved === false) {
-      return { allowed: false, requiredRoles: [], reason: 'pending_approval' };
-    }
 
     const role = currentUser.role;
 
