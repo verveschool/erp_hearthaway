@@ -238,9 +238,9 @@ export default function PartnersPage() {
   const [newCountry, setNewCountry] = useState('India');
   const [newAgreementStatus, setNewAgreementStatus] = useState<any>('Active');
   const [newAgreementType, setNewAgreementType] = useState('Master Services Agreement (MSA)');
-  const [newAgreementTerms, setNewAgreementTerms] = useState('20% Net Revenue Commission, 30-day payout window');
+  const [newAgreementTerms, setNewAgreementTerms] = useState('40% Commission, 120-day payment window');
   const [newPortfolioOwnerId, setNewPortfolioOwnerId] = useState(portfolioOwners[0]?.uid || 'user-po-001');
-  const [newCommissionRate, setNewCommissionRate] = useState('20');
+  const [newCommissionRate, setNewCommissionRate] = useState('40');
 
   const handleOpenAgreementModal = (partner: Partner) => {
     setSelectedAgreementPartner(partner);
@@ -250,7 +250,7 @@ export default function PartnersPage() {
     setAgreementExpiryDate(
       partner.agreementExpiryDate || '2027-10-15'
     );
-    setAgreementTerms(partner.agreementTerms || `${partner.commissionRate}% Net Revenue Commission, 30-day payout window`);
+    setAgreementTerms(partner.agreementTerms || `${partner.commissionRate}% Commission, 120-day payment window`);
     setAgreementDocName(partner.agreementDocumentUrl ? 'Executed_Contract.pdf' : '');
     setAgreementLogoUrl(partner.logoUrl || '');
     setAgreementSaved(false);
@@ -1321,7 +1321,7 @@ export default function PartnersPage() {
                   value={agreementTerms}
                   onChange={(e) => setAgreementTerms(e.target.value)}
                   className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-none"
-                  placeholder="e.g. 20% Net Revenue Commission, 30-day payout window"
+                  placeholder="e.g. 40% Commission, 120-day payment window"
                 />
               </div>
 
