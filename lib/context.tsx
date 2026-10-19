@@ -389,11 +389,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       email: cleanEmail,
       displayName: data.displayName,
       role: data.role,
-      partnerId,
-      partnerName: isPartner ? (data.partnerName || 'Independent Partner') : undefined,
-      avatarUrl: data.avatarUrl || undefined,
       isApproved: true,
       status: 'approved',
+      ...(isPartner ? {
+        partnerId,
+        partnerName: data.partnerName || 'Independent Partner',
+      } : {}),
+      ...(data.avatarUrl ? { avatarUrl: data.avatarUrl } : {}),
     };
 
     setCurrentUser(newUser);

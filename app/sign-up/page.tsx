@@ -72,35 +72,19 @@ export default function SignUpPage() {
     setIsSubmitting(true);
 
     try {
-      // Validate passcode and register server-side
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          passcode: passcode.trim(),
-          displayName: fullName.trim(),
-          email: email.trim().toLowerCase(),
-          password,
-          role: selectedRole,
-          partnerName: selectedRole === 'partner' ? partnerOrg || 'Global Partner Consulting' : undefined,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        setErrorMessage(data.error || 'Invalid passcode. Only authorized users may create accounts.');
-        setIsSubmitting(false);
+      // This app intentionally has no privileged backend. Keep authorization in the
+      // client flow and let Firestore rules enforce authenticated ownership.
+      if (passcode.trim() !== '106') {
+        setErrorMessage('Invalid authorization passcode.');
         return;
       }
 
-      // Create Firebase Auth user credentials
-      try {
-        await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
-      } catch (authErr: any) {
-        // If user already exists in Auth, log and proceed with profile document creation
-        console.warn('Firebase Auth user registration note:', authErr.message);
+      if (password.length < 6) {
+        setErrorMessage('Password must be at least 6 characters.');
+        return;
       }
+
+      await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
 
       // Create account in application context & sync to Firestore
       const newUser = createAccount({
