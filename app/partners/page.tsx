@@ -78,6 +78,7 @@ export default function PartnersPage() {
   const [showOnboardModal, setShowOnboardModal] = useState(false);
   const [onboardingPartner, setOnboardingPartner] = useState<Partner | null>(null);
   const [isOnboarding, setIsOnboarding] = useState(false);
+  const [onboardingError, setOnboardingError] = useState('');
   const [showSingleLeadModal, setShowSingleLeadModal] = useState(false);
   const [reassignPartnerTarget, setReassignPartnerTarget] = useState<Partner | null>(null);
   const [selectedNewOwnerId, setSelectedNewOwnerId] = useState<string>('');
@@ -257,11 +258,11 @@ export default function PartnersPage() {
     setAgreementSaved(false);
   };
 
-  const handleSaveAgreement = (e: React.FormEvent) => {
+  const handleSaveAgreement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAgreementPartner) return;
 
-    updatePartner(selectedAgreementPartner.partnerId, {
+    await updatePartner(selectedAgreementPartner.partnerId, {
       agreementStatus: agreementStatus as any,
       agreementType,
       agreementSignedDate,
@@ -652,7 +653,7 @@ export default function PartnersPage() {
 
               {isManagement && (
                 <button
-                  onClick={() => { setOnboardingPartner(null); setShowOnboardModal(true); }}
+                  onClick={() => { setOnboardingPartner(null); setOnboardingError(''); setShowOnboardModal(true); }}
                   className="flex items-center gap-1.5 rounded-lg bg-[#00319D] px-3.5 py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -1866,10 +1867,18 @@ export default function PartnersPage() {
                 </div>
               </div>
 
+              {onboardingError && (
+                <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                  {onboardingError}
+                </p>
+              )}
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E8E6E1]">
                 <button
                   type="button"
-                  onClick={() => setShowOnboardModal(false)}
+                  onClick={() => {
+                    setOnboardingError('');
+                    setShowOnboardModal(false);
+                  }}
                   className="rounded-lg border border-[#E8E6E1] px-3.5 py-1.5 text-xs font-semibold text-[#6B6860] hover:bg-[#F7F6F3] cursor-pointer"
                 >
                   Cancel
