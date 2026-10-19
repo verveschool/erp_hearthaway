@@ -20,6 +20,8 @@ import {
   Archive,
   Camera,
   Upload,
+  Menu,
+  X,
 } from 'lucide-react';
 import { AppUser } from '@/lib/types';
 import { ArchivalControlModal } from '@/components/ArchivalControlModal';
@@ -40,6 +42,7 @@ export function Navbar() {
     bookings,
   } = useHearthAway();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isArchivalModalOpen, setIsArchivalModalOpen] = useState(false);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
 
@@ -116,7 +119,7 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-[#E8E6E1] bg-[#FFFFFF]/95 backdrop-blur-md">
+    <header className="sticky top-0 z-[100] w-full border-b border-[#E8E6E1] bg-[#FFFFFF]/95 backdrop-blur-md">
       <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         {/* Brand Anchor: Official Attached Transparent Icon */}
         <div className="flex items-center gap-6 lg:gap-8">
@@ -154,6 +157,21 @@ export function Navbar() {
                 );
               })}
             </nav>
+          )}
+
+          {isAuthenticated && navItems.length > 0 && (
+            <div className="md:hidden">
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen((open) => !open)}
+                aria-expanded={mobileNavOpen}
+                aria-controls="mobile-module-navigation"
+                aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E8E6E1] text-[#1A1A1A] hover:bg-[#F7F6F3] focus:outline-none focus:ring-2 focus:ring-[#00319D]/30"
+              >
+                {mobileNavOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+              </button>
+            </div>
           )}
         </div>
 
@@ -328,6 +346,34 @@ export function Navbar() {
           )}
         </div>
       </div>
+
+      {isAuthenticated && mobileNavOpen && navItems.length > 0 && (
+        <nav
+          id="mobile-module-navigation"
+          className="md:hidden border-t border-[#E8E6E1] bg-[#FFFFFF] px-4 py-3 shadow-sm"
+        >
+          <div className="grid grid-cols-2 gap-2">
+            {navItems.map((item) => {
+              const IconComponent = item.icon;
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  onClick={() => setMobileNavOpen(false)}
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition-colors ${
+                    item.active
+                      ? 'bg-[#00319D] text-[#FFFFFF]'
+                      : 'text-[#6B6860] hover:bg-[#F7F6F3] hover:text-[#1A1A1A]'
+                  }`}
+                >
+                  <IconComponent className="h-4 w-4" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      )}
 
       <ArchivalControlModal
         isOpen={isArchivalModalOpen}
