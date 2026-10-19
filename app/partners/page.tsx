@@ -53,7 +53,7 @@ export default function PartnersPage() {
 
   // Portfolio Owners list for assignments
   const portfolioOwners = useMemo(() => {
-    return availableUsers.filter((u) => u.role === 'portfolio_owner');
+    return availableUsers.filter((u) => u.role !== 'partner');
   }, [availableUsers]);
 
   // Active Partner context for Partner role
@@ -76,6 +76,7 @@ export default function PartnersPage() {
   // Modals state
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
   const [showOnboardModal, setShowOnboardModal] = useState(false);
+  const [onboardingPartner, setOnboardingPartner] = useState<Partner | null>(null);
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [showSingleLeadModal, setShowSingleLeadModal] = useState(false);
   const [reassignPartnerTarget, setReassignPartnerTarget] = useState<Partner | null>(null);
@@ -286,6 +287,24 @@ export default function PartnersPage() {
     setAgreementSaved(false);
   };
 
+  const openPartnerOnboarding = (partner: Partner) => {
+    setOnboardingPartner(partner);
+    setNewCompanyName(partner.companyName);
+    setNewPartnerType(partner.type);
+    setNewContactPerson(partner.contactPerson);
+    setNewEmail(partner.email);
+    setNewPhone(partner.phone || '');
+    setNewCity(partner.city || 'Mumbai');
+    setNewState(partner.state || 'Maharashtra');
+    setNewCountry(partner.country || 'India');
+    setNewAgreementStatus(partner.agreementStatus || 'Pending Review');
+    setNewAgreementType(partner.agreementType || 'Master Services Agreement (MSA)');
+    setNewAgreementTerms(partner.agreementTerms || '40% Commission, 120-day payment window');
+    setNewCommissionRate(String(partner.commissionRate || 40));
+    setNewPortfolioOwnerId(partner.portfolioOwnerId || portfolioOwners[0]?.uid || '');
+    setShowOnboardModal(true);
+  };
+
   const handleOnboardPartner = (e: React.FormEvent) => {
     e.preventDefault();
     if (isOnboarding || !newCompanyName || !newEmail || !newContactPerson) return;
@@ -295,8 +314,8 @@ export default function PartnersPage() {
     const randomSeq = String(Math.floor(10000 + Math.random() * 90000));
     const generatedPartnerId = `PART-${randomSeq}`;
 
-    onboardNewPartner({
-      partnerId: generatedPartnerId,
+    const onboardingData = {
+      partnerId: onboardingPartner?.partnerId || generatedPartnerId,
       companyName: newCompanyName,
       type: newPartnerType,
       contactPerson: newContactPerson,
@@ -316,14 +335,21 @@ export default function PartnersPage() {
       agreementTerms: newAgreementTerms,
       agreementSignedDate: new Date().toISOString().split('T')[0],
       agreementExpiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'Active',
+      status: 'Active' as const,
       onboardingDate: new Date().toISOString().split('T')[0],
-      commissionRate: Number(newCommissionRate) || 20,
-    });
+      commissionRate: Number(newCommissionRate) || 40,
+    };
 
-  setShowOnboardModal(false);
-  setIsOnboarding(false);
-  setNewCompanyName('');
+    if (onboardingPartner) {
+      updatePartner(onboardingPartner.partnerId, onboardingData);
+    } else {
+      onboardNewPartner(onboardingData);
+    }
+
+    setShowOnboardModal(false);
+    setOnboardingPartner(null);
+    setIsOnboarding(false);
+    setNewCompanyName('');
     setNewContactPerson('');
     setNewEmail('');
     setNewPhone('');
@@ -626,7 +652,7 @@ export default function PartnersPage() {
 
               {isManagement && (
                 <button
-                  onClick={() => setShowOnboardModal(true)}
+                  onClick={() => { setOnboardingPartner(null); setShowOnboardModal(true); }}
                   className="flex items-center gap-1.5 rounded-lg bg-[#00319D] px-3.5 py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -1066,6 +1092,14 @@ export default function PartnersPage() {
                                           Leads: <strong className="text-[#00319D]">{leadsCount}</strong> • Bookings: <strong className="text-emerald-700">{bookingsCount}</strong>
                                         </div>
                                         <div className="flex items-center gap-1.5">
+                                          {isManagement && partner.status !== 'Active' && (
+                                            <button
+                                              onClick={() => openPartnerOnboarding(partner)}
+                                              className="rounded-md border border-[#00319D] bg-[#00319D]/5 px-2 py-1 text-[10px] font-bold text-[#00319D] hover:bg-[#00319D]/10 cursor-pointer"
+                                            >
+                                              Onboard
+                                            </button>
+                                          )}
                                           <button
                                             onClick={() => handleOpenAgreementModal(partner)}
                                             className="rounded-md border border-[#E8E6E1] bg-[#F7F6F3] px-2 py-1 text-[10px] font-bold text-[#1A1A1A] hover:bg-[#E8E6E1] cursor-pointer"
