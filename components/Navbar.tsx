@@ -116,7 +116,7 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-[#E8E6E1] bg-[#FFFFFF]/95 backdrop-blur-md">
+    <header className="sticky top-0 z-50 w-full border-b border-[#E8E6E1] bg-[#FFFFFF]/95 backdrop-blur-md">
       <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         {/* Brand Anchor: Official Attached Transparent Icon */}
         <div className="flex items-center gap-6 lg:gap-8">
