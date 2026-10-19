@@ -1437,6 +1437,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         resetPassword,
         logout,
         approveUser,
+        removeAllAccounts,
         isLoginModalOpen,
         setIsLoginModalOpen,
         authModalTab,
