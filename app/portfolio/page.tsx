@@ -17,7 +17,6 @@ import {
   Mail,
   ChevronRight,
   TrendingUp,
-  UserCheck,
   Briefcase,
   AlertCircle,
   ExternalLink,
@@ -31,7 +30,6 @@ import {
   FileSpreadsheet,
   CreditCard,
   User,
-  Check,
   BarChart3,
   ChevronDown,
   ChevronUp,
@@ -111,17 +109,12 @@ export default function PortfolioPage() {
     students,
     activities,
     availableUsers,
-    approveUser,
     removeAllAccounts,
     reassignPartnerPortfolioOwner,
     setSelectedStudentId,
   } = useHearthAway();
 
   const isManagement = currentUser.role === 'management' || currentUser.role === 'admin';
-
-  const pendingUsers = useMemo(() => {
-    return availableUsers.filter((u) => u.isApproved === false && u.email !== 'tribeverve@gmail.com');
-  }, [availableUsers]);
 
   // Get all known Portfolio Owners (from availableUsers or partners list)
   const portfolioOwners = useMemo(() => {
@@ -1092,85 +1085,6 @@ export default function PortfolioPage() {
               </div>
             )}
           </div>
-
-          {/* Admin User Approval Queue Banner */}
-          {isManagement && pendingUsers.length > 0 && (
-            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-2xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="h-8 w-8 rounded-lg bg-amber-500/10 text-amber-800 flex items-center justify-center font-bold">
-                    <UserCheck className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-amber-950 flex items-center gap-2">
-                      User Account Approval Queue
-                      <span className="rounded-full bg-amber-500/20 px-2 py-0.2 text-[10px] font-extrabold text-amber-900">
-                        {pendingUsers.length} Pending
-                      </span>
-                    </h3>
-                    <p className="text-[11px] text-amber-800/80">
-                      New sign-ups require administrator approval before workspace access is granted.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (window.confirm('Are you sure you want to remove all user accounts except Super Admin?')) {
-                        removeAllAccounts();
-                      }
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-[#FFFFFF] px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
-                  >
-                    Remove All Accounts
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      pendingUsers.forEach((u) => approveUser(u.uid, true));
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-[#FFFFFF] px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                    Approve All ({pendingUsers.length})
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
-                {pendingUsers.map((u) => (
-                  <div
-                    key={u.uid}
-                    className="rounded-xl border border-amber-200/80 bg-[#FFFFFF] p-3 flex items-center justify-between gap-3 shadow-2xs"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-[#1A1A1A] truncate">{u.displayName || 'Unnamed User'}</span>
-                        <span className="rounded bg-[#00319D]/10 text-[#00319D] px-1.5 py-0.2 text-[9px] font-bold uppercase shrink-0">
-                          {u.role}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-[#6B6860] truncate">{u.email}</div>
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => approveUser(u.uid, true)}
-                        className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-[#FFFFFF] px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                        title="Approve access"
-                      >
-                        <Check className="h-3 w-3" />
-                        Approve
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Sub-Tabs: Generated Leads, Onboarded Partners, and Audit Trail */}
           <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#E8E6E1] gap-3">
