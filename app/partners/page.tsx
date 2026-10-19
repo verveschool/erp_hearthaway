@@ -76,6 +76,7 @@ export default function PartnersPage() {
   // Modals state
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
   const [showOnboardModal, setShowOnboardModal] = useState(false);
+  const [isOnboarding, setIsOnboarding] = useState(false);
   const [showSingleLeadModal, setShowSingleLeadModal] = useState(false);
   const [reassignPartnerTarget, setReassignPartnerTarget] = useState<Partner | null>(null);
   const [selectedNewOwnerId, setSelectedNewOwnerId] = useState<string>('');
@@ -88,8 +89,10 @@ export default function PartnersPage() {
   const [agreementExpiryDate, setAgreementExpiryDate] = useState<string>('');
   const [agreementTerms, setAgreementTerms] = useState<string>('');
   const [agreementDocName, setAgreementDocName] = useState<string>('');
+  const [agreementLogoUrl, setAgreementLogoUrl] = useState<string>('');
   const [agreementSaved, setAgreementSaved] = useState<boolean>(false);
   const agreementFileRef = useRef<HTMLInputElement>(null);
+  const agreementLogoRef = useRef<HTMLInputElement>(null);
 
   // Available unique States & Cities for bifurcation filters
   const availableStates = useMemo(() => {
@@ -235,9 +238,9 @@ export default function PartnersPage() {
   const [newCountry, setNewCountry] = useState('India');
   const [newAgreementStatus, setNewAgreementStatus] = useState<any>('Active');
   const [newAgreementType, setNewAgreementType] = useState('Master Services Agreement (MSA)');
-  const [newAgreementTerms, setNewAgreementTerms] = useState('20% Net Revenue Commission, 30-day payout window');
+  const [newAgreementTerms, setNewAgreementTerms] = useState('40% Commission, 120-day payment window');
   const [newPortfolioOwnerId, setNewPortfolioOwnerId] = useState(portfolioOwners[0]?.uid || 'user-po-001');
-  const [newCommissionRate, setNewCommissionRate] = useState('20');
+  const [newCommissionRate, setNewCommissionRate] = useState('40');
 
   const handleOpenAgreementModal = (partner: Partner) => {
     setSelectedAgreementPartner(partner);
@@ -247,8 +250,9 @@ export default function PartnersPage() {
     setAgreementExpiryDate(
       partner.agreementExpiryDate || '2027-10-15'
     );
-    setAgreementTerms(partner.agreementTerms || `${partner.commissionRate}% Net Revenue Commission, 30-day payout window`);
+    setAgreementTerms(partner.agreementTerms || `${partner.commissionRate}% Commission, 120-day payment window`);
     setAgreementDocName(partner.agreementDocumentUrl ? 'Executed_Contract.pdf' : '');
+    setAgreementLogoUrl(partner.logoUrl || '');
     setAgreementSaved(false);
   };
 
@@ -262,6 +266,8 @@ export default function PartnersPage() {
       agreementSignedDate,
       agreementExpiryDate,
       agreementTerms,
+      agreementDocumentUrl: agreementDocName || selectedAgreementPartner.agreementDocumentUrl || '',
+      logoUrl: agreementLogoUrl || '',
     });
 
     setAgreementSaved(true);
@@ -276,16 +282,14 @@ export default function PartnersPage() {
     if (!file || !selectedAgreementPartner) return;
 
     setAgreementDocName(file.name);
-    updatePartner(selectedAgreementPartner.partnerId, {
-      agreementDocumentUrl: `/uploads/${file.name}`,
-    });
-    setAgreementSaved(true);
-    setTimeout(() => setAgreementSaved(false), 2000);
+    // Keep the selected file in the form until Save is pressed so all agreement fields persist together.
+    setAgreementSaved(false);
   };
 
   const handleOnboardPartner = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCompanyName || !newEmail || !newContactPerson) return;
+    if (isOnboarding || !newCompanyName || !newEmail || !newContactPerson) return;
+    setIsOnboarding(true);
 
     const chosenPO = portfolioOwners.find((u) => u.uid === newPortfolioOwnerId);
     const randomSeq = String(Math.floor(10000 + Math.random() * 90000));
@@ -317,8 +321,9 @@ export default function PartnersPage() {
       commissionRate: Number(newCommissionRate) || 20,
     });
 
-    setShowOnboardModal(false);
-    setNewCompanyName('');
+  setShowOnboardModal(false);
+  setIsOnboarding(false);
+  setNewCompanyName('');
     setNewContactPerson('');
     setNewEmail('');
     setNewPhone('');
@@ -1316,8 +1321,23 @@ export default function PartnersPage() {
                   value={agreementTerms}
                   onChange={(e) => setAgreementTerms(e.target.value)}
                   className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-none"
-                  placeholder="e.g. 20% Net Revenue Commission, 30-day payout window"
+                  placeholder="e.g. 40% Commission, 120-day payment window"
                 />
+              </div>
+
+              <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-4 space-y-2.5">
+                <span className="text-xs font-bold text-[#1A1A1A]">Partner Logo</span>
+                <div className="flex items-center gap-3">
+                  {agreementLogoUrl ? <img src={agreementLogoUrl} alt="Partner logo preview" className="h-10 w-10 rounded-lg object-contain border border-[#E8E6E1] bg-white" /> : <div className="h-10 w-10 rounded-lg border border-dashed border-[#BDB9B0]" />}
+                  <button type="button" onClick={() => agreementLogoRef.current?.click()} className="rounded-lg border border-[#00319D] bg-white px-3 py-1.5 text-xs font-bold text-[#00319D] cursor-pointer">Upload Logo</button>
+                  <input ref={agreementLogoRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => setAgreementLogoUrl(String(reader.result || ''));
+                    reader.readAsDataURL(file);
+                  }} />
+                </div>
               </div>
 
               {/* Contract Document Upload & Verification */}
@@ -1820,11 +1840,12 @@ export default function PartnersPage() {
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] cursor-pointer"
-                >
-                  Onboard Partner
+  <button
+  type="submit"
+  disabled={isOnboarding}
+  className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+  >
+  {isOnboarding ? 'Saving…' : 'Onboard Partner'}
                 </button>
               </div>
             </form>

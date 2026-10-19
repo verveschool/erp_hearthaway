@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useHearthAway } from '@/lib/context';
-import { Student } from '@/lib/types';
+import { AppUser, Student } from '@/lib/types';
 import { exportToCSV } from '@/lib/export-csv';
 import {
   Layers,
@@ -116,27 +116,15 @@ export default function PortfolioPage() {
 
   const isManagement = currentUser.role === 'management' || currentUser.role === 'admin';
 
-  // Get all known Portfolio Owners (from availableUsers or partners list)
+  // Only current Firestore users can be selected as portfolio owners.
+  // Partner records may contain historical names, so they must not manufacture users.
   const portfolioOwners = useMemo(() => {
-    const poUsers = availableUsers.filter((u) => u.role === 'portfolio_owner');
-    // Also add any assigned managers from partners if not present
-    const additionalIds = new Set(partners.map((p) => p.portfolioOwnerId));
-    const list = [...poUsers];
-    additionalIds.forEach((id) => {
-      if (id && !list.some((u) => u.uid === id)) {
-        const p = partners.find((part) => part.portfolioOwnerId === id);
-        if (p) {
-          list.push({
-            uid: id,
-            displayName: p.portfolioOwnerName || id,
-            email: `${id.toLowerCase()}@hearthaway.com`,
-            role: 'portfolio_owner',
-          });
-        }
-      }
-    });
-    return list;
-  }, [availableUsers, partners]);
+    const unique = new Map<string, AppUser>();
+    availableUsers
+      .filter((user) => user.role === 'portfolio_owner' && user.uid && user.displayName?.trim())
+      .forEach((user) => unique.set(user.uid, user));
+    return Array.from(unique.values());
+  }, [availableUsers]);
 
   // Selected portfolio owner for inspection:
   // If user is a Portfolio Owner, they ONLY see their own portfolio!
