@@ -218,6 +218,7 @@ export const PartnerSchema = z.object({
   agreementExpiryDate: z.string().optional(),
   agreementTerms: z.string().optional().default('20% Net Revenue Commission, 30-day payout window'),
   agreementDocumentUrl: z.string().optional(),
+  logoUrl: z.string().optional(),
   status: z.enum(['Active', 'Prospect', 'Contacted', 'Negotiation', 'Onboarding', 'Dormant']).default('Active'),
   onboardingDate: z.string(),
   commissionRate: z.number().default(20), // % of HearthAway revenue

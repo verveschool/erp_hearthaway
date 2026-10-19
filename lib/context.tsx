@@ -411,6 +411,37 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       handleFirestoreError(err, OperationType.WRITE, `users/${uid}`);
     });
 
+    if (isPartner) {
+      const partnerRecord: Partner = {
+        id: `part-${partnerId!.toLowerCase()}`,
+        partnerId: partnerId!,
+        companyName: data.partnerName || data.displayName,
+        type: 'Study Abroad Consultant',
+        contactPerson: data.displayName,
+        email: cleanEmail,
+        phone: data.phone || '',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        country: 'India',
+        countries: ['India'],
+        cities: ['Mumbai'],
+        portfolioOwnerId: '',
+        portfolioOwnerName: '',
+        assignedManagerId: '',
+        assignedManagerName: '',
+        agreementStatus: 'Pending Review',
+        agreementType: 'Master Services Agreement (MSA)',
+        agreementTerms: '20% Net Revenue Commission, 30-day payout window',
+        agreementDocumentUrl: '',
+        status: 'Onboarding',
+        onboardingDate: new Date().toISOString().split('T')[0],
+        commissionRate: 20,
+      };
+      setDoc(doc(db, 'partners', partnerRecord.id), partnerRecord, { merge: true }).catch((err) => {
+        handleFirestoreError(err, OperationType.WRITE, `partners/${partnerRecord.id}`);
+      });
+    }
+
     setIsLoginModalOpen(false);
     return newUser;
   };
@@ -759,6 +790,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   };
 
   const onboardNewPartner = (partnerData: any): Partner => {
+    const normalizedEmail = String(partnerData.email || '').toLowerCase().trim();
+    const existingPartner = partners.find((partner) =>
+      (normalizedEmail && partner.email.toLowerCase().trim() === normalizedEmail) ||
+      (partnerData.companyName && partner.companyName.toLowerCase().trim() === String(partnerData.companyName).toLowerCase().trim())
+    );
+    if (existingPartner) return existingPartner;
+
     const partnerIdStr = partnerData.partnerId || `PART-${Math.floor(10000 + Math.random() * 90000)}`;
     const docId = `part-${partnerIdStr.toLowerCase()}`;
     const newPartner: Partner = {
@@ -810,7 +848,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         'Partner Updated',
         `Partner "${partner.companyName}" (${partner.partnerId}) profile / agreement terms updated by ${currentUser.displayName}.`
       );
-      updateDoc(doc(db, 'partners', docId), updates).catch((err) => {
+      setDoc(doc(db, 'partners', docId), updates, { merge: true }).catch((err) => {
         handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
       });
     }
