@@ -112,6 +112,7 @@ export default function PortfolioPage() {
     activities,
     availableUsers,
     approveUser,
+    removeAllAccounts,
     reassignPartnerPortfolioOwner,
     setSelectedStudentId,
   } = useHearthAway();
@@ -1114,6 +1115,17 @@ export default function PortfolioPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to remove all user accounts except Super Admin?')) {
+                        removeAllAccounts();
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-[#FFFFFF] px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                  >
+                    Remove All Accounts
+                  </button>
                   <button
                     type="button"
                     onClick={() => {

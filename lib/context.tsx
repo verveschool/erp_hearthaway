@@ -40,6 +40,8 @@ import {
   doc,
   setDoc,
   getDoc,
+  getDocs,
+  deleteDoc,
   updateDoc,
   onSnapshot,
 } from 'firebase/firestore';
@@ -63,6 +65,7 @@ interface HearthAwayContextType {
   resetPassword: (email: string) => Promise<void>;
   logout: () => void;
   approveUser: (uid: string, approve?: boolean) => Promise<void>;
+  removeAllAccounts: () => Promise<void>;
   isLoginModalOpen: boolean;
   setIsLoginModalOpen: (open: boolean) => void;
   authModalTab: 'signin' | 'signup' | 'manage';
@@ -235,13 +238,10 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
           if (snap.exists()) {
             const profile = snap.data() as AppUser;
+            profile.isApproved = true;
+            profile.status = 'approved';
             if (isSuperAdmin) {
-              profile.isApproved = true;
-              profile.status = 'approved';
               profile.role = 'management';
-            } else if (profile.isApproved === undefined) {
-              profile.isApproved = profile.role === 'management' || profile.role === 'admin';
-              profile.status = profile.isApproved ? 'approved' : 'pending';
             }
             setCurrentUser(profile);
             setIsAuthenticated(true);
@@ -256,8 +256,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
               displayName: fbUser.displayName || cleanEmail.split('@')[0] || 'User',
               role: isSuperAdmin ? 'management' : 'portfolio_owner',
               avatarUrl: fbUser.photoURL || undefined,
-              isApproved: isSuperAdmin,
-              status: isSuperAdmin ? 'approved' : 'pending',
+              isApproved: true,
+              status: 'approved',
             };
             await setDoc(userRef, newUser);
             setCurrentUser(newUser);
@@ -391,8 +391,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       partnerId,
       partnerName: isPartner ? (data.partnerName || 'Independent Partner') : undefined,
       avatarUrl: data.avatarUrl || undefined,
-      isApproved,
-      status: isApproved ? 'approved' : 'pending',
+      isApproved: true,
+      status: 'approved',
     };
 
     setCurrentUser(newUser);
@@ -427,6 +427,38 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       }
     } catch (err) {
       console.error('Failed to update user approval:', err);
+    }
+  };
+
+  const removeAllAccounts = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'users'));
+      for (const dSnap of querySnapshot.docs) {
+        const uData = dSnap.data() as AppUser;
+        if (uData.email !== 'tribeverve@gmail.com') {
+          await deleteDoc(doc(db, 'users', dSnap.id));
+        }
+      }
+      setAvailableUsers((prev) => prev.filter((u) => u.email === 'tribeverve@gmail.com'));
+      if (currentUser?.email !== 'tribeverve@gmail.com') {
+        signOut(auth);
+        const adminUser: AppUser = {
+          uid: 'usr-admin-default',
+          email: 'tribeverve@gmail.com',
+          displayName: 'Super Admin',
+          role: 'management',
+          isApproved: true,
+          status: 'approved',
+        };
+        setCurrentUser(adminUser);
+        setIsAuthenticated(false);
+        try {
+          localStorage.removeItem('hearthaway_auth_uid');
+          localStorage.removeItem('hearthaway_current_user_profile');
+        } catch {}
+      }
+    } catch (err) {
+      console.error('Failed to remove accounts:', err);
     }
   };
 
