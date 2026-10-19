@@ -98,8 +98,8 @@ interface HearthAwayContextType {
     explicitPartnerId?: string,
     explicitPartnerName?: string
   ) => { importedCount: number; duplicatesCount: number; errorsCount: number; importedLeads: Student[] };
-  onboardNewPartner: (partnerData: any) => Partner;
-  updatePartner: (partnerId: string, updates: Partial<Partner>) => void;
+  onboardNewPartner: (partnerData: any) => Promise<Partner>;
+  updatePartner: (partnerId: string, updates: Partial<Partner>) => Promise<void>;
   submitPartnerLead: (lead: {
     fullName: string;
     phone: string;
@@ -790,7 +790,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const onboardNewPartner = (partnerData: any): Partner => {
+  const onboardNewPartner = async (partnerData: any): Promise<Partner> => {
     const normalizedEmail = String(partnerData.email || '').toLowerCase().trim();
     const existingPartner = partners.find((partner) =>
       (normalizedEmail && partner.email.toLowerCase().trim() === normalizedEmail) ||
@@ -827,9 +827,10 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       ...partnerData,
     };
 
-    setDoc(doc(db, 'partners', docId), newPartner).catch((err) => {
-      handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
-    });
+  await setDoc(doc(db, 'partners', docId), newPartner).catch((err) => {
+  handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
+  throw err;
+  });
 
     logStudentActivity(
       partnerIdStr,
@@ -840,7 +841,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     return newPartner;
   };
 
-  const updatePartner = (partnerId: string, updates: Partial<Partner>) => {
+  const updatePartner = async (partnerId: string, updates: Partial<Partner>): Promise<void> => {
     const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
     if (partner) {
       const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
@@ -849,9 +850,10 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         'Partner Updated',
         `Partner "${partner.companyName}" (${partner.partnerId}) profile / agreement terms updated by ${currentUser.displayName}.`
       );
-      setDoc(doc(db, 'partners', docId), updates, { merge: true }).catch((err) => {
-        handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
-      });
+  await setDoc(doc(db, 'partners', docId), updates, { merge: true }).catch((err) => {
+  handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
+  throw err;
+  });
     }
   };
 
