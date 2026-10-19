@@ -378,7 +378,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   }): AppUser => {
     const isPartner = data.role === 'partner';
     const partnerId = isPartner ? `PART-${Math.floor(10000 + Math.random() * 90000)}` : undefined;
-    const uid = `user-${Date.now()}`;
+    // Use the Firebase Auth UID so Firestore ownership rules can authorize the write.
+    const uid = auth.currentUser?.uid || `user-${Date.now()}`;
     const cleanEmail = data.email.toLowerCase().trim();
     const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com' || data.role === 'management' || data.role === 'admin';
     const isApproved = isSuperAdmin;
@@ -388,11 +389,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       email: cleanEmail,
       displayName: data.displayName,
       role: data.role,
-      partnerId,
-      partnerName: isPartner ? (data.partnerName || 'Independent Partner') : undefined,
-      avatarUrl: data.avatarUrl || undefined,
       isApproved: true,
       status: 'approved',
+      ...(isPartner ? {
+        partnerId,
+        partnerName: data.partnerName || 'Independent Partner',
+      } : {}),
+      ...(data.avatarUrl ? { avatarUrl: data.avatarUrl } : {}),
     };
 
     setCurrentUser(newUser);

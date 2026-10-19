@@ -21,35 +21,17 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    function getUserRole() {
-      return request.auth.token.role != null 
-        ? request.auth.token.role 
-        : (hasUserDoc() ? getUserDoc().role : 'none');
-    }
-
-    function isSuperAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'tribeverve@gmail.com' ||
-        getUserRole() == 'admin' ||
-        getUserRole() == 'management'
-      );
-    }
-
-    // Connection test document
-    match /test/{docId} {
-      allow read, write: if true;
-    }
-
-    // User profiles & roles
+    // Profiles are client-created, but each authenticated user can only access
+    // the profile whose document ID matches their Firebase Auth UID.
     match /users/{userId} {
-      allow read, create, update: if isSignedIn();
-      allow delete: if isSuperAdmin();
+      allow read, create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
     }
 
     // Students master collection
     match /students/{studentId} {
       allow read, create, update: if isSignedIn();
-      allow delete: if isSuperAdmin();
+      allow delete: if isSignedIn();
 
       // Activities audit trail - Append only
       match /activities/{activityId} {
@@ -61,42 +43,42 @@ service cloud.firestore {
     // Top-level Activities audit log
     match /activities/{activityId} {
       allow read, create, update: if isSignedIn();
-      allow delete: if isSuperAdmin();
+      allow delete: if isSignedIn();
     }
 
     // Payments collection
     match /payments/{paymentId} {
       allow read, create, update: if isSignedIn();
-      allow delete: if isSuperAdmin();
+      allow delete: if isSignedIn();
     }
 
     // Partners collection
     match /partners/{partnerId} {
       allow read, create, update: if isSignedIn();
-      allow delete: if isSuperAdmin();
+      allow delete: if isSignedIn();
     }
 
     // Properties & Inventory
     match /properties/{propertyId} {
       allow read, create, update: if isSignedIn();
-      allow delete: if isSuperAdmin();
+      allow delete: if isSignedIn();
     }
 
     // Bookings collection
     match /bookings/{bookingId} {
       allow read, create, update: if isSignedIn();
-      allow delete: if isSuperAdmin();
+      allow delete: if isSignedIn();
     }
 
     // Commissions & Payouts
     match /commissions/{commissionId} {
       allow read, create, update: if isSignedIn();
-      allow delete: if isSuperAdmin();
+      allow delete: if isSignedIn();
     }
 
     match /partnerPayouts/{payoutId} {
       allow read, create, update: if isSignedIn();
-      allow delete: if isSuperAdmin();
+      allow delete: if isSignedIn();
     }
   }
 }
