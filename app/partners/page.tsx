@@ -2132,6 +2132,41 @@ export default function PartnersPage() {
           </div>
         </div>
       )}
+
+      {inspectPartnerId && !isPartner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="partner-leads-title">
+          <div className="max-h-[80vh] w-full max-w-3xl overflow-hidden rounded-2xl bg-[#FFFFFF] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#E8E6E1] px-5 py-4">
+              <div>
+                <h2 id="partner-leads-title" className="text-base font-extrabold text-[#1A1A1A]">Partner Leads</h2>
+                <p className="text-xs text-[#6B6860]">{activeInspectedPartner?.companyName || 'Selected partner'}</p>
+              </div>
+              <button type="button" onClick={() => setInspectPartnerId(null)} className="rounded-lg p-2 text-[#6B6860] hover:bg-[#F7F6F3] cursor-pointer" aria-label="Close partner leads">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {partnerLeads.length === 0 ? (
+              <div className="p-12 text-center">
+                <Users className="mx-auto h-8 w-8 text-[#6B6860]" />
+                <p className="mt-3 text-sm font-bold text-[#1A1A1A]">No leads submitted yet</p>
+                <p className="mt-1 text-xs text-[#6B6860]">This partner has not uploaded or submitted any leads.</p>
+              </div>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto p-5">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {partnerLeads.map((lead) => (
+                    <div key={lead.studentId} className="rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] p-3">
+                      <p className="text-sm font-bold text-[#1A1A1A]">{lead.fullName}</p>
+                      <p className="mt-1 text-xs text-[#6B6860]">{lead.email}</p>
+                      <p className="mt-2 text-xs font-semibold text-[#00319D]">{lead.leadStatus || 'New'}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
