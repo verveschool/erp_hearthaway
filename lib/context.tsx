@@ -248,8 +248,15 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           const snap = await getDoc(userRef);
 
           if (snap.exists()) {
+            const storedProfile = snap.data() as AppUser;
+            if (storedProfile.status === 'deleted' || storedProfile.deletedAt) {
+              await signOut(auth);
+              setIsAuthenticated(false);
+              setCurrentUser(DEFAULT_EMPTY_USER);
+              return;
+            }
             const profile = {
-              ...(snap.data() as AppUser),
+              ...storedProfile,
               // Account access is automatic; approval is no longer a server/admin step.
               isApproved: true,
               status: 'approved' as const,
@@ -486,7 +493,11 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   const deleteUser = async (uid: string) => {
     if (!uid || uid === currentUser.uid || currentUser.role !== 'management' && currentUser.role !== 'admin') return;
-    await deleteDoc(doc(db, 'users', uid));
+    await setDoc(doc(db, 'users', uid), {
+      status: 'deleted',
+      deletedAt: new Date().toISOString(),
+      isApproved: false,
+    }, { merge: true });
     setAvailableUsers((previous) => previous.filter((user) => user.uid !== uid));
   };
 
