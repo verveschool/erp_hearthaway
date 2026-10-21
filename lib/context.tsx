@@ -738,8 +738,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       },
       activityType,
       description,
-      oldValue,
-      newValue,
+      ...(oldValue !== undefined ? { oldValue } : {}),
+      ...(newValue !== undefined ? { newValue } : {}),
     };
 
     setDoc(doc(db, 'activities', actId), newActivity).catch((err) => {
