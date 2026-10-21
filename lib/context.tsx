@@ -34,7 +34,6 @@ import {
   setPersistence,
   browserLocalPersistence,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   sendPasswordResetEmail,
 } from 'firebase/auth';
 import {
@@ -68,6 +67,8 @@ interface HearthAwayContextType {
   resetPassword: (email: string) => Promise<void>;
   logout: () => void;
   approveUser: (uid: string, approve?: boolean) => Promise<void>;
+  updateUserRole: (uid: string, role: UserRole) => Promise<void>;
+  deleteUser: (uid: string) => Promise<void>;
   removeAllAccounts: () => Promise<void>;
   isLoginModalOpen: boolean;
   setIsLoginModalOpen: (open: boolean) => void;
@@ -288,14 +289,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         setIsAuthenticated(false);
         setCurrentUser(DEFAULT_EMPTY_USER);
         try {
-          const savedProfile = typeof window !== 'undefined' ? localStorage.getItem('hearthaway_current_user_profile') : null;
-          if (savedProfile) {
-            const parsed = JSON.parse(savedProfile);
-            if (parsed && parsed.uid) {
-              setCurrentUser(parsed);
-              setIsAuthenticated(true);
-            }
-          }
+          localStorage.removeItem('hearthaway_auth_uid');
+          localStorage.removeItem('hearthaway_current_user_profile');
         } catch {}
       }
       if (isMounted) setAuthInitialized(true);
@@ -483,6 +478,18 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
+  const updateUserRole = async (uid: string, role: UserRole) => {
+    if (uid === currentUser.uid) return;
+    await setDoc(doc(db, 'users', uid), { role }, { merge: true });
+    setAvailableUsers((previous) => previous.map((user) => user.uid === uid ? { ...user, role } : user));
+  };
+
+  const deleteUser = async (uid: string) => {
+    if (!uid || uid === currentUser.uid || currentUser.role !== 'management' && currentUser.role !== 'admin') return;
+    await deleteDoc(doc(db, 'users', uid));
+    setAvailableUsers((previous) => previous.filter((user) => user.uid !== uid));
+  };
+
   const removeAllAccounts = async () => {
     try {
       const querySnapshot = await getDocs(collection(db, 'users'));
@@ -620,45 +627,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         } catch (e) {}
         setIsLoginModalOpen(false);
         return;
-      } catch (err) {
-        try {
-          const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
-          const fbUser = userCredential.user;
-          const userRef = doc(db, 'users', fbUser.uid);
-          const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com';
-          const profile: AppUser = {
-            uid: fbUser.uid,
-            email: cleanEmail,
-            displayName: cleanEmail.split('@')[0],
-            role: isSuperAdmin ? 'management' : 'portfolio_owner',
-          };
-          await setDoc(userRef, profile);
-          setCurrentUser(profile);
-          setIsAuthenticated(true);
-          try {
-            localStorage.setItem('hearthaway_auth_uid', profile.uid);
-            localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(profile));
-          } catch (e) {}
-          setIsLoginModalOpen(false);
-          return;
-        } catch (signUpErr) {
-          console.warn('Firebase email auth fallback:', signUpErr);
+        } catch (err) {
+          console.warn('[v0] Firebase sign-in rejected:', err);
+          throw new Error('Invalid email or password.');
         }
       }
-    }
 
-    const match = availableUsers.find((u) => u.email.toLowerCase() === cleanEmail);
-    if (match) {
-      loginWithUser(match);
-    } else {
-      const newUser = createAccount({
-        displayName: cleanEmail.split('@')[0] || 'Operations Specialist',
-        email: cleanEmail,
-        role: cleanEmail === 'tribeverve@gmail.com' ? 'management' : 'portfolio_owner',
-      });
-      loginWithUser(newUser);
-    }
-    setIsLoginModalOpen(false);
+    throw new Error('Enter your Firebase email and password to sign in.');
   };
 
   const resetPassword = async (email: string): Promise<void> => {
@@ -1502,8 +1477,10 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         loginWithEmailPassword,
         resetPassword,
         logout,
-        approveUser,
-        removeAllAccounts,
+  approveUser,
+  updateUserRole,
+  deleteUser,
+  removeAllAccounts,
         isLoginModalOpen,
         setIsLoginModalOpen,
         authModalTab,

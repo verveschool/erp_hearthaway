@@ -317,7 +317,7 @@ export default function PartnersPage() {
     setNewCity(partner.city || 'Mumbai');
     setNewState(partner.state || 'Maharashtra');
     setNewCountry(partner.country || 'India');
-    setNewAgreementStatus(partner.agreementStatus || 'Pending Review');
+    setNewAgreementStatus(partner.agreementStatus || 'Pending Internal Review');
     setNewAgreementType(partner.agreementType || 'Master Services Agreement (MSA)');
     setNewAgreementTerms(partner.agreementTerms || '40% Commission, 120-day payment window');
     setNewCommissionRate(String(partner.commissionRate || 40));
