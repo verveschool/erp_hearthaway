@@ -262,7 +262,7 @@ export default function PartnersPage() {
       partner.agreementExpiryDate || '2027-10-15'
     );
     setAgreementTerms(partner.agreementTerms || `${partner.commissionRate}% Commission, 120-day payment window`);
-    setAgreementDocName(partner.agreementDocumentUrl ? 'Executed_Contract.pdf' : '');
+    setAgreementDocName(partner.agreementDocumentUrl || '');
     setAgreementLogoUrl(partner.logoUrl || '');
     setAgreementSaved(false);
     setAgreementError('');
@@ -281,7 +281,7 @@ export default function PartnersPage() {
         agreementSignedDate,
         agreementExpiryDate,
         agreementTerms,
-        agreementDocumentUrl: agreementDocName || selectedAgreementPartner.agreementDocumentUrl || '',
+        agreementDocumentUrl: agreementDocName.trim() || selectedAgreementPartner.agreementDocumentUrl || '',
         logoUrl: agreementLogoUrl || '',
         status: agreementStatus === 'Active' || agreementStatus === 'Signed' ? 'Active' : selectedAgreementPartner.status,
       });
