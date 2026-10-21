@@ -276,14 +276,14 @@ export default function PartnersPage() {
     setAgreementError('');
     try {
       await updatePartner(selectedAgreementPartner.partnerId, {
-        agreementStatus: agreementStatus as any,
+        agreementStatus: 'Active',
         agreementType,
         agreementSignedDate,
         agreementExpiryDate,
         agreementTerms,
         agreementDocumentUrl: agreementDocName.trim() || selectedAgreementPartner.agreementDocumentUrl || '',
         logoUrl: agreementLogoUrl || '',
-        status: agreementStatus === 'Active' || agreementStatus === 'Signed' ? 'Active' : selectedAgreementPartner.status,
+        status: 'Active',
       });
 
       setAgreementSaved(true);

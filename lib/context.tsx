@@ -243,7 +243,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       if (fbUser) {
         try {
           const cleanEmail = (fbUser.email || '').toLowerCase().trim();
-          const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com' || cleanEmail.includes('admin');
+          const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com';
           const userRef = doc(db, 'users', fbUser.uid);
           const snap = await getDoc(userRef);
 
@@ -257,13 +257,12 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
             }
             const profile = {
               ...storedProfile,
-              // Account access is automatic; approval is no longer a server/admin step.
-              isApproved: true,
-              status: 'approved' as const,
+              isApproved: storedProfile.isApproved ?? true,
+              status: storedProfile.status ?? 'approved',
             };
-            await setDoc(userRef, { isApproved: true, status: 'approved' }, { merge: true });
-            if (isSuperAdmin) {
+            if (isSuperAdmin && profile.role !== 'partner') {
               profile.role = 'management';
+              await setDoc(userRef, { role: 'management' }, { merge: true });
             }
             setCurrentUser(profile);
             setIsAuthenticated(true);
