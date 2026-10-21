@@ -21,10 +21,15 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const {
     canAccessRoute,
     isAuthenticated,
+    authInitialized,
     currentUser,
     setIsLoginModalOpen,
     logout,
   } = useHearthAway();
+
+  if (!authInitialized) {
+    return <div className="min-h-[70vh]" aria-busy="true" />;
+  }
 
   const access = canAccessRoute(pathname);
 

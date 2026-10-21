@@ -121,9 +121,9 @@ export default function PortfolioPage() {
   const portfolioOwners = useMemo(() => {
     const unique = new Map<string, AppUser>();
     availableUsers
-      .filter((user) => user.role === 'portfolio_owner' && user.uid && user.displayName?.trim())
+      .filter((user) => user.uid && user.displayName?.trim() && user.role !== 'partner' && user.status !== 'rejected' && user.status !== 'pending' && user.isApproved !== false)
       .forEach((user) => unique.set(user.uid, user));
-    return Array.from(unique.values());
+    return Array.from(unique.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
   }, [availableUsers]);
 
   // Selected portfolio owner for inspection:

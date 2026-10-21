@@ -32,6 +32,8 @@ import {
   List,
   Shield,
   FileCode,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 
 export default function PartnersPage() {
@@ -45,6 +47,7 @@ export default function PartnersPage() {
     submitPartnerLead,
     onboardNewPartner,
     updatePartner,
+    deletePartner,
     setSelectedStudentId,
   } = useHearthAway();
 
@@ -53,7 +56,11 @@ export default function PartnersPage() {
 
   // Portfolio Owners list for assignments
   const portfolioOwners = useMemo(() => {
-    return availableUsers.filter((u) => u.role !== 'partner');
+    const uniqueUsers = new Map<string, (typeof availableUsers)[number]>();
+    availableUsers
+      .filter((u) => u.uid && u.displayName?.trim() && u.role !== 'partner' && u.status !== 'rejected' && u.status !== 'pending' && u.isApproved !== false)
+      .forEach((u) => uniqueUsers.set(u.uid, u));
+    return Array.from(uniqueUsers.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
   }, [availableUsers]);
 
   // Active Partner context for Partner role
@@ -276,6 +283,7 @@ export default function PartnersPage() {
         agreementTerms,
         agreementDocumentUrl: agreementDocName || selectedAgreementPartner.agreementDocumentUrl || '',
         logoUrl: agreementLogoUrl || '',
+        status: agreementStatus === 'Active' || agreementStatus === 'Signed' ? 'Active' : selectedAgreementPartner.status,
       });
 
       setAgreementSaved(true);
@@ -317,7 +325,7 @@ export default function PartnersPage() {
     setShowOnboardModal(true);
   };
 
-  const handleOnboardPartner = (e: React.FormEvent) => {
+  const handleOnboardPartner = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isOnboarding || !newCompanyName || !newEmail || !newContactPerson) return;
     setIsOnboarding(true);
@@ -352,10 +360,16 @@ export default function PartnersPage() {
       commissionRate: Number(newCommissionRate) || 40,
     };
 
-    if (onboardingPartner) {
-      updatePartner(onboardingPartner.partnerId, onboardingData);
-    } else {
-      onboardNewPartner(onboardingData);
+    try {
+      if (onboardingPartner) {
+        await updatePartner(onboardingPartner.partnerId, onboardingData);
+      } else {
+        await onboardNewPartner(onboardingData);
+      }
+    } catch (error) {
+      setOnboardingError(error instanceof Error ? error.message : 'Unable to save partner details.');
+      setIsOnboarding(false);
+      return;
     }
 
     setShowOnboardModal(false);
@@ -365,6 +379,16 @@ export default function PartnersPage() {
     setNewContactPerson('');
     setNewEmail('');
     setNewPhone('');
+  };
+
+  const handleDeletePartner = async (partner: Partner) => {
+    if (!window.confirm(`Delete ${partner.companyName}? This cannot be undone.`)) return;
+    try {
+      await deletePartner(partner.partnerId);
+      if (inspectPartnerId === partner.partnerId) setInspectPartnerId(null);
+    } catch (error) {
+      setOnboardingError(error instanceof Error ? error.message : 'Unable to delete partner.');
+    }
   };
 
   // Reassign Partner Portfolio Owner Handler
@@ -1104,6 +1128,15 @@ export default function PartnersPage() {
                                           Leads: <strong className="text-[#00319D]">{leadsCount}</strong> • Bookings: <strong className="text-emerald-700">{bookingsCount}</strong>
                                         </div>
                                         <div className="flex items-center gap-1.5">
+                                          {isManagement && (
+                                            <button
+                                              onClick={() => openPartnerOnboarding(partner)}
+                                              className="rounded-md border border-[#00319D] bg-[#00319D]/5 px-2 py-1 text-[10px] font-bold text-[#00319D] hover:bg-[#00319D]/10 cursor-pointer"
+                                            >
+                                              <Pencil className="mr-1 inline h-3 w-3" />
+                                              Edit
+                                            </button>
+                                          )}
                                           {isManagement && partner.status !== 'Active' && (
                                             <button
                                               onClick={() => openPartnerOnboarding(partner)}
@@ -1118,6 +1151,15 @@ export default function PartnersPage() {
                                           >
                                             Agreement
                                           </button>
+                                          {isManagement && (
+                                            <button
+                                              onClick={() => handleDeletePartner(partner)}
+                                              className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-700 hover:bg-rose-100 cursor-pointer"
+                                              title="Delete partner"
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                            </button>
+                                          )}
                                           <button
                                             onClick={() => setInspectPartnerId(partner.partnerId)}
                                             className="rounded-md bg-[#00319D] px-2.5 py-1 text-[10px] font-bold text-[#FFFFFF] hover:bg-[#00257A] cursor-pointer"
@@ -1241,6 +1283,22 @@ export default function PartnersPage() {
 
                               <td className="py-3.5 px-4 text-right">
                                 <div className="flex items-center justify-end gap-1.5">
+                                  {isManagement && (
+                                    <>
+                                      <button
+                                        onClick={() => openPartnerOnboarding(partner)}
+                                        className="rounded-md border border-[#00319D] bg-[#00319D]/5 px-2.5 py-1 text-[11px] font-bold text-[#00319D] hover:bg-[#00319D]/10 cursor-pointer"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeletePartner(partner)}
+                                        className="rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 cursor-pointer"
+                                      >
+                                        Delete
+                                      </button>
+                                    </>
+                                  )}
                                   <button
                                     onClick={() => handleOpenAgreementModal(partner)}
                                     className="rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-1 text-[11px] font-bold text-[#1A1A1A] hover:bg-[#F7F6F3] transition-colors cursor-pointer"
