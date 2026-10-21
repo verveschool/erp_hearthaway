@@ -52,6 +52,7 @@ export function LoginModal() {
   // Sign in state
   const [signinEmail, setSigninEmail] = useState('');
   const [signinPassword, setSigninPassword] = useState('');
+  const [signinError, setSigninError] = useState('');
 
   // Password recovery state
   const [isForgotPassword, setIsForgotPassword] = useState(false);
@@ -83,7 +84,12 @@ export function LoginModal() {
     const cleanEmail = signinEmail.toLowerCase().trim();
     if (!cleanEmail) return;
 
-    await loginWithEmailPassword(cleanEmail, signinPassword);
+    setSigninError('');
+    try {
+      await loginWithEmailPassword(cleanEmail, signinPassword);
+    } catch (error) {
+      setSigninError(error instanceof Error ? error.message : 'Invalid email or password.');
+    }
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -308,6 +314,7 @@ export function LoginModal() {
                     />
                   </div>
                 </div>
+                {signinError && <p className="text-xs font-medium text-red-600" role="alert">{signinError}</p>}
 
                 <button
                   type="submit"
