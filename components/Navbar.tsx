@@ -54,7 +54,7 @@ export function Navbar() {
   const isManagement = currentUser.role === 'management' || currentUser.role === 'admin';
 
   // Determine role-based visible navigation items
-  // Exact names and exact order: Portfolio | Partners | Sales | Finance
+  // Management also gets the Users administration link.
   const navItems = [];
 
   if (isManagement) {
@@ -63,7 +63,8 @@ export function Navbar() {
       { name: 'Portfolio', href: '/portfolio', icon: Layers, active: pathname.startsWith('/portfolio') },
       { name: 'Partners', href: '/partners', icon: Users, active: pathname.startsWith('/partners') },
       { name: 'Sales', href: '/sales', icon: Briefcase, active: pathname.startsWith('/sales') },
-      { name: 'Finance', href: '/finance', icon: CreditCard, active: pathname.startsWith('/finance') }
+      { name: 'Finance', href: '/finance', icon: CreditCard, active: pathname.startsWith('/finance') },
+      { name: 'Users', href: '/management', icon: Users, active: pathname.startsWith('/management') }
     );
   } else if (currentUser.role === 'portfolio_owner') {
     // Portfolio Owner sees only their permitted Portfolio module
