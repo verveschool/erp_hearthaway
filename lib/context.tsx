@@ -31,6 +31,8 @@ import {
   signInWithPopup,
   signOut,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -59,6 +61,7 @@ interface HearthAwayContextType {
 
   // Authentication & Access Control
   isAuthenticated: boolean;
+  authInitialized: boolean;
   loginWithUser: (user: AppUser) => void;
   loginWithGoogle: () => Promise<void>;
   loginWithEmailPassword: (email: string, password?: string) => Promise<void>;
@@ -214,6 +217,7 @@ const HearthAwayContext = createContext<HearthAwayContextType | undefined>(undef
 export function HearthAwayProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AppUser>(DEFAULT_EMPTY_USER);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authInitialized, setAuthInitialized] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [authModalTab, setAuthModalTab] = useState<'signin' | 'signup' | 'manage'>('signin');
   const [availableUsers, setAvailableUsers] = useState<AppUser[]>([]);
@@ -229,6 +233,11 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   // Real-time Firebase Firestore Sync & Auth state listener
   useEffect(() => {
+    let isMounted = true;
+    void setPersistence(auth, browserLocalPersistence).catch((error) => {
+      console.warn('[v0] Firebase auth persistence setup failed:', error);
+    });
+
     const unsubAuth = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
         try {
@@ -276,6 +285,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           console.warn('Error fetching Firestore user profile:', err);
         }
       } else {
+        setIsAuthenticated(false);
+        setCurrentUser(DEFAULT_EMPTY_USER);
         try {
           const savedProfile = typeof window !== 'undefined' ? localStorage.getItem('hearthaway_current_user_profile') : null;
           if (savedProfile) {
@@ -287,6 +298,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           }
         } catch {}
       }
+      if (isMounted) setAuthInitialized(true);
     });
 
     // Real-time Firestore snapshot listeners across all connected users & devices
@@ -357,6 +369,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     );
 
     return () => {
+      isMounted = false;
       unsubAuth();
       unsubStudents();
       unsubPartners();
@@ -1479,8 +1492,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         currentUser,
         setCurrentUser,
         availableUsers,
-        isAuthenticated,
-        loginWithUser,
+    isAuthenticated,
+    authInitialized,
+    loginWithUser,
         loginWithGoogle,
         loginWithEmailPassword,
         resetPassword,
