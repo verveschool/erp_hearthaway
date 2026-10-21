@@ -360,7 +360,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const unsubUsers = onSnapshot(
       collection(db, 'users'),
       (snapshot) => {
-        const list = snapshot.docs.map((docSnap) => docSnap.data() as AppUser);
+        const list = snapshot.docs
+          .map((docSnap) => ({ uid: docSnap.id, ...docSnap.data() } as AppUser))
+          .filter((user) => user.status !== 'deleted' && user.status !== 'disabled' && !user.deletedAt);
         setAvailableUsers(list);
       },
       (err) => {
@@ -864,6 +866,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
     try {
       await setDoc(doc(db, 'partners', docId), updates, { merge: true });
+      setPartners((previous) => previous.map((item) => item.partnerId === partner.partnerId ? { ...item, ...updates } : item));
       logStudentActivity(
         partner.partnerId,
         'Partner Updated',

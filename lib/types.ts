@@ -337,5 +337,6 @@ export interface AppUser {
   partnerName?: string;
   avatarUrl?: string;
   isApproved?: boolean;
-  status?: 'pending' | 'approved' | 'rejected';
-}
+  status?: 'pending' | 'approved' | 'rejected' | 'deleted' | 'disabled';
+  deletedAt?: string;
+  }
