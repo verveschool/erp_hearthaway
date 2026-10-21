@@ -318,8 +318,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       collection(db, 'partners'),
       (snapshot) => {
         const list = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
           ...docSnap.data(),
+          // The Firestore document ID is authoritative; stored IDs can be stale after imports.
+          id: docSnap.id,
         } as Partner));
         setPartners(list);
       },
