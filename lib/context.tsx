@@ -100,6 +100,7 @@ interface HearthAwayContextType {
   ) => { importedCount: number; duplicatesCount: number; errorsCount: number; importedLeads: Student[] };
   onboardNewPartner: (partnerData: any) => Promise<Partner>;
   updatePartner: (partnerId: string, updates: Partial<Partner>) => Promise<void>;
+  deletePartner: (partnerId: string) => Promise<void>;
   submitPartnerLead: (lead: {
     fullName: string;
     phone: string;
@@ -738,8 +739,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       },
       activityType,
       description,
-      ...(oldValue !== undefined ? { oldValue } : {}),
-      ...(newValue !== undefined ? { newValue } : {}),
+      ...(typeof oldValue === 'string' ? { oldValue } : {}),
+      ...(typeof newValue === 'string' ? { newValue } : {}),
     };
 
     setDoc(doc(db, 'activities', actId), newActivity).catch((err) => {
@@ -858,6 +859,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
     }
+  };
+
+  const deletePartner = async (partnerId: string): Promise<void> => {
+    const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
+    if (!partner) throw new Error(`Partner ${partnerId} was not found.`);
+    await deleteDoc(doc(db, 'partners', partner.id || `part-${partner.partnerId.toLowerCase()}`));
+    setPartners((previous) => previous.filter((p) => p.partnerId !== partner.partnerId && p.id !== partner.id));
   };
 
   const bulkImportPartnerLeads = (
@@ -1495,9 +1503,10 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         reassignPartnerPortfolioOwner,
         reassignLeadSalesOwner,
         bulkImportPartnerLeads,
-        onboardNewPartner,
-        updatePartner,
-        submitPartnerLead,
+  onboardNewPartner,
+  updatePartner,
+  deletePartner,
+  submitPartnerLead,
         updateStudentDecoupledStatus,
         recordPropertyBooking,
         updatePropertyBooking,
