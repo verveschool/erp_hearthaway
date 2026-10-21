@@ -317,7 +317,10 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const unsubPartners = onSnapshot(
       collection(db, 'partners'),
       (snapshot) => {
-        const list = snapshot.docs.map((docSnap) => docSnap.data() as Partner);
+        const list = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        } as Partner));
         setPartners(list);
       },
       (err) => {
@@ -865,8 +868,10 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const deletePartner = async (partnerId: string): Promise<void> => {
     const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
     if (!partner) throw new Error(`Partner ${partnerId} was not found.`);
-    await deleteDoc(doc(db, 'partners', partner.id || `part-${partner.partnerId.toLowerCase()}`));
-    setPartners((previous) => previous.filter((p) => p.partnerId !== partner.partnerId && p.id !== partner.id));
+
+    const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
+    await deleteDoc(doc(db, 'partners', docId));
+    setPartners((previous) => previous.filter((p) => p.id !== docId && p.partnerId !== partner.partnerId));
   };
 
   const bulkImportPartnerLeads = (
