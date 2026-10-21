@@ -843,17 +843,20 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   const updatePartner = async (partnerId: string, updates: Partial<Partner>): Promise<void> => {
     const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
-    if (partner) {
-      const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
+    if (!partner) {
+      throw new Error(`Partner ${partnerId} was not found. Refresh the partners page and try again.`);
+    }
+
+    const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
+    try {
+      await setDoc(doc(db, 'partners', docId), updates, { merge: true });
       logStudentActivity(
         partner.partnerId,
         'Partner Updated',
         `Partner "${partner.companyName}" (${partner.partnerId}) profile / agreement terms updated by ${currentUser.displayName}.`
       );
-  await setDoc(doc(db, 'partners', docId), updates, { merge: true }).catch((err) => {
-  handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
-  throw err;
-  });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
     }
   };
 

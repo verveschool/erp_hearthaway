@@ -93,6 +93,8 @@ export default function PartnersPage() {
   const [agreementDocName, setAgreementDocName] = useState<string>('');
   const [agreementLogoUrl, setAgreementLogoUrl] = useState<string>('');
   const [agreementSaved, setAgreementSaved] = useState<boolean>(false);
+  const [agreementSaving, setAgreementSaving] = useState<boolean>(false);
+  const [agreementError, setAgreementError] = useState<string>('');
   const agreementFileRef = useRef<HTMLInputElement>(null);
   const agreementLogoRef = useRef<HTMLInputElement>(null);
 
@@ -256,27 +258,36 @@ export default function PartnersPage() {
     setAgreementDocName(partner.agreementDocumentUrl ? 'Executed_Contract.pdf' : '');
     setAgreementLogoUrl(partner.logoUrl || '');
     setAgreementSaved(false);
+    setAgreementError('');
   };
 
   const handleSaveAgreement = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAgreementPartner) return;
+    if (!selectedAgreementPartner || agreementSaving) return;
 
-    await updatePartner(selectedAgreementPartner.partnerId, {
-      agreementStatus: agreementStatus as any,
-      agreementType,
-      agreementSignedDate,
-      agreementExpiryDate,
-      agreementTerms,
-      agreementDocumentUrl: agreementDocName || selectedAgreementPartner.agreementDocumentUrl || '',
-      logoUrl: agreementLogoUrl || '',
-    });
+    setAgreementSaving(true);
+    setAgreementError('');
+    try {
+      await updatePartner(selectedAgreementPartner.partnerId, {
+        agreementStatus: agreementStatus as any,
+        agreementType,
+        agreementSignedDate,
+        agreementExpiryDate,
+        agreementTerms,
+        agreementDocumentUrl: agreementDocName || selectedAgreementPartner.agreementDocumentUrl || '',
+        logoUrl: agreementLogoUrl || '',
+      });
 
-    setAgreementSaved(true);
-    setTimeout(() => {
-      setAgreementSaved(false);
-      setSelectedAgreementPartner(null);
-    }, 1500);
+      setAgreementSaved(true);
+      setTimeout(() => {
+        setAgreementSaved(false);
+        setSelectedAgreementPartner(null);
+      }, 1500);
+    } catch (error) {
+      setAgreementError(error instanceof Error ? error.message : 'Unable to save agreement terms. Please try again.');
+    } finally {
+      setAgreementSaving(false);
+    }
   };
 
   const handleAgreementFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1434,6 +1445,11 @@ export default function PartnersPage() {
                   Agreement terms updated &amp; persisted successfully!
                 </p>
               )}
+              {agreementError && (
+                <p role="alert" className="text-xs text-red-600 font-semibold">
+                  {agreementError}
+                </p>
+              )}
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E8E6E1]">
                 <button
@@ -1445,9 +1461,10 @@ export default function PartnersPage() {
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] cursor-pointer"
+                  disabled={agreementSaving}
+                  className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                 >
-                  Save Agreement Terms
+                  {agreementSaving ? 'Saving…' : 'Save Agreement Terms'}
                 </button>
               </div>
             </form>
