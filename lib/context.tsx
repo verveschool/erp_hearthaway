@@ -288,7 +288,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   // Start data listeners only after Firebase restores a signed-in user.
   useEffect(() => {
-    console.log('[v0] Auth listener effect started');
     let isMounted = true;
     let authEvent = 0;
     let dataSubscriptions: Array<() => void> = [];
@@ -390,7 +389,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     });
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log('[v0] Auth state callback received', Boolean(firebaseUser));
       const eventId = ++authEvent;
       stopDataSubscriptions();
       clearSyncedData();
