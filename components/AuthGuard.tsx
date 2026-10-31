@@ -27,15 +27,26 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     logout,
   } = useHearthAway();
 
-  if (!authInitialized) {
-    return <div className="min-h-[70vh]" aria-busy="true" />;
-  }
-
   const access = canAccessRoute(pathname);
 
-  // If permitted, render children directly
   if (access.allowed) {
     return <>{children}</>;
+  }
+
+  if (!authInitialized) {
+    return (
+      <div
+        className="min-h-[70vh] flex items-center justify-center text-sm text-[#6B6860]"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <span className="inline-flex items-center gap-2">
+          <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Checking your session...
+        </span>
+      </div>
+    );
   }
 
   // Case 1: Unauthenticated
