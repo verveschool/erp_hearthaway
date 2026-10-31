@@ -147,7 +147,7 @@ export function StudentDetailDrawer() {
   const isPartner = currentUser.role === 'partner';
   if (isPartner && student.partnerId !== currentUser.partnerId) {
     return (
-      <div className="fixed inset-y-0 right-0 z-50 flex max-w-full pl-10">
+      <div className="fixed inset-y-0 right-0 z-[110] flex max-w-full pl-10">
         <div className="w-screen max-w-md bg-[#FFFFFF] p-6 shadow-2xl flex flex-col justify-center items-center text-center border-l border-[#E8E6E1]">
           <div className="h-12 w-12 rounded-xl bg-[#F7F6F3] border border-[#E8E6E1] flex items-center justify-center text-[#00319D] mb-4">
             <AlertCircle className="h-6 w-6" />
@@ -440,7 +440,7 @@ export function StudentDetailDrawer() {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-[#1A1A1A]/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[110] overflow-hidden bg-[#1A1A1A]/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200">
       <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
         <div className="w-screen max-w-3xl bg-[#FFFFFF] shadow-2xl flex flex-col h-full border-l border-[#E8E6E1] animate-in slide-in-from-right duration-200">
           
