@@ -19,6 +19,7 @@ import {
   Layers,
   Users,
   Clock,
+  ShieldCheck,
 } from 'lucide-react';
 
 function getDashboardForRole(role: UserRole): string {

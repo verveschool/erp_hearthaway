@@ -129,16 +129,12 @@ export default function PortfolioPage() {
   // Selected portfolio owner for inspection:
   // If user is a Portfolio Owner, they ONLY see their own portfolio!
   // If user is Management, they can pick a Portfolio Owner or view "all"
-  const [selectedOwnerId, setSelectedOwnerId] = useState<string>(() => {
-    if (currentUser.role === 'portfolio_owner') {
-      return currentUser.uid;
-    }
-    return 'all';
-  });
-
-  useEffect(() => {
-    setSelectedOwnerId(currentUser.role === 'portfolio_owner' ? currentUser.uid : 'all');
-  }, [currentUser.role, currentUser.uid]);
+  const [selectedOwnerByUser, setSelectedOwnerByUser] = useState<Record<string, string>>({});
+  const selectedOwnerId = selectedOwnerByUser[currentUser.uid] || 'all';
+  const setSelectedOwnerId = (ownerId: string) => {
+    if (!currentUser.uid) return;
+    setSelectedOwnerByUser((previous) => ({ ...previous, [currentUser.uid]: ownerId }));
+  };
 
   // Effective Owner ID: strictly enforce that portfolio_owner role cannot inspect others
   const effectiveOwnerId = currentUser.role === 'portfolio_owner' ? currentUser.uid : selectedOwnerId;
@@ -236,17 +232,14 @@ export default function PortfolioPage() {
     return partners.filter(
       (partner) => partner.portfolioOwnerId === effectiveOwnerId || partner.assignedManagerId === effectiveOwnerId
     );
-  }, [partners, effectiveOwnerId, isManagement]);
+  }, [partners, effectiveOwnerId]);
 
   // 2. Leads dynamically derived from those onboarded partners
   const portfolioLeads = useMemo(() => {
     if (effectiveOwnerId === 'all') return students;
-    if (isManagement && partners.length > 0 && onboardedPartners.length === partners.length) {
-      return students;
-    }
     const partnerIds = new Set(onboardedPartners.map((p) => p.partnerId));
     return students.filter((s) => partnerIds.has(s.partnerId));
-  }, [students, onboardedPartners, effectiveOwnerId, isManagement, partners.length]);
+  }, [students, onboardedPartners, effectiveOwnerId]);
 
   // Quick filter count rollups for the quick filter chips
   const quickFilterCounts = useMemo(() => {

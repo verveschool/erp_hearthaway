@@ -69,10 +69,10 @@ export default function PartnersPage() {
     : [];
   const currentPartnerRecord = isPartner
     ? partners.find((partner) => partner.accountUid === currentUser.uid) ||
-      (currentUser.partnerId ? partners.find((partner) => partner.partnerId === currentUser.partnerId) : undefined) ||
-      (emailMatches.length === 1 ? emailMatches[0] : undefined)
+      (emailMatches.length === 1 ? emailMatches[0] : undefined) ||
+      (currentUser.partnerId ? partners.find((partner) => partner.partnerId === currentUser.partnerId) : undefined)
     : undefined;
-  const activePartnerId = isPartner ? currentUser.partnerId || currentPartnerRecord?.partnerId || '' : '';
+  const activePartnerId = isPartner ? currentPartnerRecord?.partnerId || currentUser.partnerId || '' : '';
 
   // Search, Filter & View state for Partners
   const [searchQuery, setSearchQuery] = useState('');
@@ -251,10 +251,10 @@ export default function PartnersPage() {
   const [newContactPerson, setNewContactPerson] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
-  const [newCity, setNewCity] = useState('Mumbai');
-  const [newState, setNewState] = useState('Maharashtra');
-  const [newCountry, setNewCountry] = useState('India');
-  const [newAgreementStatus, setNewAgreementStatus] = useState<any>('Active');
+  const [newCity, setNewCity] = useState('');
+  const [newState, setNewState] = useState('');
+  const [newCountry, setNewCountry] = useState('');
+  const [newAgreementStatus, setNewAgreementStatus] = useState<any>('Pending Review');
   const [newAgreementType, setNewAgreementType] = useState('Master Services Agreement (MSA)');
   const [newAgreementTerms, setNewAgreementTerms] = useState('40% Commission, 120-day payment window');
   const [newPortfolioOwnerId, setNewPortfolioOwnerId] = useState('');
@@ -262,12 +262,10 @@ export default function PartnersPage() {
 
   const handleOpenAgreementModal = (partner: Partner) => {
     setSelectedAgreementPartner(partner);
-    setAgreementStatus(partner.agreementStatus || 'Active');
+    setAgreementStatus(partner.agreementStatus || 'Pending Review');
     setAgreementType(partner.agreementType || 'Master Services Agreement (MSA)');
-    setAgreementSignedDate(partner.agreementSignedDate || partner.onboardingDate || '2026-10-15');
-    setAgreementExpiryDate(
-      partner.agreementExpiryDate || '2027-10-15'
-    );
+    setAgreementSignedDate(partner.agreementSignedDate || '');
+    setAgreementExpiryDate(partner.agreementExpiryDate || '');
     setAgreementTerms(partner.agreementTerms || `${partner.commissionRate}% Commission, 120-day payment window`);
     setAgreementDocName(partner.agreementDocumentUrl || '');
     setAgreementLogoUrl(partner.logoUrl || '');
@@ -322,9 +320,9 @@ export default function PartnersPage() {
     setNewContactPerson('');
     setNewEmail('');
     setNewPhone('');
-    setNewCity('Mumbai');
-    setNewState('Maharashtra');
-    setNewCountry('India');
+    setNewCity('');
+    setNewState('');
+    setNewCountry('');
     setNewAgreementStatus('Pending Review');
     setNewAgreementType('Master Services Agreement (MSA)');
     setNewAgreementTerms('40% Commission, 120-day payment window');
@@ -340,9 +338,9 @@ export default function PartnersPage() {
     setNewContactPerson(partner.contactPerson);
     setNewEmail(partner.email);
     setNewPhone(partner.phone || '');
-    setNewCity(partner.city || 'Mumbai');
-    setNewState(partner.state || 'Maharashtra');
-    setNewCountry(partner.country || 'India');
+    setNewCity(partner.city || '');
+    setNewState(partner.state || '');
+    setNewCountry(partner.country || '');
     setNewAgreementStatus(partner.agreementStatus || 'Pending Review');
     setNewAgreementType(partner.agreementType || 'Master Services Agreement (MSA)');
     setNewAgreementTerms(partner.agreementTerms || '40% Commission, 120-day payment window');
@@ -376,8 +374,8 @@ export default function PartnersPage() {
       city: newCity.trim(),
       state: newState.trim(),
       country: newCountry.trim(),
-      countries: [newCountry.trim() || 'India'],
-      cities: [newCity.trim() || 'Mumbai'],
+      countries: newCountry.trim() ? [newCountry.trim()] : [],
+      cities: newCity.trim() ? [newCity.trim()] : [],
       portfolioOwnerId: chosenPO.uid,
       portfolioOwnerName: chosenPO.displayName,
       assignedManagerId: chosenPO.uid,
@@ -823,7 +821,7 @@ export default function PartnersPage() {
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="h-2 w-2 rounded-full bg-[#FCC20A]" />
                     <strong className="text-[#1A1A1A]">
-                      {currentPartnerRecord?.portfolioOwnerName || 'Unassigned'}
+                      {currentPartnerRecord?.portfolioOwnerName || currentPartnerRecord?.assignedManagerName || 'Unassigned'}
                     </strong>
                   </div>
                 </div>

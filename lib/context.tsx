@@ -60,14 +60,16 @@ const resolveFirebaseProfile = (
   storedProfile?: Partial<AppUser>
 ): AppUser => {
   const email = (firebaseUser.email || storedProfile?.email || '').trim().toLowerCase();
+  const isTrustedManager = isManagementEmail(email);
+  const isDisabled = storedProfile?.status === 'deleted' || storedProfile?.status === 'disabled';
   const profile: AppUser = {
     ...(storedProfile as AppUser | undefined),
     uid: firebaseUser.uid,
     email,
     displayName: storedProfile?.displayName?.trim() || firebaseUser.displayName || email.split('@')[0] || 'User',
-    role: isManagementEmail(email) ? 'management' : storedProfile?.role || 'portfolio_owner',
-    isApproved: storedProfile?.isApproved ?? true,
-    status: storedProfile?.status ?? 'approved',
+    role: isTrustedManager ? 'management' : storedProfile?.role || 'portfolio_owner',
+    isApproved: isTrustedManager && !isDisabled ? true : storedProfile?.isApproved ?? true,
+    status: isTrustedManager && !isDisabled ? 'approved' : storedProfile?.status ?? 'approved',
   };
   const avatarUrl = storedProfile?.avatarUrl || firebaseUser.photoURL;
   if (avatarUrl) profile.avatarUrl = avatarUrl;
@@ -81,7 +83,7 @@ const ensureFirebaseProfile = async (firebaseUser: FirebaseAuthUser, createIfMis
     const storedProfile = snapshot.exists() ? snapshot.data() as Partial<AppUser> : undefined;
     const profile = resolveFirebaseProfile(firebaseUser, storedProfile);
 
-    if (storedProfile?.status === 'deleted' || storedProfile?.deletedAt) return profile;
+    if (storedProfile?.status === 'deleted') return profile;
     if (!snapshot.exists() && !createIfMissing) return profile;
 
     const profileFields: Partial<AppUser> = {
@@ -286,6 +288,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   // Start data listeners only after Firebase restores a signed-in user.
   useEffect(() => {
+    console.log('[v0] Auth listener effect started');
     let isMounted = true;
     let authEvent = 0;
     let dataSubscriptions: Array<() => void> = [];
@@ -387,6 +390,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     });
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log('[v0] Auth state callback received', Boolean(firebaseUser));
       const eventId = ++authEvent;
       stopDataSubscriptions();
       clearSyncedData();
@@ -405,10 +409,10 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       setAuthInitialized(false);
       try {
         await firebaseUser.getIdToken();
-        const profile = await ensureFirebaseProfile(firebaseUser, false);
+        const profile = await ensureFirebaseProfile(firebaseUser, isManagementEmail(firebaseUser.email));
         if (!isMounted || eventId !== authEvent) return;
 
-        if (profile.status === 'deleted' || profile.status === 'disabled' || profile.deletedAt) {
+        if (profile.status === 'deleted' || profile.status === 'disabled') {
           await signOut(auth);
           return;
         }
@@ -638,6 +642,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       delete safeUpdates.role;
       delete safeUpdates.status;
       delete safeUpdates.isApproved;
+      delete safeUpdates.partnerId;
     }
     const updated = { ...currentUser, ...safeUpdates };
     setCurrentUser(updated);
@@ -652,21 +657,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.uid}`);
     });
   };
-
-  useEffect(() => {
-    if (!currentUser.uid || currentUser.role !== 'partner' || currentUser.partnerId) return;
-    const byAccount = partners.find((partner) => partner.accountUid === currentUser.uid);
-    const emailMatches = partners.filter(
-      (partner) => partner.email?.trim().toLowerCase() === currentUser.email.trim().toLowerCase()
-    );
-    const linkedPartner = byAccount || (emailMatches.length === 1 ? emailMatches[0] : undefined);
-    if (!linkedPartner?.partnerId) return;
-
-    updateCurrentUserProfile({
-      partnerId: linkedPartner.partnerId,
-      partnerName: linkedPartner.companyName,
-    });
-  }, [currentUser.uid, currentUser.role, currentUser.partnerId, currentUser.email, partners]);
 
   const loginWithUser = async (user: AppUser) => {
     const firebaseUser = auth.currentUser;
@@ -689,7 +679,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const profile = await ensureFirebaseProfile(result.user);
-      if (profile.status === 'deleted' || profile.status === 'disabled' || profile.deletedAt) {
+      if (profile.status === 'deleted' || profile.status === 'disabled') {
         await signOut(auth);
         throw new Error('This account is disabled. Contact HearthAway management.');
       }
@@ -717,7 +707,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     try {
       const credential = await signInWithEmailAndPassword(auth, cleanEmail, password);
       const profile = await ensureFirebaseProfile(credential.user);
-      if (profile.status === 'deleted' || profile.status === 'disabled' || profile.deletedAt) {
+      if (profile.status === 'deleted' || profile.status === 'disabled') {
         await signOut(auth);
         throw new Error('This account is disabled. Contact HearthAway management.');
       }
@@ -882,8 +872,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     assertManagementAccess();
     const normalizedEmail = String(partnerData.email || '').trim().toLowerCase();
     const companyName = String(partnerData.companyName || '').trim();
-    if (!normalizedEmail || !companyName) {
-      throw new Error('Partner company name and contact email are required.');
+    const contactPerson = String(partnerData.contactPerson || '').trim();
+    if (!normalizedEmail || !companyName || !contactPerson) {
+      throw new Error('Partner company name, contact person, and email are required.');
     }
 
     const existingPartner = partners.find((partner) =>
@@ -899,7 +890,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         user.uid === partnerData.portfolioOwnerId &&
         ['portfolio_owner', 'management', 'admin'].includes(user.role) &&
         user.status !== 'deleted' &&
-        user.status !== 'disabled'
+        user.status !== 'disabled' &&
+        user.isApproved !== false
     );
     if (!owner) throw new Error('Select an active portfolio owner before onboarding this partner.');
 
@@ -912,12 +904,12 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       partnerId: partnerIdStr,
       companyName,
       type: partnerData.type || 'Study Abroad Consultant',
-      contactPerson: partnerData.contactPerson || 'Contact Person',
+      contactPerson,
       email: normalizedEmail,
       phone: partnerData.phone || '',
-      city: partnerData.city || 'Mumbai',
-      state: partnerData.state || 'Maharashtra',
-      country: partnerData.country || 'India',
+      city: partnerData.city || '',
+      state: partnerData.state || '',
+      country: partnerData.country || '',
       countries: partnerData.countries || [],
       cities: partnerData.cities || [],
       portfolioOwnerId: owner.uid,
@@ -927,12 +919,12 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       agreementStatus: partnerData.agreementStatus || 'Pending Review',
       agreementType: partnerData.agreementType || 'Master Services Agreement (MSA)',
       agreementTerms: partnerData.agreementTerms || '40% Commission, 120-day payment window',
-      agreementSignedDate: partnerData.agreementSignedDate || today,
-      agreementExpiryDate: partnerData.agreementExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      agreementSignedDate: partnerData.agreementSignedDate || '',
+      agreementExpiryDate: partnerData.agreementExpiryDate || '',
       agreementDocumentUrl: partnerData.agreementDocumentUrl || '',
       status: partnerData.status || 'Onboarding',
       onboardingDate: partnerData.onboardingDate || today,
-      commissionRate: partnerData.commissionRate ?? 20,
+      commissionRate: partnerData.commissionRate ?? 40,
     };
 
     try {
@@ -987,15 +979,14 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const byAccount = partners.find((partner) => partner.accountUid === currentUser.uid);
     if (byAccount) return byAccount;
 
-    const byPartnerId = currentUser.partnerId
-      ? partners.find((partner) => partner.partnerId === currentUser.partnerId)
-      : undefined;
-    if (byPartnerId) return byPartnerId;
-
     const emailMatches = partners.filter(
       (partner) => partner.email?.trim().toLowerCase() === currentUser.email.trim().toLowerCase()
     );
-    return emailMatches.length === 1 ? emailMatches[0] : undefined;
+    if (emailMatches.length === 1) return emailMatches[0];
+
+    return currentUser.partnerId
+      ? partners.find((partner) => partner.partnerId === currentUser.partnerId)
+      : undefined;
   };
 
   const bulkImportPartnerLeads = async (
@@ -1005,20 +996,20 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   ): Promise<{ importedCount: number; duplicatesCount: number; errorsCount: number; importedLeads: Student[] }> => {
     assertFirebaseSession();
     const linkedPartner = currentUser.role === 'partner' ? getCurrentPartnerRecord() : undefined;
-    const ownPartnerId = currentUser.partnerId || linkedPartner?.partnerId;
-    if (currentUser.role === 'partner' && (!ownPartnerId || (explicitPartnerId && explicitPartnerId !== ownPartnerId))) {
+    const ownPartnerId = linkedPartner?.partnerId || currentUser.partnerId;
+    if (currentUser.role === 'partner' && (!ownPartnerId || !linkedPartner || (explicitPartnerId && explicitPartnerId !== ownPartnerId))) {
       throw new Error('This partner account is not linked to the selected partner record. Ask management to link it before importing leads.');
     }
 
     const partnerId = currentUser.role === 'partner' ? ownPartnerId : explicitPartnerId;
     if (!partnerId) throw new Error('Select a partner before importing leads.');
     const matchedPartner = partners.find((partner) => partner.partnerId === partnerId) || linkedPartner;
-    if (partnerId !== 'direct' && !matchedPartner && currentUser.role !== 'partner') {
-      throw new Error('The selected partner no longer exists. Refresh the page and select a valid partner.');
+    if (partnerId !== 'direct' && !matchedPartner) {
+      throw new Error('The selected partner record is unavailable. Refresh the page or ask management to check the partner mapping.');
     }
     const partnerName = partnerId === 'direct'
       ? 'Direct / HearthAway'
-      : explicitPartnerName || matchedPartner?.companyName || currentUser.partnerName || '';
+      : matchedPartner?.companyName || explicitPartnerName || currentUser.partnerName || '';
     if (partnerId !== 'direct' && !partnerName) throw new Error('The selected partner has no company name.');
 
     const now = new Date();
@@ -1135,15 +1126,15 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const isPartnerUser = currentUser.role === 'partner';
     const linkedPartner = isPartnerUser ? getCurrentPartnerRecord() : undefined;
     const partnerId = isPartnerUser
-      ? currentUser.partnerId || linkedPartner?.partnerId || ''
+      ? linkedPartner?.partnerId || ''
       : lead.partnerId || 'direct';
-    if (isPartnerUser && !partnerId) {
+    if (isPartnerUser && (!partnerId || !linkedPartner)) {
       throw new Error('This partner account is not linked to a partner record. Ask management to link it before submitting leads.');
     }
 
     const matchedPartner = partners.find((partner) => partner.partnerId === partnerId) || linkedPartner;
-    if (!isPartnerUser && partnerId !== 'direct' && !matchedPartner) {
-      throw new Error('The selected partner no longer exists. Refresh the page and select a valid partner.');
+    if (partnerId !== 'direct' && !matchedPartner) {
+      throw new Error('The selected partner record is unavailable. Refresh the page or ask management to check the partner mapping.');
     }
     const partnerName = partnerId === 'direct'
       ? 'Direct / HearthAway'

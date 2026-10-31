@@ -58,7 +58,7 @@ service cloud.firestore {
       allow update: if isManagement() || (
         isSignedIn() && request.auth.uid == userId &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'uid', 'email', 'role', 'isApproved', 'status', 'deletedAt'
+          'uid', 'email', 'role', 'partnerId', 'portfolioOwnerId', 'isApproved', 'status', 'deletedAt'
         ])
       );
       allow delete: if isManagement();
