@@ -16,11 +16,8 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowRight,
-  ShieldCheck,
   Layers,
   Users,
-  Briefcase,
-  CreditCard,
   Clock,
 } from 'lucide-react';
 
@@ -87,11 +84,11 @@ export default function SignUpPage() {
       await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
 
       // Create account in application context & sync to Firestore
-      const newUser = createAccount({
+      const newUser = await createAccount({
         displayName: fullName.trim(),
         email: email.trim().toLowerCase(),
         role: selectedRole,
-        partnerName: selectedRole === 'partner' ? partnerOrg || 'Global Partner Consulting' : undefined,
+        partnerName: selectedRole === 'partner' ? partnerOrg.trim() || fullName.trim() : undefined,
       });
 
       setIsSuccess(true);
@@ -100,7 +97,7 @@ export default function SignUpPage() {
         router.push(dest);
       }, 1800);
     } catch (err) {
-      setErrorMessage('Server error validating authorization. Please try again.');
+      setErrorMessage(err instanceof Error ? err.message : 'Server error validating authorization. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -170,7 +167,7 @@ export default function SignUpPage() {
               <label className="block text-xs font-semibold text-[#1A1A1A] mb-1.5">
                 Account Role:
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setSelectedRole('portfolio_owner')}
@@ -199,47 +196,9 @@ export default function SignUpPage() {
                   <div className="text-[10px] text-[#6B6860] leading-tight">Education consultant</div>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('sales')}
-                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
-                    selectedRole === 'sales'
-                      ? 'border-[#00319D] bg-[#F7F6F3] ring-1 ring-[#00319D]'
-                      : 'border-[#E8E6E1] bg-[#FFFFFF] hover:border-[#1A1A1A]/30'
-                  }`}
-                >
-                  <Briefcase className="h-4 w-4 text-[#00319D] mb-1" />
-                  <div className="text-xs font-bold text-[#1A1A1A]">Sales</div>
-                  <div className="text-[10px] text-[#6B6860] leading-tight">Lead conversion &amp; bookings</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('finance')}
-                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
-                    selectedRole === 'finance'
-                      ? 'border-[#00319D] bg-[#F7F6F3] ring-1 ring-[#00319D]'
-                      : 'border-[#E8E6E1] bg-[#FFFFFF] hover:border-[#1A1A1A]/30'
-                  }`}
-                >
-                  <CreditCard className="h-4 w-4 text-[#00319D] mb-1" />
-                  <div className="text-xs font-bold text-[#1A1A1A]">Finance</div>
-                  <div className="text-[10px] text-[#6B6860] leading-tight">Audits &amp; settlements</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('management')}
-                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
-                    selectedRole === 'management'
-                      ? 'border-[#00319D] bg-[#F7F6F3] ring-1 ring-[#00319D]'
-                      : 'border-[#E8E6E1] bg-[#FFFFFF] hover:border-[#1A1A1A]/30'
-                  }`}
-                >
-                  <ShieldCheck className="h-4 w-4 text-[#00319D] mb-1" />
-                  <div className="text-xs font-bold text-[#1A1A1A]">Management</div>
-                  <div className="text-[10px] text-[#6B6860] leading-tight">Operations management</div>
-                </button>
+                <p className="col-span-2 rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] px-3 py-2 text-[11px] text-[#6B6860]">
+                  Internal roles are assigned by management after account creation.
+                </p>
               </div>
             </div>
 

@@ -121,7 +121,7 @@ export default function PortfolioPage() {
   const portfolioOwners = useMemo(() => {
     const unique = new Map<string, AppUser>();
     availableUsers
-      .filter((user) => user.uid && user.displayName?.trim() && user.role !== 'partner' && user.status !== 'rejected' && user.status !== 'pending' && user.isApproved !== false)
+      .filter((user) => user.uid && user.displayName?.trim() && ['portfolio_owner', 'management', 'admin'].includes(user.role) && user.status !== 'rejected' && user.status !== 'pending' && user.status !== 'deleted' && user.status !== 'disabled' && user.isApproved !== false)
       .forEach((user) => unique.set(user.uid, user));
     return Array.from(unique.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
   }, [availableUsers]);
@@ -136,6 +136,10 @@ export default function PortfolioPage() {
     return 'all';
   });
 
+  useEffect(() => {
+    setSelectedOwnerId(currentUser.role === 'portfolio_owner' ? currentUser.uid : 'all');
+  }, [currentUser.role, currentUser.uid]);
+
   // Effective Owner ID: strictly enforce that portfolio_owner role cannot inspect others
   const effectiveOwnerId = currentUser.role === 'portfolio_owner' ? currentUser.uid : selectedOwnerId;
   const activeOwner =
@@ -148,8 +152,8 @@ export default function PortfolioPage() {
         }
       : portfolioOwners.find((po) => po.uid === effectiveOwnerId) || {
           uid: effectiveOwnerId,
-          displayName: currentUser.displayName,
-          email: currentUser.email,
+          displayName: 'Unknown portfolio owner',
+          email: '',
           role: 'portfolio_owner',
         };
 
@@ -191,8 +195,8 @@ export default function PortfolioPage() {
     const partner = partners.find((p) => p.partnerId === student.partnerId);
     return {
       partnerName: partner?.companyName || student.partnerName || student.partnerId || 'Direct / Platform',
-      ownerName: partner?.portfolioOwnerName || 'Unassigned Portfolio Owner',
-      ownerId: partner?.portfolioOwnerId || '',
+      ownerName: partner?.portfolioOwnerName || partner?.assignedManagerName || 'Unassigned Portfolio Owner',
+      ownerId: partner?.portfolioOwnerId || partner?.assignedManagerId || '',
     };
   };
 
@@ -229,16 +233,15 @@ export default function PortfolioPage() {
     if (effectiveOwnerId === 'all') {
       return partners;
     }
-    const matching = partners.filter((p) => p.portfolioOwnerId === effectiveOwnerId);
-    if (matching.length === 0 && isManagement) {
-      return partners;
-    }
-    return matching;
+    return partners.filter(
+      (partner) => partner.portfolioOwnerId === effectiveOwnerId || partner.assignedManagerId === effectiveOwnerId
+    );
   }, [partners, effectiveOwnerId, isManagement]);
 
   // 2. Leads dynamically derived from those onboarded partners
   const portfolioLeads = useMemo(() => {
-    if (effectiveOwnerId === 'all' || (isManagement && onboardedPartners.length === partners.length)) {
+    if (effectiveOwnerId === 'all') return students;
+    if (isManagement && partners.length > 0 && onboardedPartners.length === partners.length) {
       return students;
     }
     const partnerIds = new Set(onboardedPartners.map((p) => p.partnerId));
@@ -623,7 +626,7 @@ export default function PortfolioPage() {
                   <option value="all">All Portfolios ({partners.length} partners)</option>
                   {portfolioOwners.map((owner) => (
                     <option key={owner.uid} value={owner.uid}>
-                      {owner.displayName} ({partners.filter((p) => p.portfolioOwnerId === owner.uid).length} partners)
+                      {owner.displayName} ({partners.filter((p) => p.portfolioOwnerId === owner.uid || p.assignedManagerId === owner.uid).length} partners)
                     </option>
                   ))}
                 </select>

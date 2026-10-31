@@ -58,14 +58,21 @@ export default function PartnersPage() {
   const portfolioOwners = useMemo(() => {
     const uniqueUsers = new Map<string, (typeof availableUsers)[number]>();
     availableUsers
-      .filter((u) => u.uid && u.displayName?.trim() && u.role !== 'partner' && u.status !== 'rejected' && u.status !== 'pending' && u.isApproved !== false)
+      .filter((u) => u.uid && u.displayName?.trim() && ['portfolio_owner', 'management', 'admin'].includes(u.role) && u.status !== 'rejected' && u.status !== 'pending' && u.status !== 'deleted' && u.status !== 'disabled' && u.isApproved !== false)
       .forEach((u) => uniqueUsers.set(u.uid, u));
     return Array.from(uniqueUsers.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
   }, [availableUsers]);
 
-  // Active Partner context for Partner role
-  const activePartnerId = isPartner && currentUser.partnerId ? currentUser.partnerId : 'PART-00482';
-  const currentPartnerRecord = partners.find((p) => p.partnerId === activePartnerId) || partners[0];
+  // Resolve partner accounts by their explicit link first, then use a unique email match for legacy profiles.
+  const emailMatches = currentUser.email
+    ? partners.filter((partner) => partner.email?.trim().toLowerCase() === currentUser.email.trim().toLowerCase())
+    : [];
+  const currentPartnerRecord = isPartner
+    ? partners.find((partner) => partner.accountUid === currentUser.uid) ||
+      (currentUser.partnerId ? partners.find((partner) => partner.partnerId === currentUser.partnerId) : undefined) ||
+      (emailMatches.length === 1 ? emailMatches[0] : undefined)
+    : undefined;
+  const activePartnerId = isPartner ? currentUser.partnerId || currentPartnerRecord?.partnerId || '' : '';
 
   // Search, Filter & View state for Partners
   const [searchQuery, setSearchQuery] = useState('');
@@ -152,7 +159,7 @@ export default function PartnersPage() {
         (p.state && p.state.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchType = filterType === 'All' || p.type === filterType;
-      const matchPO = filterPortfolioOwner === 'All' || p.portfolioOwnerId === filterPortfolioOwner;
+      const matchPO = filterPortfolioOwner === 'All' || p.portfolioOwnerId === filterPortfolioOwner || p.assignedManagerId === filterPortfolioOwner;
       const matchStatus = filterStatus === 'All' || p.status === filterStatus;
       const matchState = filterState === 'All' || (p.state || 'Maharashtra') === filterState;
       const matchCity = filterCity === 'All' || (p.city || 'Mumbai') === filterCity;
@@ -250,7 +257,7 @@ export default function PartnersPage() {
   const [newAgreementStatus, setNewAgreementStatus] = useState<any>('Active');
   const [newAgreementType, setNewAgreementType] = useState('Master Services Agreement (MSA)');
   const [newAgreementTerms, setNewAgreementTerms] = useState('40% Commission, 120-day payment window');
-  const [newPortfolioOwnerId, setNewPortfolioOwnerId] = useState(portfolioOwners[0]?.uid || 'user-po-001');
+  const [newPortfolioOwnerId, setNewPortfolioOwnerId] = useState('');
   const [newCommissionRate, setNewCommissionRate] = useState('40');
 
   const handleOpenAgreementModal = (partner: Partner) => {
@@ -307,6 +314,25 @@ export default function PartnersPage() {
     setAgreementSaved(false);
   };
 
+  const openNewPartnerOnboarding = () => {
+    setOnboardingPartner(null);
+    setOnboardingError('');
+    setNewCompanyName('');
+    setNewPartnerType('Study Abroad Consultant');
+    setNewContactPerson('');
+    setNewEmail('');
+    setNewPhone('');
+    setNewCity('Mumbai');
+    setNewState('Maharashtra');
+    setNewCountry('India');
+    setNewAgreementStatus('Pending Review');
+    setNewAgreementType('Master Services Agreement (MSA)');
+    setNewAgreementTerms('40% Commission, 120-day payment window');
+    setNewPortfolioOwnerId(portfolioOwners[0]?.uid || '');
+    setNewCommissionRate('40');
+    setShowOnboardModal(true);
+  };
+
   const openPartnerOnboarding = (partner: Partner) => {
     setOnboardingPartner(partner);
     setNewCompanyName(partner.companyName);
@@ -317,20 +343,26 @@ export default function PartnersPage() {
     setNewCity(partner.city || 'Mumbai');
     setNewState(partner.state || 'Maharashtra');
     setNewCountry(partner.country || 'India');
-    setNewAgreementStatus(partner.agreementStatus || 'Pending Internal Review');
+    setNewAgreementStatus(partner.agreementStatus || 'Pending Review');
     setNewAgreementType(partner.agreementType || 'Master Services Agreement (MSA)');
     setNewAgreementTerms(partner.agreementTerms || '40% Commission, 120-day payment window');
-    setNewCommissionRate(String(partner.commissionRate || 40));
-    setNewPortfolioOwnerId(partner.portfolioOwnerId || portfolioOwners[0]?.uid || '');
+    setNewCommissionRate(String(partner.commissionRate ?? 0));
+    setNewPortfolioOwnerId(partner.portfolioOwnerId || partner.assignedManagerId || '');
     setShowOnboardModal(true);
   };
 
   const handleOnboardPartner = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isOnboarding || !newCompanyName || !newEmail || !newContactPerson) return;
-    setIsOnboarding(true);
 
     const chosenPO = portfolioOwners.find((u) => u.uid === newPortfolioOwnerId);
+    if (!chosenPO) {
+      setOnboardingError('Select an active portfolio owner before onboarding this partner.');
+      return;
+    }
+
+    setIsOnboarding(true);
+    setOnboardingError('');
     const randomSeq = String(Math.floor(10000 + Math.random() * 90000));
     const generatedPartnerId = `PART-${randomSeq}`;
 
@@ -339,25 +371,25 @@ export default function PartnersPage() {
       companyName: newCompanyName,
       type: newPartnerType,
       contactPerson: newContactPerson,
-      email: newEmail,
-      phone: newPhone || '+91 22 2490 0000',
+      email: newEmail.trim().toLowerCase(),
+      phone: newPhone.trim(),
       city: newCity.trim(),
       state: newState.trim(),
       country: newCountry.trim(),
       countries: [newCountry.trim() || 'India'],
       cities: [newCity.trim() || 'Mumbai'],
-      portfolioOwnerId: chosenPO?.uid || 'user-po-001',
-      portfolioOwnerName: chosenPO?.displayName || 'Primary Portfolio Manager',
-      assignedManagerId: chosenPO?.uid || 'user-po-001',
-      assignedManagerName: chosenPO?.displayName || 'Primary Portfolio Manager',
+      portfolioOwnerId: chosenPO.uid,
+      portfolioOwnerName: chosenPO.displayName,
+      assignedManagerId: chosenPO.uid,
+      assignedManagerName: chosenPO.displayName,
       agreementStatus: newAgreementStatus,
       agreementType: newAgreementType,
       agreementTerms: newAgreementTerms,
-      agreementSignedDate: new Date().toISOString().split('T')[0],
-      agreementExpiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'Active' as const,
-      onboardingDate: new Date().toISOString().split('T')[0],
-      commissionRate: Number(newCommissionRate) || 40,
+      agreementSignedDate: onboardingPartner?.agreementSignedDate || '',
+      agreementExpiryDate: onboardingPartner?.agreementExpiryDate || '',
+      status: onboardingPartner?.status || ('Onboarding' as const),
+      onboardingDate: onboardingPartner?.onboardingDate || new Date().toISOString().split('T')[0],
+      commissionRate: newCommissionRate === '' ? 0 : Number(newCommissionRate),
     };
 
     try {
@@ -557,17 +589,26 @@ export default function PartnersPage() {
   };
 
   // Step 7: Confirm & Execute CSV Batch Import
-  const handleExecuteImport = () => {
+  const handleExecuteImport = async () => {
     if (validRows.length === 0) return;
 
-    const targetPartnerId = isPartner ? activePartnerId : (activeInspectedPartner?.partnerId || 'PART-00482');
-    const targetPartnerName = isPartner
-      ? (currentPartnerRecord?.companyName || currentUser.partnerName || 'Education Partner')
-      : (activeInspectedPartner?.companyName || 'Education Partner');
+    const targetPartner = isPartner ? currentPartnerRecord : activeInspectedPartner;
+    const targetPartnerId = isPartner ? activePartnerId : targetPartner?.partnerId;
+    if (!targetPartnerId) {
+      setCsvParseError(isPartner
+        ? 'Your account is not linked to a partner record. Ask management to link it before importing leads.'
+        : 'Select a partner before importing leads.');
+      return;
+    }
 
-    const result = bulkImportPartnerLeads(validRows, targetPartnerId, targetPartnerName);
-    setImportResults(result);
-    setBulkStep(8); // Advance to results
+    const targetPartnerName = targetPartner?.companyName || currentUser.partnerName || '';
+    try {
+      const result = await bulkImportPartnerLeads(validRows, targetPartnerId, targetPartnerName);
+      setImportResults(result);
+      setBulkStep(8);
+    } catch (error) {
+      setCsvParseError(error instanceof Error ? error.message : 'Unable to import leads. Please try again.');
+    }
   };
 
   const handleResetBulkModal = () => {
@@ -592,23 +633,32 @@ export default function PartnersPage() {
   const [singleCity, setSingleCity] = useState('London');
   const [singleBudget, setSingleBudget] = useState('350');
   const [singleNotes, setSingleNotes] = useState('');
+  const [singleLeadError, setSingleLeadError] = useState('');
 
-  const handleSingleLeadSubmit = (e: React.FormEvent) => {
+  const handleSingleLeadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!singleName || !singleEmail || !singleUni) return;
+    setSingleLeadError('');
 
-    submitPartnerLead({
-      fullName: singleName,
-      email: singleEmail,
-      phone: singlePhone || '+44 7700 900123',
-      university: singleUni,
-      destinationCity: singleCity || 'London',
-      destinationCountry: 'United Kingdom',
-      intake: 'Sep 2026',
-      moveInDate: '2026-09-15',
-      budget: Number(singleBudget) || 350,
-      notes: singleNotes,
-    });
+    try {
+      await submitPartnerLead({
+        fullName: singleName,
+        email: singleEmail,
+        phone: singlePhone.trim(),
+        university: singleUni,
+        destinationCity: singleCity || 'London',
+        destinationCountry: 'United Kingdom',
+        intake: 'Sep 2026',
+        moveInDate: '2026-09-15',
+        budget: Number(singleBudget) || 350,
+        notes: singleNotes,
+        partnerId: activePartnerId,
+        partnerName: currentPartnerRecord?.companyName || currentUser.partnerName,
+      });
+    } catch (error) {
+      setSingleLeadError(error instanceof Error ? error.message : 'Unable to submit the lead. Please try again.');
+      return;
+    }
 
     setShowSingleLeadModal(false);
     setSingleName('');
@@ -688,7 +738,7 @@ export default function PartnersPage() {
 
               {isManagement && (
                 <button
-                  onClick={() => { setOnboardingPartner(null); setOnboardingError(''); setShowOnboardModal(true); }}
+                  onClick={openNewPartnerOnboarding}
                   className="flex items-center gap-1.5 rounded-lg bg-[#00319D] px-3.5 py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -756,11 +806,11 @@ export default function PartnersPage() {
                       )}
                       <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold border ${formatAgreementBadge(currentPartnerRecord?.agreementStatus)}`}>
                         <FileCheck className="h-3 w-3" />
-                        Agreement: {currentPartnerRecord?.agreementStatus || 'Active'}
+                        Agreement: {currentPartnerRecord?.agreementStatus || 'Not configured'}
                       </span>
                     </div>
                     <p className="text-xs text-[#6B6860] mt-0.5">
-                      {currentPartnerRecord?.city || 'Mumbai'}, {currentPartnerRecord?.state || 'Maharashtra'} • {currentPartnerRecord?.type || 'Partner'} • Contact: {currentPartnerRecord?.contactPerson || currentUser.displayName} ({currentPartnerRecord?.email || currentUser.email})
+                      {currentPartnerRecord ? `${currentPartnerRecord.city || 'Location not set'}, ${currentPartnerRecord.state || ''}` : 'Partner record not linked'} • {currentPartnerRecord?.type || 'Partner type not set'} • Contact: {currentPartnerRecord?.contactPerson || currentUser.displayName} ({currentPartnerRecord?.email || currentUser.email})
                     </p>
                   </div>
                 </div>
@@ -799,7 +849,7 @@ export default function PartnersPage() {
                 </div>
                 <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
                   <span className="text-[10px] font-bold text-[#6B6860] uppercase block">Commission Tier</span>
-                  <span className="text-lg font-extrabold text-[#1A1A1A]">{currentPartnerRecord?.commissionRate ?? 20}%</span>
+                  <span className="text-lg font-extrabold text-[#1A1A1A]">{currentPartnerRecord?.commissionRate != null ? `${currentPartnerRecord.commissionRate}%` : 'Not set'}</span>
                 </div>
               </div>
             </div>
@@ -1118,7 +1168,7 @@ export default function PartnersPage() {
                                         <div className="mt-2.5 pt-2.5 border-t border-[#E8E6E1] text-[11px] flex items-center justify-between">
                                           <span className="text-[#6B6860]">Portfolio Owner:</span>
                                           <strong className="text-[#1A1A1A]">
-                                            {partner.portfolioOwnerName || 'Beatrice Vance'}
+                                            {partner.portfolioOwnerName || 'Unassigned'}
                                           </strong>
                                         </div>
                                       </div>
@@ -1259,7 +1309,7 @@ export default function PartnersPage() {
                                 <div className="flex items-center gap-1.5">
                                   <span className="h-2 w-2 rounded-full bg-[#00319D]" />
                                   <strong className="text-[#1A1A1A]">
-                                    {partner.portfolioOwnerName || 'Beatrice Vance'}
+                                    {partner.portfolioOwnerName || 'Unassigned'}
                                   </strong>
                                 </div>
                                 <button
@@ -1894,10 +1944,12 @@ export default function PartnersPage() {
                   All future leads received from this partner will automatically appear in this user&apos;s Portfolio.
                 </p>
                 <select
+                  required
                   value={newPortfolioOwnerId}
                   onChange={(e) => setNewPortfolioOwnerId(e.target.value)}
                   className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs font-semibold text-[#1A1A1A] focus:border-[#00319D] focus:outline-none"
                 >
+                  <option value="" disabled>Choose an active owner</option>
                   {portfolioOwners.map((po) => (
                     <option key={po.uid} value={po.uid}>
                       {po.displayName} ({po.email})
@@ -2031,8 +2083,9 @@ export default function PartnersPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSingleLeadSubmit} className="space-y-3">
-              <div>
+  <form onSubmit={handleSingleLeadSubmit} className="space-y-3">
+  {singleLeadError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-700">{singleLeadError}</p>}
+  <div>
                 <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Student Full Name</label>
                 <input
                   type="text"

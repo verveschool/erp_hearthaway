@@ -21,11 +21,47 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // Profiles are client-created, but each authenticated user can only access
-    // the profile whose document ID matches their Firebase Auth UID.
+    function isManagementEmail() {
+      return isSignedIn() && (
+        request.auth.token.email == 'alisha@hearthaway.com' ||
+        request.auth.token.email == 'tribeverve@gmail.com'
+      );
+    }
+
+    function isManagement() {
+      return isManagementEmail() ||
+        (hasUserDoc() && getUserDoc().role in ['management', 'admin']);
+    }
+
+    function canCreateOwnPartnerRecord() {
+      return hasUserDoc() && getUserDoc().role == 'partner' &&
+        request.resource.data.accountUid == request.auth.uid &&
+        request.resource.data.partnerId == getUserDoc().partnerId &&
+        request.resource.data.email == getUserDoc().email;
+    }
+
+    function canLinkOwnPartnerRecord() {
+      return hasUserDoc() && getUserDoc().role == 'partner' &&
+        resource.data.email == getUserDoc().email &&
+        (!('accountUid' in resource.data) || resource.data.accountUid == request.auth.uid) &&
+        request.resource.data.accountUid == request.auth.uid &&
+        request.resource.data.partnerId == resource.data.partnerId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accountUid']);
+    }
+
     match /users/{userId} {
-      allow read, create, update: if isSignedIn() && request.auth.uid == userId;
-      allow delete: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSignedIn();
+      allow create: if isManagement() || (
+        isSignedIn() && request.auth.uid == userId &&
+        request.resource.data.role in ['portfolio_owner', 'partner']
+      );
+      allow update: if isManagement() || (
+        isSignedIn() && request.auth.uid == userId &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'uid', 'email', 'role', 'isApproved', 'status', 'deletedAt'
+        ])
+      );
+      allow delete: if isManagement();
     }
 
     // Students master collection
@@ -52,10 +88,13 @@ service cloud.firestore {
       allow delete: if isSignedIn();
     }
 
-    // Partners collection
+    // Partner records can be created or managed by management. A partner account
+    // may create its own record or claim a matching pre-onboarded record once.
     match /partners/{partnerId} {
-      allow read, create, update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isManagement() || canCreateOwnPartnerRecord();
+      allow update: if isManagement() || canLinkOwnPartnerRecord();
+      allow delete: if isManagement();
     }
 
     // Properties & Inventory

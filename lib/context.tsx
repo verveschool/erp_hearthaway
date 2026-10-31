@@ -17,14 +17,6 @@ import {
   MoveInStatus,
   CommissionStatus,
 } from './types';
-import {
-  INITIAL_USERS,
-  INITIAL_STUDENTS,
-  INITIAL_PARTNERS,
-  INITIAL_BOOKINGS,
-  INITIAL_PAYMENTS,
-  INITIAL_ACTIVITIES,
-} from './mock-data';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import {
   GoogleAuthProvider,
@@ -35,6 +27,7 @@ import {
   browserLocalPersistence,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  User as FirebaseAuthUser,
 } from 'firebase/auth';
 import {
   collection,
@@ -45,6 +38,7 @@ import {
   deleteDoc,
   updateDoc,
   onSnapshot,
+  runTransaction,
 } from 'firebase/firestore';
 
 interface AccessCheckResult {
@@ -52,6 +46,62 @@ interface AccessCheckResult {
   requiredRoles: UserRole[];
   reason?: 'unauthenticated' | 'insufficient_role' | 'pending_approval';
 }
+
+const MANAGEMENT_EMAILS = new Set(['alisha@hearthaway.com', 'tribeverve@gmail.com']);
+
+const isManagementEmail = (email?: string | null) =>
+  MANAGEMENT_EMAILS.has((email || '').trim().toLowerCase());
+
+const isManagementAccount = (user?: Pick<AppUser, 'email' | 'role'> | null) =>
+  Boolean(user && (isManagementEmail(user.email) || user.role === 'management' || user.role === 'admin'));
+
+const resolveFirebaseProfile = (
+  firebaseUser: FirebaseAuthUser,
+  storedProfile?: Partial<AppUser>
+): AppUser => {
+  const email = (firebaseUser.email || storedProfile?.email || '').trim().toLowerCase();
+  const profile: AppUser = {
+    ...(storedProfile as AppUser | undefined),
+    uid: firebaseUser.uid,
+    email,
+    displayName: storedProfile?.displayName?.trim() || firebaseUser.displayName || email.split('@')[0] || 'User',
+    role: isManagementEmail(email) ? 'management' : storedProfile?.role || 'portfolio_owner',
+    isApproved: storedProfile?.isApproved ?? true,
+    status: storedProfile?.status ?? 'approved',
+  };
+  const avatarUrl = storedProfile?.avatarUrl || firebaseUser.photoURL;
+  if (avatarUrl) profile.avatarUrl = avatarUrl;
+  return profile;
+};
+
+const ensureFirebaseProfile = async (firebaseUser: FirebaseAuthUser, createIfMissing = true): Promise<AppUser> => {
+  const userRef = doc(db, 'users', firebaseUser.uid);
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(userRef);
+    const storedProfile = snapshot.exists() ? snapshot.data() as Partial<AppUser> : undefined;
+    const profile = resolveFirebaseProfile(firebaseUser, storedProfile);
+
+    if (storedProfile?.status === 'deleted' || storedProfile?.deletedAt) return profile;
+    if (!snapshot.exists() && !createIfMissing) return profile;
+
+    const profileFields: Partial<AppUser> = {
+      uid: profile.uid,
+      email: profile.email,
+      displayName: profile.displayName,
+      role: profile.role,
+      isApproved: profile.isApproved,
+      status: profile.status,
+      ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
+    };
+    const storedFields = snapshot.exists() ? snapshot.data() as Record<string, unknown> : {};
+    const needsWrite = !snapshot.exists() || Object.entries(profileFields).some(([key, value]) => storedFields[key] !== value);
+
+    if (needsWrite) {
+      transaction.set(userRef, profileFields, { merge: true });
+    }
+    return profile;
+  });
+};
 
 interface HearthAwayContextType {
   currentUser: AppUser;
@@ -61,7 +111,7 @@ interface HearthAwayContextType {
   // Authentication & Access Control
   isAuthenticated: boolean;
   authInitialized: boolean;
-  loginWithUser: (user: AppUser) => void;
+  loginWithUser: (user: AppUser) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   loginWithEmailPassword: (email: string, password?: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -83,7 +133,7 @@ interface HearthAwayContextType {
     phone?: string;
     university?: string;
     avatarUrl?: string;
-  }) => AppUser;
+  }) => Promise<AppUser>;
   updateCurrentUserProfile: (updates: Partial<AppUser>) => void;
   canAccessRoute: (pathname?: string | null) => AccessCheckResult;
 
@@ -101,7 +151,7 @@ interface HearthAwayContextType {
     leads: Array<any>,
     explicitPartnerId?: string,
     explicitPartnerName?: string
-  ) => { importedCount: number; duplicatesCount: number; errorsCount: number; importedLeads: Student[] };
+  ) => Promise<{ importedCount: number; duplicatesCount: number; errorsCount: number; importedLeads: Student[] }>;
   onboardNewPartner: (partnerData: any) => Promise<Partner>;
   updatePartner: (partnerId: string, updates: Partial<Partner>) => Promise<void>;
   deletePartner: (partnerId: string) => Promise<void>;
@@ -119,7 +169,9 @@ interface HearthAwayContextType {
     preferredRoom?: string;
     accommodationPreference?: string;
     notes?: string;
-  }) => Student;
+    partnerId?: string;
+    partnerName?: string;
+  }) => Promise<Student>;
 
   updateStudentDecoupledStatus: (
     studentId: string,
@@ -232,158 +284,157 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [hideTestRecords, setHideTestRecords] = useState<boolean>(false);
 
-  // Real-time Firebase Firestore Sync & Auth state listener
+  // Start data listeners only after Firebase restores a signed-in user.
   useEffect(() => {
     let isMounted = true;
+    let authEvent = 0;
+    let dataSubscriptions: Array<() => void> = [];
+
+    const clearSyncedData = () => {
+      setStudents([]);
+      setPartners([]);
+      setBookings([]);
+      setPayments([]);
+      setActivities([]);
+      setAvailableUsers([]);
+      setSelectedStudentId(null);
+    };
+
+    const stopDataSubscriptions = () => {
+      dataSubscriptions.forEach((unsubscribe) => unsubscribe());
+      dataSubscriptions = [];
+    };
+
+    const cacheProfile = (profile: AppUser) => {
+      try {
+        localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(profile));
+        localStorage.setItem('hearthaway_auth_uid', profile.uid);
+      } catch {}
+    };
+
+    const subscribeToData = () => {
+      stopDataSubscriptions();
+      dataSubscriptions = [
+        onSnapshot(
+          collection(db, 'students'),
+          (snapshot) => {
+            if (isMounted) setStudents(snapshot.docs.map((item) => ({ ...item.data(), id: item.id } as Student)));
+          },
+          (error) => {
+            console.warn('[v0] Students listener failed:', error.message);
+            if (isMounted) setStudents([]);
+          }
+        ),
+        onSnapshot(
+          collection(db, 'partners'),
+          (snapshot) => {
+            if (isMounted) setPartners(snapshot.docs.map((item) => ({ ...item.data(), id: item.id } as Partner)));
+          },
+          (error) => {
+            console.warn('[v0] Partners listener failed:', error.message);
+            if (isMounted) setPartners([]);
+          }
+        ),
+        onSnapshot(
+          collection(db, 'bookings'),
+          (snapshot) => {
+            if (isMounted) setBookings(snapshot.docs.map((item) => ({ ...item.data(), id: item.id } as Booking)));
+          },
+          (error) => {
+            console.warn('[v0] Bookings listener failed:', error.message);
+            if (isMounted) setBookings([]);
+          }
+        ),
+        onSnapshot(
+          collection(db, 'payments'),
+          (snapshot) => {
+            if (isMounted) setPayments(snapshot.docs.map((item) => ({ ...item.data(), id: item.id } as Payment)));
+          },
+          (error) => {
+            console.warn('[v0] Payments listener failed:', error.message);
+            if (isMounted) setPayments([]);
+          }
+        ),
+        onSnapshot(
+          collection(db, 'activities'),
+          (snapshot) => {
+            if (isMounted) setActivities(snapshot.docs.map((item) => ({ ...item.data(), id: item.id } as Activity)));
+          },
+          (error) => {
+            console.warn('[v0] Activities listener failed:', error.message);
+            if (isMounted) setActivities([]);
+          }
+        ),
+        onSnapshot(
+          collection(db, 'users'),
+          (snapshot) => {
+            if (!isMounted) return;
+            const users = snapshot.docs
+              .map((item) => ({ ...item.data(), uid: item.id } as AppUser))
+              .filter((user) => user.status !== 'deleted' && user.status !== 'disabled' && !user.deletedAt);
+            setAvailableUsers(users);
+          },
+          (error) => {
+            console.warn('[v0] Users listener failed:', error.message);
+            if (isMounted) setAvailableUsers([]);
+          }
+        ),
+      ];
+    };
+
     void setPersistence(auth, browserLocalPersistence).catch((error) => {
       console.warn('[v0] Firebase auth persistence setup failed:', error);
     });
 
-    const unsubAuth = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser) {
-        try {
-          const cleanEmail = (fbUser.email || '').toLowerCase().trim();
-          const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com';
-          const userRef = doc(db, 'users', fbUser.uid);
-          const snap = await getDoc(userRef);
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      const eventId = ++authEvent;
+      stopDataSubscriptions();
+      clearSyncedData();
+      setCurrentUser(DEFAULT_EMPTY_USER);
+      setIsAuthenticated(false);
 
-          if (snap.exists()) {
-            const storedProfile = snap.data() as AppUser;
-            if (storedProfile.status === 'deleted' || storedProfile.deletedAt) {
-              await signOut(auth);
-              setIsAuthenticated(false);
-              setCurrentUser(DEFAULT_EMPTY_USER);
-              return;
-            }
-            const profile = {
-              ...storedProfile,
-              isApproved: storedProfile.isApproved ?? true,
-              status: storedProfile.status ?? 'approved',
-            };
-            if (isSuperAdmin && profile.role !== 'partner') {
-              profile.role = 'management';
-              await setDoc(userRef, { role: 'management' }, { merge: true });
-            }
-            setCurrentUser(profile);
-            setIsAuthenticated(true);
-            try {
-              localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(profile));
-              localStorage.setItem('hearthaway_auth_uid', profile.uid);
-            } catch {}
-          } else {
-            const newUser: AppUser = {
-              uid: fbUser.uid,
-              email: cleanEmail,
-              displayName: fbUser.displayName || cleanEmail.split('@')[0] || 'User',
-              role: isSuperAdmin ? 'management' : 'portfolio_owner',
-              avatarUrl: fbUser.photoURL || undefined,
-              isApproved: true,
-              status: 'approved',
-            };
-            await setDoc(userRef, newUser);
-            setCurrentUser(newUser);
-            setIsAuthenticated(true);
-            try {
-              localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(newUser));
-              localStorage.setItem('hearthaway_auth_uid', newUser.uid);
-            } catch {}
-          }
-        } catch (err) {
-          console.warn('Error fetching Firestore user profile:', err);
-        }
-      } else {
-        setIsAuthenticated(false);
-        setCurrentUser(DEFAULT_EMPTY_USER);
+      if (!firebaseUser) {
         try {
           localStorage.removeItem('hearthaway_auth_uid');
           localStorage.removeItem('hearthaway_current_user_profile');
         } catch {}
+        if (isMounted) setAuthInitialized(true);
+        return;
       }
-      if (isMounted) setAuthInitialized(true);
+
+      setAuthInitialized(false);
+      try {
+        await firebaseUser.getIdToken();
+        const profile = await ensureFirebaseProfile(firebaseUser, false);
+        if (!isMounted || eventId !== authEvent) return;
+
+        if (profile.status === 'deleted' || profile.status === 'disabled' || profile.deletedAt) {
+          await signOut(auth);
+          return;
+        }
+
+        setCurrentUser(profile);
+        setIsAuthenticated(true);
+        cacheProfile(profile);
+        subscribeToData();
+      } catch (error) {
+        console.warn('[v0] Failed to load Firebase user profile:', error);
+        if (!isMounted || eventId !== authEvent) return;
+        const fallbackProfile = resolveFirebaseProfile(firebaseUser);
+        setCurrentUser(fallbackProfile);
+        setIsAuthenticated(true);
+        cacheProfile(fallbackProfile);
+        subscribeToData();
+      } finally {
+        if (isMounted && eventId === authEvent) setAuthInitialized(true);
+      }
     });
-
-    // Real-time Firestore snapshot listeners across all connected users & devices
-    const unsubStudents = onSnapshot(
-      collection(db, 'students'),
-      (snapshot) => {
-        const list = snapshot.docs.map((docSnap) => docSnap.data() as Student);
-        setStudents(list);
-      },
-      (err) => {
-        console.warn('Students listener status:', err.message);
-      }
-    );
-
-    const unsubPartners = onSnapshot(
-      collection(db, 'partners'),
-      (snapshot) => {
-        const list = snapshot.docs.map((docSnap) => ({
-          ...docSnap.data(),
-          // The Firestore document ID is authoritative; stored IDs can be stale after imports.
-          id: docSnap.id,
-        } as Partner));
-        setPartners(list);
-      },
-      (err) => {
-        console.warn('Partners listener status:', err.message);
-      }
-    );
-
-    const unsubBookings = onSnapshot(
-      collection(db, 'bookings'),
-      (snapshot) => {
-        const list = snapshot.docs.map((docSnap) => docSnap.data() as Booking);
-        setBookings(list);
-      },
-      (err) => {
-        console.warn('Bookings listener status:', err.message);
-      }
-    );
-
-    const unsubPayments = onSnapshot(
-      collection(db, 'payments'),
-      (snapshot) => {
-        const list = snapshot.docs.map((docSnap) => docSnap.data() as Payment);
-        setPayments(list);
-      },
-      (err) => {
-        console.warn('Payments listener status:', err.message);
-      }
-    );
-
-    const unsubActivities = onSnapshot(
-      collection(db, 'activities'),
-      (snapshot) => {
-        const list = snapshot.docs.map((docSnap) => docSnap.data() as Activity);
-        setActivities(list);
-      },
-      (err) => {
-        console.warn('Activities listener status:', err.message);
-      }
-    );
-
-    const unsubUsers = onSnapshot(
-      collection(db, 'users'),
-      (snapshot) => {
-        const list = snapshot.docs
-          .map((docSnap) => ({ uid: docSnap.id, ...docSnap.data() } as AppUser))
-          .filter((user) => user.status !== 'deleted' && user.status !== 'disabled' && !user.deletedAt);
-        setAvailableUsers(list);
-      },
-      (err) => {
-        console.warn('Users listener status:', err.message);
-      }
-    );
 
     return () => {
       isMounted = false;
-      unsubAuth();
-      unsubStudents();
-      unsubPartners();
-      unsubBookings();
-      unsubPayments();
-      unsubActivities();
-      unsubUsers();
+      authEvent += 1;
+      unsubscribeAuth();
+      stopDataSubscriptions();
     };
   }, []);
 
@@ -392,7 +443,20 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     setIsLoginModalOpen(true);
   };
 
-  const createAccount = (data: {
+  const assertFirebaseSession = () => {
+    if (!auth.currentUser || auth.currentUser.uid !== currentUser.uid) {
+      throw new Error('Your Firebase session is not ready. Please sign in again and retry.');
+    }
+  };
+
+  const assertManagementAccess = () => {
+    assertFirebaseSession();
+    if (!isManagementAccount(currentUser)) {
+      throw new Error('Only management accounts can make this change.');
+    }
+  };
+
+  const createAccount = async (data: {
     displayName: string;
     email: string;
     role: UserRole;
@@ -400,75 +464,119 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     phone?: string;
     university?: string;
     avatarUrl?: string;
-  }): AppUser => {
-    const isPartner = data.role === 'partner';
-    const partnerId = isPartner ? `PART-${Math.floor(10000 + Math.random() * 90000)}` : undefined;
-    // Use the Firebase Auth UID so Firestore ownership rules can authorize the write.
-    const uid = auth.currentUser?.uid || `user-${Date.now()}`;
-    const cleanEmail = data.email.toLowerCase().trim();
-    const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com' || data.role === 'management' || data.role === 'admin';
+  }): Promise<AppUser> => {
+    const firebaseUser = auth.currentUser;
+    const cleanEmail = data.email.trim().toLowerCase();
+    if (!firebaseUser || firebaseUser.email?.trim().toLowerCase() !== cleanEmail) {
+      throw new Error('Firebase sign-in is not ready for this account. Please sign in again and retry.');
+    }
+
+    const uid = firebaseUser.uid;
+    const isPartner = data.role === 'partner' && !isManagementEmail(cleanEmail);
+    const role: UserRole = isManagementEmail(cleanEmail) ? 'management' : isPartner ? 'partner' : 'portfolio_owner';
+    let existingPartner: Partner | undefined;
+
+    if (isPartner) {
+      try {
+        const partnerSnapshot = await getDocs(collection(db, 'partners'));
+        const matchingPartners = partnerSnapshot.docs
+          .map((item) => ({ ...item.data(), id: item.id } as Partner))
+          .filter((partner) => partner.email?.trim().toLowerCase() === cleanEmail);
+        if (matchingPartners.length > 1) {
+          throw new Error('More than one partner record uses this email. Ask management to resolve the duplicate before registering.');
+        }
+        existingPartner = matchingPartners[0];
+        if (existingPartner?.accountUid && existingPartner.accountUid !== uid) {
+          throw new Error('This partner record is already linked to another account. Ask management for help.');
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith('More than one partner')) throw error;
+        if (error instanceof Error && error.message.startsWith('This partner record')) throw error;
+        handleFirestoreError(error, OperationType.LIST, 'partners');
+      }
+    }
+
+    const partnerId = isPartner
+      ? existingPartner?.partnerId || `PART-${Math.floor(10000 + Math.random() * 90000)}`
+      : undefined;
     const newUser: AppUser = {
       uid,
       email: cleanEmail,
-      displayName: data.displayName,
-      role: data.role,
+      displayName: data.displayName.trim(),
+      role,
       isApproved: true,
       status: 'approved',
-      ...(isPartner ? {
-        partnerId,
-        partnerName: data.partnerName || 'Independent Partner',
-      } : {}),
+      ...(data.phone ? { phone: data.phone } : {}),
+      ...(data.university ? { university: data.university } : {}),
+      ...(isPartner
+        ? {
+            partnerId,
+            partnerName: existingPartner?.companyName || data.partnerName || 'Independent Partner',
+          }
+        : {}),
       ...(data.avatarUrl ? { avatarUrl: data.avatarUrl } : {}),
     };
+
+    try {
+      await setDoc(doc(db, 'users', uid), newUser, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${uid}`);
+    }
+
+    if (isPartner && partnerId) {
+      if (existingPartner) {
+        try {
+          await setDoc(doc(db, 'partners', existingPartner.id), { accountUid: uid }, { merge: true });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, `partners/${existingPartner.id}`);
+        }
+      } else {
+        const partnerRecord: Partner = {
+          id: `part-${partnerId.toLowerCase()}`,
+          partnerId,
+          accountUid: uid,
+          companyName: data.partnerName || data.displayName,
+          type: 'Study Abroad Consultant',
+          contactPerson: data.displayName,
+          email: cleanEmail,
+          phone: data.phone || '',
+          city: 'Mumbai',
+          state: 'Maharashtra',
+          country: 'India',
+          countries: ['India'],
+          cities: ['Mumbai'],
+          portfolioOwnerId: '',
+          portfolioOwnerName: '',
+          assignedManagerId: '',
+          assignedManagerName: '',
+          agreementStatus: 'Pending Review',
+          agreementType: 'Master Services Agreement (MSA)',
+          agreementTerms: '40% Commission, 120-day payment window',
+          agreementDocumentUrl: '',
+          status: 'Onboarding',
+          onboardingDate: new Date().toISOString().split('T')[0],
+          commissionRate: 40,
+        };
+        try {
+          await setDoc(doc(db, 'partners', partnerRecord.id), partnerRecord, { merge: true });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, `partners/${partnerRecord.id}`);
+        }
+      }
+    }
 
     setCurrentUser(newUser);
     setIsAuthenticated(true);
     try {
       localStorage.setItem('hearthaway_auth_uid', newUser.uid);
       localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(newUser));
-    } catch (e) {}
-
-    setDoc(doc(db, 'users', uid), newUser).catch((err) => {
-      handleFirestoreError(err, OperationType.WRITE, `users/${uid}`);
-    });
-
-    if (isPartner) {
-      const partnerRecord: Partner = {
-        id: `part-${partnerId!.toLowerCase()}`,
-        partnerId: partnerId!,
-        accountUid: uid,
-        companyName: data.partnerName || data.displayName,
-        type: 'Study Abroad Consultant',
-        contactPerson: data.displayName,
-        email: cleanEmail,
-        phone: data.phone || '',
-        city: 'Mumbai',
-        state: 'Maharashtra',
-        country: 'India',
-        countries: ['India'],
-        cities: ['Mumbai'],
-        portfolioOwnerId: '',
-        portfolioOwnerName: '',
-        assignedManagerId: '',
-        assignedManagerName: '',
-        agreementStatus: 'Pending Review',
-        agreementType: 'Master Services Agreement (MSA)',
-        agreementTerms: '40% Commission, 120-day payment window',
-        agreementDocumentUrl: '',
-        status: 'Onboarding',
-        onboardingDate: new Date().toISOString().split('T')[0],
-        commissionRate: 40,
-      };
-      setDoc(doc(db, 'partners', partnerRecord.id), partnerRecord, { merge: true }).catch((err) => {
-        handleFirestoreError(err, OperationType.WRITE, `partners/${partnerRecord.id}`);
-      });
-    }
-
+    } catch {}
     setIsLoginModalOpen(false);
     return newUser;
   };
 
   const approveUser = async (uid: string, approve: boolean = true) => {
+    assertManagementAccess();
     try {
       const userRef = doc(db, 'users', uid);
       await setDoc(userRef, { isApproved: approve, status: approve ? 'approved' : 'pending' }, { merge: true });
@@ -489,13 +597,15 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   };
 
   const updateUserRole = async (uid: string, role: UserRole) => {
+    assertManagementAccess();
     if (uid === currentUser.uid) return;
     await setDoc(doc(db, 'users', uid), { role }, { merge: true });
     setAvailableUsers((previous) => previous.map((user) => user.uid === uid ? { ...user, role } : user));
   };
 
   const deleteUser = async (uid: string) => {
-    if (!uid || uid === currentUser.uid || currentUser.role !== 'management' && currentUser.role !== 'admin') return;
+    assertManagementAccess();
+    if (!uid || uid === currentUser.uid) return;
     await setDoc(doc(db, 'users', uid), {
       status: 'deleted',
       deletedAt: new Date().toISOString(),
@@ -505,40 +615,31 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   };
 
   const removeAllAccounts = async () => {
+    assertManagementAccess();
     try {
       const querySnapshot = await getDocs(collection(db, 'users'));
       for (const dSnap of querySnapshot.docs) {
-        const uData = dSnap.data() as AppUser;
-        if (uData.email !== 'tribeverve@gmail.com') {
+        const userData = dSnap.data() as AppUser;
+        if (!isManagementEmail(userData.email)) {
           await deleteDoc(doc(db, 'users', dSnap.id));
         }
       }
-      setAvailableUsers((prev) => prev.filter((u) => u.email === 'tribeverve@gmail.com'));
-      if (currentUser?.email !== 'tribeverve@gmail.com') {
-        signOut(auth);
-        const adminUser: AppUser = {
-          uid: 'usr-admin-default',
-          email: 'tribeverve@gmail.com',
-          displayName: 'Super Admin',
-          role: 'management',
-          isApproved: true,
-          status: 'approved',
-        };
-        setCurrentUser(adminUser);
-        setIsAuthenticated(false);
-        try {
-          localStorage.removeItem('hearthaway_auth_uid');
-          localStorage.removeItem('hearthaway_current_user_profile');
-        } catch {}
-      }
-    } catch (err) {
-      console.error('Failed to remove accounts:', err);
+      setAvailableUsers((previous) => previous.filter((user) => isManagementEmail(user.email)));
+    } catch (error) {
+      console.error('Failed to remove accounts:', error);
+      throw error;
     }
   };
 
   const updateCurrentUserProfile = (updates: Partial<AppUser>) => {
-    if (!currentUser?.uid) return;
-    const updated = { ...currentUser, ...updates };
+    if (!currentUser?.uid || auth.currentUser?.uid !== currentUser.uid) return;
+    const safeUpdates = { ...updates };
+    if (!isManagementAccount(currentUser)) {
+      delete safeUpdates.role;
+      delete safeUpdates.status;
+      delete safeUpdates.isApproved;
+    }
+    const updated = { ...currentUser, ...safeUpdates };
     setCurrentUser(updated);
     try {
       localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(updated));
@@ -552,13 +653,34 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     });
   };
 
-  const loginWithUser = (user: AppUser) => {
-    setCurrentUser(user);
+  useEffect(() => {
+    if (!currentUser.uid || currentUser.role !== 'partner' || currentUser.partnerId) return;
+    const byAccount = partners.find((partner) => partner.accountUid === currentUser.uid);
+    const emailMatches = partners.filter(
+      (partner) => partner.email?.trim().toLowerCase() === currentUser.email.trim().toLowerCase()
+    );
+    const linkedPartner = byAccount || (emailMatches.length === 1 ? emailMatches[0] : undefined);
+    if (!linkedPartner?.partnerId) return;
+
+    updateCurrentUserProfile({
+      partnerId: linkedPartner.partnerId,
+      partnerName: linkedPartner.companyName,
+    });
+  }, [currentUser.uid, currentUser.role, currentUser.partnerId, currentUser.email, partners]);
+
+  const loginWithUser = async (user: AppUser) => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser || firebaseUser.uid !== user.uid) {
+      throw new Error('Sign in with Firebase before opening this account.');
+    }
+
+    const profile = await ensureFirebaseProfile(firebaseUser);
+    setCurrentUser(profile);
     setIsAuthenticated(true);
     try {
-      localStorage.setItem('hearthaway_auth_uid', user.uid);
-      localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(user));
-    } catch (e) {}
+      localStorage.setItem('hearthaway_auth_uid', profile.uid);
+      localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(profile));
+    } catch {}
     setIsLoginModalOpen(false);
   };
 
@@ -566,35 +688,10 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      const userEmail = (user.email || '').toLowerCase().trim();
-      const userRef = doc(db, 'users', user.uid);
-
-      let profile: AppUser;
-      try {
-        const snap = await getDoc(userRef);
-        if (snap.exists()) {
-          profile = snap.data() as AppUser;
-        } else {
-          const isSuperAdmin = userEmail === 'tribeverve@gmail.com';
-          profile = {
-            uid: user.uid,
-            email: userEmail,
-            displayName: user.displayName || 'Authenticated User',
-            role: isSuperAdmin ? 'management' : 'portfolio_owner',
-            avatarUrl: user.photoURL || undefined,
-          };
-          await setDoc(userRef, profile);
-        }
-      } catch {
-        const isSuperAdmin = userEmail === 'tribeverve@gmail.com';
-        profile = {
-          uid: user.uid,
-          email: userEmail,
-          displayName: user.displayName || 'Authenticated User',
-          role: isSuperAdmin ? 'management' : 'portfolio_owner',
-          avatarUrl: user.photoURL || undefined,
-        };
+      const profile = await ensureFirebaseProfile(result.user);
+      if (profile.status === 'deleted' || profile.status === 'disabled' || profile.deletedAt) {
+        await signOut(auth);
+        throw new Error('This account is disabled. Contact HearthAway management.');
       }
 
       setCurrentUser(profile);
@@ -602,52 +699,41 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       try {
         localStorage.setItem('hearthaway_auth_uid', profile.uid);
         localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(profile));
-      } catch (e) {}
-
+      } catch {}
       setIsLoginModalOpen(false);
-    } catch (err) {
-      console.warn('Google sign-in error:', err);
+    } catch (error) {
+      console.warn('[v0] Google sign-in failed:', error);
+      throw error;
     }
   };
 
   const loginWithEmailPassword = async (email: string, password?: string) => {
-    const cleanEmail = email.toLowerCase().trim();
+    const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) return;
+    if (!password || password.length < 6) {
+      throw new Error('Enter your Firebase email and password to sign in.');
+    }
 
-    if (password && password.length >= 6) {
-      try {
-        const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
-        const fbUser = userCredential.user;
-        const userRef = doc(db, 'users', fbUser.uid);
-        const snap = await getDoc(userRef);
-        let profile: AppUser;
-        if (snap.exists()) {
-          profile = snap.data() as AppUser;
-        } else {
-          const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com';
-          profile = {
-            uid: fbUser.uid,
-            email: cleanEmail,
-            displayName: fbUser.displayName || cleanEmail.split('@')[0],
-            role: isSuperAdmin ? 'management' : 'portfolio_owner',
-          };
-          await setDoc(userRef, profile);
-        }
-        setCurrentUser(profile);
-        setIsAuthenticated(true);
-        try {
-          localStorage.setItem('hearthaway_auth_uid', profile.uid);
-          localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(profile));
-        } catch (e) {}
-        setIsLoginModalOpen(false);
-        return;
-        } catch (err) {
-          console.warn('[v0] Firebase sign-in rejected:', err);
-          throw new Error('Invalid email or password.');
-        }
+    try {
+      const credential = await signInWithEmailAndPassword(auth, cleanEmail, password);
+      const profile = await ensureFirebaseProfile(credential.user);
+      if (profile.status === 'deleted' || profile.status === 'disabled' || profile.deletedAt) {
+        await signOut(auth);
+        throw new Error('This account is disabled. Contact HearthAway management.');
       }
 
-    throw new Error('Enter your Firebase email and password to sign in.');
+      setCurrentUser(profile);
+      setIsAuthenticated(true);
+      try {
+        localStorage.setItem('hearthaway_auth_uid', profile.uid);
+        localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(profile));
+      } catch {}
+      setIsLoginModalOpen(false);
+    } catch (error) {
+      console.warn('[v0] Firebase sign-in rejected:', error);
+      if (error instanceof Error && error.message.startsWith('This account is disabled')) throw error;
+      throw new Error('Invalid email or password.');
+    }
   };
 
   const resetPassword = async (email: string): Promise<void> => {
@@ -678,12 +764,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       return { allowed: false, requiredRoles: [], reason: 'unauthenticated' };
     }
 
-    const cleanEmail = (currentUser.email || '').toLowerCase().trim();
-    const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com' || currentUser.role === 'admin' || currentUser.role === 'management';
+    const role = isManagementEmail(currentUser.email) ? 'management' : currentUser.role;
 
-    const role = currentUser.role;
-
-    if (role === 'admin' || role === 'management') {
+    if (isManagementAccount({ ...currentUser, role })) {
       return { allowed: true, requiredRoles: [] };
     }
 
@@ -795,78 +878,103 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const onboardNewPartner = async (partnerData: any): Promise<Partner> => {
-    const normalizedEmail = String(partnerData.email || '').toLowerCase().trim();
+  const onboardNewPartner = async (partnerData: Partial<Partner>): Promise<Partner> => {
+    assertManagementAccess();
+    const normalizedEmail = String(partnerData.email || '').trim().toLowerCase();
+    const companyName = String(partnerData.companyName || '').trim();
+    if (!normalizedEmail || !companyName) {
+      throw new Error('Partner company name and contact email are required.');
+    }
+
     const existingPartner = partners.find((partner) =>
-      (normalizedEmail && partner.email.toLowerCase().trim() === normalizedEmail) ||
-      (partnerData.companyName && partner.companyName.toLowerCase().trim() === String(partnerData.companyName).toLowerCase().trim())
+      partner.email?.trim().toLowerCase() === normalizedEmail ||
+      partner.companyName?.trim().toLowerCase() === companyName.toLowerCase()
     );
-    if (existingPartner) return existingPartner;
+    if (existingPartner) {
+      throw new Error(`A partner record already exists for ${existingPartner.companyName} (${existingPartner.partnerId}).`);
+    }
+
+    const owner = availableUsers.find(
+      (user) =>
+        user.uid === partnerData.portfolioOwnerId &&
+        ['portfolio_owner', 'management', 'admin'].includes(user.role) &&
+        user.status !== 'deleted' &&
+        user.status !== 'disabled'
+    );
+    if (!owner) throw new Error('Select an active portfolio owner before onboarding this partner.');
 
     const partnerIdStr = partnerData.partnerId || `PART-${Math.floor(10000 + Math.random() * 90000)}`;
     const docId = `part-${partnerIdStr.toLowerCase()}`;
+    const today = new Date().toISOString().split('T')[0];
     const newPartner: Partner = {
+      ...partnerData,
       id: docId,
       partnerId: partnerIdStr,
-      companyName: partnerData.companyName || 'New Partner',
+      companyName,
       type: partnerData.type || 'Study Abroad Consultant',
       contactPerson: partnerData.contactPerson || 'Contact Person',
-      email: partnerData.email || 'partner@example.com',
-      phone: partnerData.phone || '+91 98765 43210',
+      email: normalizedEmail,
+      phone: partnerData.phone || '',
       city: partnerData.city || 'Mumbai',
       state: partnerData.state || 'Maharashtra',
       country: partnerData.country || 'India',
       countries: partnerData.countries || [],
       cities: partnerData.cities || [],
-      portfolioOwnerId: partnerData.portfolioOwnerId || currentUser.uid || 'usr-admin-primary',
-      portfolioOwnerName: partnerData.portfolioOwnerName || currentUser.displayName || 'Primary Administrator',
-      agreementStatus: partnerData.agreementStatus || 'Active',
+      portfolioOwnerId: owner.uid,
+      portfolioOwnerName: owner.displayName,
+      assignedManagerId: owner.uid,
+      assignedManagerName: owner.displayName,
+      agreementStatus: partnerData.agreementStatus || 'Pending Review',
       agreementType: partnerData.agreementType || 'Master Services Agreement (MSA)',
       agreementTerms: partnerData.agreementTerms || '40% Commission, 120-day payment window',
-      agreementSignedDate: partnerData.agreementSignedDate || new Date().toISOString().split('T')[0],
+      agreementSignedDate: partnerData.agreementSignedDate || today,
       agreementExpiryDate: partnerData.agreementExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       agreementDocumentUrl: partnerData.agreementDocumentUrl || '',
-      status: partnerData.status || 'Active',
-      onboardingDate: partnerData.onboardingDate || new Date().toISOString().split('T')[0],
-      commissionRate: partnerData.commissionRate || 20,
-      ...partnerData,
+      status: partnerData.status || 'Onboarding',
+      onboardingDate: partnerData.onboardingDate || today,
+      commissionRate: partnerData.commissionRate ?? 20,
     };
 
-  await setDoc(doc(db, 'partners', docId), newPartner).catch((err) => {
-  handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
-  throw err;
-  });
+    try {
+      await setDoc(doc(db, 'partners', docId), newPartner);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `partners/${docId}`);
+    }
 
     logStudentActivity(
       partnerIdStr,
       'Partner Onboarded',
-      `New partner "${newPartner.companyName}" (${partnerIdStr}) onboarded under Portfolio Owner ${newPartner.portfolioOwnerName} with ${newPartner.agreementType}.`
+      `New partner "${newPartner.companyName}" (${partnerIdStr}) onboarded under Portfolio Owner ${owner.displayName} with ${newPartner.agreementType}.`
     );
-
     return newPartner;
   };
 
   const updatePartner = async (partnerId: string, updates: Partial<Partner>): Promise<void> => {
+    assertManagementAccess();
     const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
     if (!partner) {
       throw new Error(`Partner ${partnerId} was not found. Refresh the partners page and try again.`);
     }
 
+    const normalizedUpdates = updates.email
+      ? { ...updates, email: updates.email.trim().toLowerCase() }
+      : updates;
     const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
     try {
-      await setDoc(doc(db, 'partners', docId), updates, { merge: true });
-      setPartners((previous) => previous.map((item) => item.partnerId === partner.partnerId ? { ...item, ...updates } : item));
+      await setDoc(doc(db, 'partners', docId), normalizedUpdates, { merge: true });
+      setPartners((previous) => previous.map((item) => item.partnerId === partner.partnerId ? { ...item, ...normalizedUpdates } : item));
       logStudentActivity(
         partner.partnerId,
         'Partner Updated',
         `Partner "${partner.companyName}" (${partner.partnerId}) profile / agreement terms updated by ${currentUser.displayName}.`
       );
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `partners/${docId}`);
     }
   };
 
   const deletePartner = async (partnerId: string): Promise<void> => {
+    assertManagementAccess();
     const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
     if (!partner) throw new Error(`Partner ${partnerId} was not found.`);
 
@@ -875,20 +983,43 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     setPartners((previous) => previous.filter((p) => p.id !== docId && p.partnerId !== partner.partnerId));
   };
 
-  const bulkImportPartnerLeads = (
+  const getCurrentPartnerRecord = () => {
+    const byAccount = partners.find((partner) => partner.accountUid === currentUser.uid);
+    if (byAccount) return byAccount;
+
+    const byPartnerId = currentUser.partnerId
+      ? partners.find((partner) => partner.partnerId === currentUser.partnerId)
+      : undefined;
+    if (byPartnerId) return byPartnerId;
+
+    const emailMatches = partners.filter(
+      (partner) => partner.email?.trim().toLowerCase() === currentUser.email.trim().toLowerCase()
+    );
+    return emailMatches.length === 1 ? emailMatches[0] : undefined;
+  };
+
+  const bulkImportPartnerLeads = async (
     incomingLeads: Array<any>,
     explicitPartnerId?: string,
     explicitPartnerName?: string
-  ) => {
-    const partnerId =
-      explicitPartnerId ||
-      (currentUser.role === 'partner' && currentUser.partnerId ? currentUser.partnerId : 'PART-00482');
-    const matchedPartner = partners.find((p) => p.partnerId === partnerId);
-    const partnerName =
-      explicitPartnerName ||
-      matchedPartner?.companyName ||
-      currentUser.partnerName ||
-      'Education Partner';
+  ): Promise<{ importedCount: number; duplicatesCount: number; errorsCount: number; importedLeads: Student[] }> => {
+    assertFirebaseSession();
+    const linkedPartner = currentUser.role === 'partner' ? getCurrentPartnerRecord() : undefined;
+    const ownPartnerId = currentUser.partnerId || linkedPartner?.partnerId;
+    if (currentUser.role === 'partner' && (!ownPartnerId || (explicitPartnerId && explicitPartnerId !== ownPartnerId))) {
+      throw new Error('This partner account is not linked to the selected partner record. Ask management to link it before importing leads.');
+    }
+
+    const partnerId = currentUser.role === 'partner' ? ownPartnerId : explicitPartnerId;
+    if (!partnerId) throw new Error('Select a partner before importing leads.');
+    const matchedPartner = partners.find((partner) => partner.partnerId === partnerId) || linkedPartner;
+    if (partnerId !== 'direct' && !matchedPartner && currentUser.role !== 'partner') {
+      throw new Error('The selected partner no longer exists. Refresh the page and select a valid partner.');
+    }
+    const partnerName = partnerId === 'direct'
+      ? 'Direct / HearthAway'
+      : explicitPartnerName || matchedPartner?.companyName || currentUser.partnerName || '';
+    if (partnerId !== 'direct' && !partnerName) throw new Error('The selected partner has no company name.');
 
     const now = new Date();
     const formattedTimestamp = now.toLocaleString('en-GB', {
@@ -902,19 +1033,19 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const newRecords: Student[] = [];
     let duplicatesCount = 0;
     let errorsCount = 0;
-
-    const existingEmails = new Set(students.map((s) => s.email.toLowerCase().trim()));
-    const existingPhones = new Set(students.map((s) => s.phone.replace(/\D/g, '')));
+    const existingEmails = new Set(students.map((student) => student.email.toLowerCase().trim()));
+    const existingPhones = new Set(students.map((student) => student.phone.replace(/\D/g, '')));
+    const salesReps = availableUsers.filter(
+      (user) => user.role === 'sales' && user.status !== 'deleted' && user.status !== 'disabled'
+    );
 
     incomingLeads.forEach((lead, index) => {
       const cleanEmail = (lead.email || '').toLowerCase().trim();
       const cleanPhone = (lead.phone || '').replace(/\D/g, '');
-
       if (!lead.fullName || !cleanEmail || !lead.university) {
         errorsCount++;
         return;
       }
-
       if (existingEmails.has(cleanEmail) || (cleanPhone && existingPhones.has(cleanPhone))) {
         duplicatesCount++;
         return;
@@ -922,29 +1053,21 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
       existingEmails.add(cleanEmail);
       if (cleanPhone) existingPhones.add(cleanPhone);
-
-      const year = new Date().getFullYear();
-      const randomSeq = String(Math.floor(100000 + Math.random() * 900000));
-      const generatedId = `HA-${year}-${randomSeq}`;
+      const generatedId = `HA-${new Date().getFullYear()}-${String(Math.floor(100000 + Math.random() * 900000))}`;
       const [firstName, ...rest] = lead.fullName.trim().split(' ');
-      const lastName = rest.join(' ') || 'Lead';
-
-      const salesReps = availableUsers.filter((u) => u.role === 'sales');
-      const assignedRep =
-        salesReps.length > 0
-          ? salesReps[index % salesReps.length]
-          : { uid: 'user-emp-001', displayName: 'Harshul Mehta' };
-
+      const assignedRep = currentUser.role === 'sales'
+        ? currentUser
+        : salesReps[index % Math.max(salesReps.length, 1)];
       const docId = `std-${generatedId.toLowerCase()}`;
       const record: Student = {
         id: docId,
         studentId: generatedId,
         firstName,
-        lastName,
+        lastName: rest.join(' ') || 'Lead',
         fullName: lead.fullName.trim(),
         email: cleanEmail,
-        phone: lead.phone || '+44 7700 900000',
-        whatsApp: lead.phone || '+44 7700 900000',
+        phone: lead.phone || '',
+        whatsApp: lead.phone || '',
         nationality: lead.nationality || 'International',
         currentCountry: lead.currentCountry || 'International',
         university: lead.university.trim(),
@@ -960,11 +1083,11 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         accommodationPreference: lead.accommodationPreference || 'Bills included, walking distance',
         occupants: 1,
         passportStatus: 'Pending Verification',
-        leadSource: 'Study Abroad Consultants',
+        leadSource: partnerId === 'direct' ? 'Internal Sales' : 'Study Abroad Consultants',
         partnerId,
         partnerName,
-        assignedSalesExecutiveId: assignedRep.uid,
-        assignedSalesExecutiveName: assignedRep.displayName,
+        assignedSalesExecutiveId: assignedRep?.uid || '',
+        assignedSalesExecutiveName: assignedRep?.displayName || 'Unassigned',
         leadStatus: 'New',
         accommodationStatus: 'Requirement Pending',
         bookingStatus: 'Not Started',
@@ -979,22 +1102,19 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         isTestRecord: false,
         archivalStatus: 'Active',
       };
-
       newRecords.push(record);
-      setDoc(doc(db, 'students', docId), record).catch((err) => {
-        handleFirestoreError(err, OperationType.WRITE, `students/${docId}`);
-      });
     });
 
-    return {
-      importedCount: newRecords.length,
-      duplicatesCount,
-      errorsCount,
-      importedLeads: newRecords,
-    };
+    try {
+      await Promise.all(newRecords.map((record) => setDoc(doc(db, 'students', record.id), record)));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'students');
+    }
+
+    return { importedCount: newRecords.length, duplicatesCount, errorsCount, importedLeads: newRecords };
   };
 
-  const submitPartnerLead = (lead: {
+  const submitPartnerLead = async (lead: {
     fullName: string;
     phone: string;
     email: string;
@@ -1008,38 +1128,59 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     preferredRoom?: string;
     accommodationPreference?: string;
     notes?: string;
-  }): Student => {
-    const year = new Date().getFullYear();
-    const randomSeq = String(Math.floor(100000 + Math.random() * 900000));
-    const generatedId = `HA-${year}-${randomSeq}`;
-    const [firstName, ...rest] = lead.fullName.split(' ');
-    const lastName = rest.join(' ') || 'Student';
+    partnerId?: string;
+    partnerName?: string;
+  }): Promise<Student> => {
+    assertFirebaseSession();
+    const isPartnerUser = currentUser.role === 'partner';
+    const linkedPartner = isPartnerUser ? getCurrentPartnerRecord() : undefined;
+    const partnerId = isPartnerUser
+      ? currentUser.partnerId || linkedPartner?.partnerId || ''
+      : lead.partnerId || 'direct';
+    if (isPartnerUser && !partnerId) {
+      throw new Error('This partner account is not linked to a partner record. Ask management to link it before submitting leads.');
+    }
 
-    const partnerId = currentUser.role === 'partner' && currentUser.partnerId ? currentUser.partnerId : 'PART-00482';
-    const partnerName = currentUser.partnerName || 'Global Edu Pathways';
+    const matchedPartner = partners.find((partner) => partner.partnerId === partnerId) || linkedPartner;
+    if (!isPartnerUser && partnerId !== 'direct' && !matchedPartner) {
+      throw new Error('The selected partner no longer exists. Refresh the page and select a valid partner.');
+    }
+    const partnerName = partnerId === 'direct'
+      ? 'Direct / HearthAway'
+      : matchedPartner?.companyName || currentUser.partnerName || lead.partnerName || '';
+    if (partnerId !== 'direct' && !partnerName) throw new Error('The selected partner has no company name.');
 
-    const now = new Date();
-    const formattedTimestamp = now.toLocaleString('en-GB', {
+    const cleanName = lead.fullName.trim();
+    const cleanEmail = lead.email.trim().toLowerCase();
+    if (!cleanName || !cleanEmail || !lead.university.trim()) {
+      throw new Error('Student name, email, and university are required.');
+    }
+
+    const generatedId = `HA-${new Date().getFullYear()}-${String(Math.floor(100000 + Math.random() * 900000))}`;
+    const [firstName, ...rest] = cleanName.split(' ');
+    const formattedTimestamp = new Date().toLocaleString('en-GB', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     });
-
+    const salesRep = currentUser.role === 'sales'
+      ? currentUser
+      : availableUsers.find((user) => user.role === 'sales' && user.status !== 'deleted' && user.status !== 'disabled');
     const docId = `std-${generatedId.toLowerCase()}`;
     const newStudent: Student = {
       id: docId,
       studentId: generatedId,
       firstName,
-      lastName,
-      fullName: lead.fullName,
-      email: lead.email,
+      lastName: rest.join(' ') || 'Student',
+      fullName: cleanName,
+      email: cleanEmail,
       phone: lead.phone,
       whatsApp: lead.phone,
       nationality: 'India',
       currentCountry: 'India',
-      university: lead.university,
+      university: lead.university.trim(),
       course: 'Higher Education Program',
       intake: lead.intake || 'Sep 2026',
       destinationCountry: lead.destinationCountry,
@@ -1052,18 +1193,16 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       accommodationPreference: lead.accommodationPreference || 'Standard PBSA, bills included',
       occupants: 1,
       passportStatus: 'Pending Verification',
-      leadSource: 'Study Abroad Consultants',
+      leadSource: partnerId === 'direct' ? 'Internal Sales' : 'Study Abroad Consultants',
       partnerId,
       partnerName,
-      assignedSalesExecutiveId: 'EMP-001',
-      assignedSalesExecutiveName: 'Harshul Mehta',
-
+      assignedSalesExecutiveId: salesRep?.uid || '',
+      assignedSalesExecutiveName: salesRep?.displayName || 'Unassigned',
       leadStatus: 'New',
       accommodationStatus: 'Requirement Pending',
       bookingStatus: 'Not Started',
       moveInStatus: 'Upcoming',
       commissionStatus: 'Pending',
-
       priority: 'High',
       nextFollowUpAt: 'Within 2 hours (SLA)',
       lastContactAt: 'Never',
@@ -1072,18 +1211,19 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       notes: lead.notes || 'Submitted via Partners module.',
     };
 
-    setDoc(doc(db, 'students', docId), newStudent).catch((err) => {
-      handleFirestoreError(err, OperationType.WRITE, `students/${docId}`);
-    });
+    try {
+      await setDoc(doc(db, 'students', docId), newStudent);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `students/${docId}`);
+    }
 
     logStudentActivity(
       generatedId,
       'Lead Submitted',
-      `Lead ${generatedId} submitted by partner ${partnerName} (${partnerId}). Assigned to internal workflow pool.`,
+      `Lead ${generatedId} submitted by ${partnerName} (${partnerId}). Assigned to internal workflow pool.`,
       undefined,
       'New'
     );
-
     return newStudent;
   };
 

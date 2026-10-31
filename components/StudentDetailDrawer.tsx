@@ -543,7 +543,7 @@ export function StudentDetailDrawer() {
               <div className="ml-auto flex items-center gap-2 text-xs">
                 {(() => {
                   const partner = partners.find((p) => p.partnerId === student.partnerId);
-                  const portfolioOwner = partner?.portfolioOwnerName || 'Beatrice Vance';
+                  const portfolioOwner = partner?.portfolioOwnerName || partner?.assignedManagerName || 'Unassigned Portfolio Owner';
                   const salesUsers = availableUsers.filter((u) => u.role === 'sales');
                   return (
                     <div className="flex flex-wrap items-center gap-2">

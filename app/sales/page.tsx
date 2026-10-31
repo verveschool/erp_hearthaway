@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useHearthAway } from '@/lib/context';
 import {
   Briefcase,
@@ -49,8 +49,14 @@ export default function SalesPage() {
   const [newLeadPhone, setNewLeadPhone] = useState('');
   const [newLeadUni, setNewLeadUni] = useState('');
   const [newLeadCity, setNewLeadCity] = useState('London');
-  const [newLeadPartnerId, setNewLeadPartnerId] = useState(partners[0]?.partnerId || 'PART-00482');
+  const [newLeadPartnerId, setNewLeadPartnerId] = useState('direct');
   const [newLeadBudget, setNewLeadBudget] = useState('350');
+  const [newLeadError, setNewLeadError] = useState('');
+
+  useEffect(() => {
+    if (newLeadPartnerId === 'direct' || partners.some((partner) => partner.partnerId === newLeadPartnerId)) return;
+    setNewLeadPartnerId('direct');
+  }, [partners, newLeadPartnerId]);
 
   const salesUsers = useMemo(() => {
     return availableUsers.filter((u) => u.role === 'sales');
@@ -90,28 +96,38 @@ export default function SalesPage() {
     });
   }, [students, searchQuery, filterStage, filterBookingStatus, filterSalesOwner, filterPriority, filterDestination, hideTestRecords]);
 
-  const handleCreateLead = (e: React.FormEvent) => {
+  const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLeadName || !newLeadEmail || !newLeadUni) return;
 
-    submitPartnerLead({
-      fullName: newLeadName,
-      email: newLeadEmail,
-      phone: newLeadPhone || '+44 7700 900123',
-      university: newLeadUni,
-      destinationCountry: 'United Kingdom',
-      destinationCity: newLeadCity,
-      intake: 'Sep 2026',
-      moveInDate: '2026-09-15',
-      budget: Number(newLeadBudget) || 350,
-      notes: 'Added directly via Sales Workspace.',
-    });
+    setNewLeadError('');
+    const selectedPartner = partners.find((partner) => partner.partnerId === newLeadPartnerId);
+    try {
+      await submitPartnerLead({
+        fullName: newLeadName,
+        email: newLeadEmail,
+        phone: newLeadPhone.trim(),
+        university: newLeadUni,
+        destinationCountry: 'United Kingdom',
+        destinationCity: newLeadCity,
+        intake: 'Sep 2026',
+        moveInDate: '2026-09-15',
+        budget: Number(newLeadBudget) || 350,
+        notes: 'Added directly via Sales Workspace.',
+        partnerId: newLeadPartnerId,
+        partnerName: selectedPartner?.companyName,
+      });
+    } catch (error) {
+      setNewLeadError(error instanceof Error ? error.message : 'Unable to save the lead. Please try again.');
+      return;
+    }
 
     setShowAddLeadModal(false);
     setNewLeadName('');
     setNewLeadEmail('');
     setNewLeadPhone('');
     setNewLeadUni('');
+    setNewLeadError('');
   };
 
   const handleExportSalesLeadsCSV = () => {
@@ -163,7 +179,7 @@ export default function SalesPage() {
             </div>
 
             <button
-              onClick={() => setShowAddLeadModal(true)}
+              onClick={() => { setNewLeadError(''); setShowAddLeadModal(true); }}
               className="flex items-center gap-1.5 rounded-lg bg-[#00319D] px-3.5 py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -307,7 +323,7 @@ export default function SalesPage() {
               <tbody className="divide-y divide-[#E8E6E1]">
                 {filteredStudents.map((student) => {
                   const partner = partners.find((p) => p.partnerId === student.partnerId);
-                  const portfolioOwnerName = partner?.portfolioOwnerName || 'Beatrice Vance';
+                  const portfolioOwnerName = partner?.portfolioOwnerName || partner?.assignedManagerName || 'Unassigned Portfolio Owner';
 
                   return (
                     <tr
@@ -415,6 +431,7 @@ export default function SalesPage() {
           <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4">
             <h3 className="text-base font-bold text-[#1A1A1A]">Add New Sales Lead</h3>
             <form onSubmit={handleCreateLead} className="space-y-3">
+              {newLeadError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-700">{newLeadError}</p>}
               <div>
                 <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Student Full Name</label>
                 <input
@@ -458,6 +475,7 @@ export default function SalesPage() {
                   onChange={(e) => setNewLeadPartnerId(e.target.value)}
                   className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
                 >
+                  <option value="direct">Direct / HearthAway</option>
                   {partners.map((p) => (
                     <option key={p.partnerId} value={p.partnerId}>
                       {p.companyName} (PO: {p.portfolioOwnerName})

@@ -527,7 +527,7 @@ export default function FinancePage() {
                       <td className="py-3.5 px-4">
                         <span className="inline-flex items-center gap-1 font-semibold text-[#1A1A1A]">
                           <Layers className="h-3 w-3 text-[#00319D]" />
-                          {partner.portfolioOwnerName || 'Beatrice Vance'}
+                          {partner.portfolioOwnerName || partner.assignedManagerName || 'Unassigned Portfolio Owner'}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 font-bold text-[#1A1A1A]">{partner.bookedCount}</td>
