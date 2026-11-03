@@ -37,14 +37,35 @@ const PIPELINE_STAGES = [
 type PipelineStage = (typeof PIPELINE_STAGES)[number]['key'] | 'Disqualified' | 'Cancelled';
 
 function getPipelineStage(student: Student): PipelineStage {
-  if (student.bookingStatus === 'Cancelled' || student.moveInStatus === 'Cancelled') return 'Cancelled';
-  if (student.leadStatus === 'Lost') return 'Disqualified';
-  if (student.moveInStatus === 'Moved In' || student.bookingStatus === 'Move-in Confirmed' || student.bookingStatus === 'Booked') return 'Closed Won';
-  if (['Processing', 'Documents Pending', 'Application Submitted', 'Approved'].includes(student.bookingStatus)) return 'Fulfilment';
-  if (student.bookingStatus === 'Payment Pending') return 'Payment';
-  if (['Options Shared', 'Shortlisted', 'Property Selected'].includes(student.accommodationStatus)) return 'Option Shared';
-  if (student.leadStatus === 'Qualified') return 'Qualified';
-  if (student.leadStatus === 'Contacted') return 'Active';
+  const pipelineStage = student.pipelineStage ?? 'new';
+
+  switch (pipelineStage) {
+    case 'new': return 'New';
+    case 'active': return 'Active';
+    case 'qualified': return 'Qualified';
+    case 'option_shared': return 'Option Shared';
+    case 'payment': return 'Payment';
+    case 'fulfilment': return 'Fulfilment';
+    case 'closed_won': return 'Closed Won';
+    case 'disqualified': return 'Disqualified';
+    case 'cancelled': return 'Cancelled';
+    default: break;
+  }
+
+  // Use legacy status values only for records not yet migrated to the unified lifecycle.
+  const bookingStatus = student.bookingStatus ?? '';
+  const accommodationStatus = student.accommodationStatus ?? '';
+  const leadStatus = student.leadStatus ?? '';
+  const moveInStatus = student.moveInStatus ?? '';
+
+  if (bookingStatus === 'Cancelled' || moveInStatus === 'Cancelled') return 'Cancelled';
+  if (leadStatus === 'Lost') return 'Disqualified';
+  if (moveInStatus === 'Moved In' || bookingStatus === 'Move-in Confirmed' || bookingStatus === 'Booked') return 'Closed Won';
+  if (['Processing', 'Documents Pending', 'Application Submitted', 'Approved'].includes(bookingStatus)) return 'Fulfilment';
+  if (bookingStatus === 'Payment Pending') return 'Payment';
+  if (['Options Shared', 'Shortlisted', 'Property Selected'].includes(accommodationStatus)) return 'Option Shared';
+  if (leadStatus === 'Qualified') return 'Qualified';
+  if (leadStatus === 'Contacted') return 'Active';
   return 'New';
 }
 
@@ -289,7 +310,7 @@ export default function SalesPage() {
               <button
                 onClick={handleExportSalesLeadsCSV}
                 disabled={filteredStudents.length === 0}
-                className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-2 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+                className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-2 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                 title="Download current leads table as CSV"
               >
                 <Download className="h-3.5 w-3.5" />
@@ -388,7 +409,7 @@ export default function SalesPage() {
                               : 'bg-zinc-100 text-zinc-700'
                           }`}
                         >
-                          {student.leadStatus}
+                          {student.leadStatus ?? getPipelineStage(student)}
                         </span>
                       </td>
 
@@ -404,7 +425,7 @@ export default function SalesPage() {
                               : 'bg-zinc-100 text-zinc-600'
                           }`}
                         >
-                          {student.bookingStatus}
+                          {student.bookingStatus ?? '—'}
                         </span>
                       </td>
 
