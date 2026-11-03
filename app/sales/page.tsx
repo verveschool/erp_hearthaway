@@ -81,17 +81,6 @@ export default function SalesPage() {
     return availableUsers.filter((u) => u.role === 'sales');
   }, [availableUsers]);
 
-  const stats = useMemo(() => {
-    return {
-      newLeads: students.filter((s) => s.leadStatus === 'New').length,
-      activeLeads: students.filter((s) => s.leadStatus === 'Contacted' || s.leadStatus === 'Qualified').length,
-      followUpsToday: students.filter((s) => s.nextFollowUpAt?.toLowerCase().includes('today') || s.nextFollowUpAt?.toLowerCase().includes('2 hours')).length,
-      processing: students.filter((s) => s.bookingStatus === 'Processing' || s.bookingStatus === 'Application Submitted').length,
-      paymentPending: students.filter((s) => s.bookingStatus === 'Payment Pending').length,
-      booked: students.filter((s) => s.bookingStatus === 'Booked' || s.bookingStatus === 'Move-in Confirmed').length,
-    };
-  }, [students]);
-
   const filteredStudents = useMemo(() => {
     return students.filter((student) => {
       const matchArchived = !hideTestRecords || (!student.isTestRecord && student.archivalStatus !== 'Flagged For Archival');
@@ -196,34 +185,6 @@ export default function SalesPage() {
             </button>
           </div>
 
-          {/* Quick Metrics Ribbon */}
-          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 mt-6">
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">New Leads</span>
-              <span className="text-lg font-extrabold text-[#00319D]">{stats.newLeads}</span>
-            </div>
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Active In Sales</span>
-              <span className="text-lg font-extrabold text-[#1A1A1A]">{stats.activeLeads}</span>
-            </div>
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Follow-Ups Due</span>
-              <span className="text-lg font-extrabold text-amber-700">{stats.followUpsToday}</span>
-            </div>
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Processing</span>
-              <span className="text-lg font-extrabold text-indigo-700">{stats.processing}</span>
-            </div>
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Payment Pending</span>
-              <span className="text-lg font-extrabold text-amber-600">{stats.paymentPending}</span>
-            </div>
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Booked Tenancies</span>
-              <span className="text-lg font-extrabold text-emerald-700">{stats.booked}</span>
-            </div>
-          </div>
-
           <div className="mt-5 rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
@@ -241,7 +202,7 @@ export default function SalesPage() {
                     key={stage.key}
                     type="button"
                     onClick={() => setFilterStage(isActive ? 'All' : stage.key)}
-                    className={`rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-[#00319D] bg-[#00319D] text-white' : 'border-[#E8E6E1] bg-white text-[#1A1A1A] hover:border-[#00319D]/40'}`}
+                    className={`rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-[#00319D] bg-[#00319D] text-white' : 'border-[#E8E6E1] bg-white text-[#1A1A1A] hover:bg-[#F7F6F3]'}`}
                     aria-pressed={isActive}
                   >
                     <span className={`block text-lg font-extrabold ${isActive ? 'text-white' : 'text-[#00319D]'}`}>{count}</span>
