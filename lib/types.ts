@@ -1,7 +1,49 @@
 import { z } from 'zod';
 
 // ==========================================
-// DECOUPLED STATUSES (Strict Separation)
+// UNIFIED LEAD LIFECYCLE (single source of truth)
+// ==========================================
+export const LeadPipelineStageSchema = z.enum([
+  'new',
+  'active',
+  'qualified',
+  'option_shared',
+  'payment',
+  'fulfilment',
+  'closed_won',
+  'disqualified',
+  'cancelled',
+]);
+export type LeadPipelineStage = z.infer<typeof LeadPipelineStageSchema>;
+
+export const LeadPrioritySchema = z.enum(['Low', 'Medium', 'High', 'Urgent']);
+export type LeadPriority = z.infer<typeof LeadPrioritySchema>;
+
+export const LeadExitStatusSchema = z.enum(['active', 'disqualified', 'cancelled']);
+export type LeadExitStatus = z.infer<typeof LeadExitStatusSchema>;
+
+export const LeadExitReasonSchema = z.enum([
+  'Budget mismatch',
+  'No longer looking',
+  'Unqualified lead',
+  'Partner withdrew',
+  'Duplicate lead',
+  'No response',
+  'Property unavailable',
+  'Payment issue',
+  'Cancelled by student',
+  'Other',
+]);
+export type LeadExitReason = z.infer<typeof LeadExitReasonSchema>;
+
+export const ProviderTypeSchema = z.enum(['PBSA', 'HMO', 'Landlord']);
+export type ProviderType = z.infer<typeof ProviderTypeSchema>;
+
+export const RentPeriodSchema = z.enum(['Weekly', 'Monthly', 'Quarterly', 'Annual']);
+export type RentPeriod = z.infer<typeof RentPeriodSchema>;
+
+// ==========================================
+// LEGACY TYPES (kept only for compatibility while migrating data)
 // ==========================================
 export const LeadStatusSchema = z.enum(['New', 'Contacted', 'Qualified', 'Lost']);
 export type LeadStatus = z.infer<typeof LeadStatusSchema>;
@@ -64,8 +106,8 @@ export type PartnerType = z.infer<typeof PartnerTypeSchema>;
 // STUDENT SCHEMA (Master Record)
 // ==========================================
 export const StudentSchema = z.object({
-  id: z.string(), // document ID
-  studentId: z.string().regex(/^HA-\d{4}-\d{6}$/), // e.g. HA-2026-001245
+  id: z.string(),
+  studentId: z.string().regex(/^HA-\d{4}-\d{6}$/),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   fullName: z.string().min(1),
@@ -76,7 +118,7 @@ export const StudentSchema = z.object({
   currentCountry: z.string().default('India'),
   university: z.string(),
   course: z.string(),
-  intake: z.string(), // e.g. Sep 2026, Jan 2027
+  intake: z.string(),
   destinationCountry: z.string(),
   destinationCity: z.string(),
   moveInDate: z.string(),
@@ -87,27 +129,39 @@ export const StudentSchema = z.object({
   accommodationPreference: z.string().default('Walking distance to campus, bills included'),
   occupants: z.number().default(1),
   passportStatus: z.string().default('Verified'),
-  leadSource: z.string(), // e.g. Study Abroad Consultants, Website, etc.
-  partnerId: z.string(), // e.g. PART-00482 or 'direct'
+  leadSource: z.string(),
+  partnerId: z.string(),
   partnerName: z.string().optional(),
-  assignedSalesExecutiveId: z.string(), // e.g. EMP-001
+  assignedSalesExecutiveId: z.string(),
   assignedSalesExecutiveName: z.string(),
-  
-  // Decoupled Status Block
-  leadStatus: LeadStatusSchema,
-  accommodationStatus: AccommodationStatusSchema,
-  bookingStatus: BookingStatusSchema,
-  moveInStatus: MoveInStatusSchema,
-  commissionStatus: CommissionStatusSchema,
 
-  priority: z.enum(['Low', 'Medium', 'High', 'Urgent']).default('Medium'),
+  // Unified lifecycle state - single source of truth
+  pipelineStage: LeadPipelineStageSchema.default('new'),
+  priority: LeadPrioritySchema.default('Medium'),
+  exitStatus: LeadExitStatusSchema.default('active'),
+  exitReason: LeadExitReasonSchema.optional(),
+
+  // Booking detail fields
+  propertyName: z.string().optional(),
+  providerType: ProviderTypeSchema.optional().default('PBSA'),
+  tenancyDuration: z.string().optional(),
+  rentAmount: z.number().optional(),
+  rentPeriod: RentPeriodSchema.optional(),
+  commissionable: z.boolean().optional().default(true),
+
+  // Legacy fields kept for compatibility while existing data migrates
+  leadStatus: LeadStatusSchema.optional(),
+  accommodationStatus: AccommodationStatusSchema.optional(),
+  bookingStatus: BookingStatusSchema.optional(),
+  moveInStatus: MoveInStatusSchema.optional(),
+  commissionStatus: CommissionStatusSchema.optional(),
+
   nextFollowUpAt: z.string().optional(),
   lastContactAt: z.string().optional(),
   firstContactAt: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   notes: z.string().optional(),
-  // Archival and Test Record flags
   isTestRecord: z.boolean().optional(),
   archivalStatus: z.enum(['Active', 'Flagged For Archival', 'Archived']).optional(),
   archivalTag: z.string().optional(),
@@ -135,8 +189,8 @@ export const PaymentProofAttachmentSchema = z.object({
   id: z.string(),
   fileName: z.string(),
   filePath: z.string(),
-  fileType: z.string(), // e.g. 'image/png', 'application/pdf'
-  fileSize: z.number(), // in bytes
+  fileType: z.string(),
+  fileSize: z.number(),
   fileUrl: z.string(),
   uploadedBy: z.string(),
   uploadedTimestamp: z.string(),
@@ -148,7 +202,7 @@ export type PaymentProofAttachment = z.infer<typeof PaymentProofAttachmentSchema
 // ==========================================
 export const PaymentSchema = z.object({
   id: z.string(),
-  paymentId: z.string(), // e.g. PAY-2026-0041
+  paymentId: z.string(),
   studentId: z.string(),
   studentName: z.string().optional(),
   bookingId: z.string().optional().default(''),
@@ -169,7 +223,6 @@ export const PaymentSchema = z.object({
   verificationTimestamp: z.string().optional(),
   remarks: z.string().optional(),
   partnerId: z.string().optional(),
-  // Archival and Test Record flags
   isTestRecord: z.boolean().optional(),
   archivalStatus: z.enum(['Active', 'Flagged For Archival', 'Archived']).optional(),
   archivalTag: z.string().optional(),
@@ -196,7 +249,7 @@ export type AgreementStatus = z.infer<typeof AgreementStatusSchema>;
 
 export const PartnerSchema = z.object({
   id: z.string(),
-  partnerId: z.string().regex(/^PART-\d{5}$/), // e.g. PART-00482
+  partnerId: z.string().regex(/^PART-\d{5}$/),
   accountUid: z.string().optional(),
   companyName: z.string(),
   type: PartnerTypeSchema,
@@ -222,8 +275,7 @@ export const PartnerSchema = z.object({
   logoUrl: z.string().optional(),
   status: z.enum(['Active', 'Prospect', 'Contacted', 'Negotiation', 'Onboarding', 'Dormant']).default('Active'),
   onboardingDate: z.string(),
-  commissionRate: z.number().default(20), // % of HearthAway revenue
-  // Archival and Test Record flags
+  commissionRate: z.number().default(20),
   isTestRecord: z.boolean().optional(),
   archivalStatus: z.enum(['Active', 'Flagged For Archival', 'Archived']).optional(),
   archivalTag: z.string().optional(),
@@ -248,7 +300,7 @@ export const ActivitySchema = z.object({
     name: z.string(),
     role: z.string(),
   }),
-  activityType: z.string(), // e.g. 'Status Change', 'Payment Upload', 'Property Shared', 'Call Logged'
+  activityType: z.string(),
   description: z.string(),
   oldValue: z.string().optional(),
   newValue: z.string().optional(),
@@ -268,14 +320,13 @@ export type PropertyBookingStatus = z.infer<typeof PropertyBookingStatusSchema>;
 
 export const BookingSchema = z.object({
   id: z.string(),
-  bookingId: z.string(), // BK-2026-0034
+  bookingId: z.string(),
   bookingReference: z.string().optional().default(''),
   studentId: z.string(),
   studentName: z.string(),
   partnerId: z.string().optional().default(''),
   partnerName: z.string().optional().default(''),
-  
-  // Property details
+
   propertyName: z.string(),
   propertyAddress: z.string(),
   rentAmount: z.number(),
@@ -288,19 +339,16 @@ export const BookingSchema = z.object({
   bookingStatus: z.string().default('Pending Confirmation'),
   notes: z.string().optional().default(''),
 
-  // Expected Revenue & Commission
-  commissionRate: z.number(), // agreed %
+  commissionRate: z.number(),
   commissionableAmount: z.number(),
   commissionableCurrency: z.string().default('GBP'),
-  expectedRevenue: z.number(), // commissionableAmount * commissionRate / 100
+  expectedRevenue: z.number(),
 
-  // Audit and Creator metadata
   createdBy: z.string(),
   createdAt: z.string(),
   updatedBy: z.string().optional(),
   updatedAt: z.string().optional(),
 
-  // Compatibility fields for existing finance ledger calculations
   propertyId: z.string().optional().default(''),
   roomType: z.string().optional().default('Standard Room'),
   assignedEmployeeId: z.string().optional().default(''),
@@ -315,7 +363,6 @@ export const BookingSchema = z.object({
   providerCommissionExpected: z.number().optional().default(0),
   partnerPayoutPercent: z.number().optional().default(20),
   partnerPayoutAmount: z.number().optional().default(0),
-  // Archival and Test Record flags
   isTestRecord: z.boolean().optional(),
   archivalStatus: z.enum(['Active', 'Flagged For Archival', 'Archived']).optional(),
   archivalTag: z.string().optional(),
@@ -333,10 +380,10 @@ export interface AppUser {
   email: string;
   displayName: string;
   role: UserRole;
-  partnerId?: string; // set if role is 'partner'
+  partnerId?: string;
   partnerName?: string;
   avatarUrl?: string;
   isApproved?: boolean;
   status?: 'pending' | 'approved' | 'rejected' | 'deleted' | 'disabled';
   deletedAt?: string;
-  }
+}
