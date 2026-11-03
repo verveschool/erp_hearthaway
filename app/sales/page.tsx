@@ -22,6 +22,31 @@ import {
   Download,
 } from 'lucide-react';
 import { exportToCSV } from '@/lib/export-csv';
+import type { Student } from '@/lib/types';
+
+const PIPELINE_STAGES = [
+  { key: 'New', label: 'New', hint: 'Lead enters CRM' },
+  { key: 'Active', label: 'Active', hint: 'First contact made' },
+  { key: 'Qualified', label: 'Qualified', hint: 'Details confirmed' },
+  { key: 'Option Shared', label: 'Option shared', hint: 'Options sent' },
+  { key: 'Payment', label: 'Payment', hint: 'Holding / service fee' },
+  { key: 'Fulfilment', label: 'Fulfilment', hint: 'Docs and tenancy' },
+  { key: 'Closed Won', label: 'Closed won', hint: 'Student moved in' },
+] as const;
+
+type PipelineStage = (typeof PIPELINE_STAGES)[number]['key'] | 'Disqualified' | 'Cancelled';
+
+function getPipelineStage(student: Student): PipelineStage {
+  if (student.bookingStatus === 'Cancelled' || student.moveInStatus === 'Cancelled') return 'Cancelled';
+  if (student.leadStatus === 'Lost') return 'Disqualified';
+  if (student.moveInStatus === 'Moved In' || student.bookingStatus === 'Move-in Confirmed' || student.bookingStatus === 'Booked') return 'Closed Won';
+  if (['Processing', 'Documents Pending', 'Application Submitted', 'Approved'].includes(student.bookingStatus)) return 'Fulfilment';
+  if (student.bookingStatus === 'Payment Pending') return 'Payment';
+  if (['Options Shared', 'Shortlisted', 'Property Selected'].includes(student.accommodationStatus)) return 'Option Shared';
+  if (student.leadStatus === 'Qualified') return 'Qualified';
+  if (student.leadStatus === 'Contacted') return 'Active';
+  return 'New';
+}
 
 export default function SalesPage() {
   const {
@@ -79,7 +104,7 @@ export default function SalesPage() {
         (student.partnerName && student.partnerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
         student.assignedSalesExecutiveName.toLowerCase().includes(searchQuery.toLowerCase());
 
-      const matchStage = filterStage === 'All' || student.leadStatus === filterStage;
+      const matchStage = filterStage === 'All' || getPipelineStage(student) === filterStage;
       const matchBooking = filterBookingStatus === 'All' || student.bookingStatus === filterBookingStatus;
       const matchOwner =
         filterSalesOwner === 'All' || student.assignedSalesExecutiveId === filterSalesOwner;
@@ -198,6 +223,35 @@ export default function SalesPage() {
               <span className="text-lg font-extrabold text-emerald-700">{stats.booked}</span>
             </div>
           </div>
+
+          <div className="mt-5 rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B6860]">Lead-to-booking pipeline</p>
+                <p className="mt-0.5 text-[11px] text-[#6B6860]">Click a stage to focus the lead queue.</p>
+              </div>
+              <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-[#6B6860] border border-[#E8E6E1]">{students.length} total leads</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+              {PIPELINE_STAGES.map((stage) => {
+                const count = students.filter((student) => getPipelineStage(student) === stage.key).length;
+                const isActive = filterStage === stage.key;
+                return (
+                  <button
+                    key={stage.key}
+                    type="button"
+                    onClick={() => setFilterStage(isActive ? 'All' : stage.key)}
+                    className={`rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-[#00319D] bg-[#00319D] text-white' : 'border-[#E8E6E1] bg-white text-[#1A1A1A] hover:border-[#00319D]/40'}`}
+                    aria-pressed={isActive}
+                  >
+                    <span className={`block text-lg font-extrabold ${isActive ? 'text-white' : 'text-[#00319D]'}`}>{count}</span>
+                    <span className="block truncate text-[10px] font-bold uppercase tracking-wide">{stage.label}</span>
+                    <span className={`mt-0.5 block truncate text-[10px] ${isActive ? 'text-white/75' : 'text-[#6B6860]'}`}>{stage.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -237,11 +291,12 @@ export default function SalesPage() {
                 onChange={(e) => setFilterStage(e.target.value)}
                 className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
               >
-                <option value="All">All Lead Stages</option>
-                <option value="New">New</option>
-                <option value="Contacted">Contacted</option>
-                <option value="Qualified">Qualified</option>
-                <option value="Lost">Lost</option>
+                <option value="All">All Pipeline Stages</option>
+                {PIPELINE_STAGES.map((stage) => (
+                  <option key={stage.key} value={stage.key}>{stage.label}</option>
+                ))}
+                <option value="Disqualified">Disqualified</option>
+                <option value="Cancelled">Cancelled</option>
               </select>
 
               {/* Booking Status Filter */}
