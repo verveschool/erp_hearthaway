@@ -169,7 +169,11 @@ export const StudentSchema = z.object({
   flaggedAt: z.string().optional(),
   flaggedBy: z.string().optional(),
 });
-export type Student = z.infer<typeof StudentSchema>;
+type StudentSchemaOutput = z.infer<typeof StudentSchema>;
+// Firestore documents and direct record constructors may predate schema parsing,
+// so keep newly introduced defaulted fields optional at the application boundary.
+export type Student = Omit<StudentSchemaOutput, 'pipelineStage' | 'exitStatus' | 'providerType' | 'commissionable'> &
+  Partial<Pick<StudentSchemaOutput, 'pipelineStage' | 'exitStatus' | 'providerType' | 'commissionable'>>;
 
 export const SupportedCurrencies = ['INR', 'GBP', 'EUR', 'AUD', 'USD'] as const;
 export type SupportedCurrency = (typeof SupportedCurrencies)[number];
