@@ -1681,88 +1681,62 @@ export function StudentDetailDrawer() {
             )}
 
             {/* ========================================================= */}
-            {/* TAB: DECOUPLED STATUSES */}
+            {/* TAB: UNIFIED PIPELINE */}
             {/* ========================================================= */}
             {activeTab === 'statuses' && (
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5">
                   <Layers className="h-4 w-4 text-[#00319D]" />
-                  Pipeline State Matrix
+                  Unified lead lifecycle
                 </h3>
-
-                <div className="space-y-3">
-                  <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3.5 space-y-2">
-                    <label className="block text-xs font-bold text-[#1A1A1A]">1. Lead Qualification</label>
-                    <select
-                      value={student.leadStatus}
-                      onChange={(e) => updateStudentDecoupledStatus(student.studentId, { leadStatus: e.target.value as any })}
-                      className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-                    >
-                      <option value="New">New</option>
-                      <option value="Contacted">Contacted</option>
-                      <option value="Qualified">Qualified</option>
-                      <option value="Lost">Lost</option>
-                    </select>
+                <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3.5 space-y-3">
+                  <label className="block text-xs font-bold text-[#1A1A1A]">Pipeline stage</label>
+                  <select
+                    value={student.pipelineStage || 'New'}
+                    onChange={(e) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: e.target.value as any })}
+                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
+                  >
+                    <option>New</option><option>Active</option><option>Qualified</option><option>Option Shared</option><option>Payment</option><option>Fulfilment</option><option>Closed Won</option><option>Disqualified</option><option>Cancelled</option>
+                  </select>
+                  {(student.pipelineStage === 'Disqualified' || student.pipelineStage === 'Cancelled') && (
+                    <>
+                      <label className="block text-xs font-bold text-[#1A1A1A]">Exit reason</label>
+                      <select
+                        value={student.exitReason || ''}
+                        onChange={(e) => updateStudentDecoupledStatus(student.studentId, { exitReason: e.target.value as any })}
+                        className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
+                      >
+                        <option value="">Select a reason</option><option>No response</option><option>Not qualified</option><option>Budget mismatch</option><option>No suitable option</option><option>Changed plans</option><option>Payment failed</option><option>Requested cancellation</option><option>Other</option>
+                      </select>
+                    </>
+                  )}
+                </div>
+                <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3.5 space-y-2">
+                  <label className="block text-xs font-bold text-[#1A1A1A]">Priority</label>
+                  <select
+                    value={student.priority || 'Medium'}
+                    onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as any })}
+                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
+                  >
+                    <option>Urgent</option><option>High</option><option>Medium</option><option>Low</option>
+                  </select>
+                </div>
+                <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3.5 space-y-3">
+                  <label className="block text-xs font-bold text-[#1A1A1A]">Booking details</label>
+                  <input aria-label="Property" placeholder="Property" defaultValue={student.propertyName || ''} onBlur={(e) => updateStudentDecoupledStatus(student.studentId, { propertyName: e.target.value })} className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs" />
+                  <select aria-label="Provider type" defaultValue={student.providerType || ''} onChange={(e) => updateStudentDecoupledStatus(student.studentId, { providerType: e.target.value as any })} className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs">
+                    <option value="">Provider type</option><option>PBSA</option><option>HMO</option><option>Landlord</option>
+                  </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input aria-label="Tenancy duration" placeholder="Tenancy duration" defaultValue={student.tenancyDuration || ''} onBlur={(e) => updateStudentDecoupledStatus(student.studentId, { tenancyDuration: e.target.value })} className="rounded-lg border border-[#E8E6E1] p-2 text-xs" />
+                    <input aria-label="Rent amount" type="number" placeholder="Rent amount" defaultValue={student.rentAmount || ''} onBlur={(e) => updateStudentDecoupledStatus(student.studentId, { rentAmount: Number(e.target.value) || 0 })} className="rounded-lg border border-[#E8E6E1] p-2 text-xs" />
                   </div>
-
-                  <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3.5 space-y-2">
-                    <label className="block text-xs font-bold text-[#1A1A1A]">2. Accommodation Advisory</label>
-                    <select
-                      value={student.accommodationStatus}
-                      onChange={(e) => updateStudentDecoupledStatus(student.studentId, { accommodationStatus: e.target.value as any })}
-                      className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-                    >
-                      <option value="Requirement Pending">Requirement Pending</option>
-                      <option value="Options Shared">Options Shared</option>
-                      <option value="Shortlisted">Shortlisted</option>
-                      <option value="Property Selected">Property Selected</option>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select aria-label="Rent payment period" defaultValue={student.rentPaymentPeriod || ''} onChange={(e) => updateStudentDecoupledStatus(student.studentId, { rentPaymentPeriod: e.target.value as any })} className="rounded-lg border border-[#E8E6E1] p-2 text-xs">
+                      <option value="">Payment period</option><option>Weekly</option><option>Monthly</option><option>Termly</option><option>Annual</option>
                     </select>
-                  </div>
-
-                  <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3.5 space-y-2">
-                    <label className="block text-xs font-bold text-[#1A1A1A]">3. Booking Conversion</label>
-                    <select
-                      value={student.bookingStatus}
-                      onChange={(e) => updateStudentDecoupledStatus(student.studentId, { bookingStatus: e.target.value as any })}
-                      className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-                    >
-                      <option value="Not Started">Not Started</option>
-                      <option value="Processing">Processing</option>
-                      <option value="Application Submitted">Application Submitted</option>
-                      <option value="Approved">Approved</option>
-                      <option value="Payment Pending">Payment Pending</option>
-                      <option value="Booked">Booked</option>
-                      <option value="Cancelled">Cancelled</option>
-                      <option value="Move-in Confirmed">Move-in Confirmed</option>
-                    </select>
-                  </div>
-
-                  <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3.5 space-y-2">
-                    <label className="block text-xs font-bold text-[#1A1A1A]">4. Move-In Verification</label>
-                    <select
-                      value={student.moveInStatus}
-                      onChange={(e) => updateStudentDecoupledStatus(student.studentId, { moveInStatus: e.target.value as any })}
-                      className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-                    >
-                      <option value="Upcoming">Upcoming</option>
-                      <option value="Moved In">Moved In</option>
-                      <option value="No Show">No Show</option>
-                      <option value="Cancelled">Cancelled</option>
-                    </select>
-                  </div>
-
-                  <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3.5 space-y-2">
-                    <label className="block text-xs font-bold text-[#1A1A1A]">5. Commission Settlement</label>
-                    <select
-                      value={student.commissionStatus}
-                      onChange={(e) => updateStudentDecoupledStatus(student.studentId, { commissionStatus: e.target.value as any })}
-                      className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="Due">Due</option>
-                      <option value="Received">Received</option>
-                      <option value="Partner Payable">Partner Payable</option>
-                      <option value="Paid">Paid</option>
+                    <select aria-label="Commissionable" defaultValue={student.commissionable === undefined ? '' : String(student.commissionable)} onChange={(e) => updateStudentDecoupledStatus(student.studentId, { commissionable: e.target.value === 'true' })} className="rounded-lg border border-[#E8E6E1] p-2 text-xs">
+                      <option value="">Commissionable?</option><option value="true">Yes</option><option value="false">No</option>
                     </select>
                   </div>
                 </div>

@@ -16,6 +16,8 @@ import {
   BookingStatus,
   MoveInStatus,
   CommissionStatus,
+  PipelineStage,
+  ExitReason,
 } from './types';
 import {
   INITIAL_USERS,
@@ -46,6 +48,19 @@ import {
   updateDoc,
   onSnapshot,
 } from 'firebase/firestore';
+
+const getInitialPipelineStage = (student: Student): PipelineStage => {
+  if (student.pipelineStage) return student.pipelineStage;
+  if (student.bookingStatus === 'Cancelled' || student.moveInStatus === 'Cancelled') return 'Cancelled';
+  if (student.leadStatus === 'Lost') return 'Disqualified';
+  if (student.moveInStatus === 'Moved In' || student.bookingStatus === 'Move-in Confirmed' || student.bookingStatus === 'Booked') return 'Closed Won';
+  if (['Processing', 'Documents Pending', 'Application Submitted', 'Approved'].includes(student.bookingStatus || '')) return 'Fulfilment';
+  if (student.bookingStatus === 'Payment Pending') return 'Payment';
+  if (['Options Shared', 'Shortlisted', 'Property Selected'].includes(student.accommodationStatus || '')) return 'Option Shared';
+  if (student.leadStatus === 'Qualified') return 'Qualified';
+  if (student.leadStatus === 'Contacted') return 'Active';
+  return 'New';
+};
 
 interface AccessCheckResult {
   allowed: boolean;
@@ -124,14 +139,23 @@ interface HearthAwayContextType {
   updateStudentDecoupledStatus: (
     studentId: string,
     updates: {
+      pipelineStage?: PipelineStage;
+      exitReason?: ExitReason;
+      priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
+      nextFollowUpAt?: string;
+      notes?: string;
+      propertyName?: string;
+      providerType?: 'PBSA' | 'HMO' | 'Landlord';
+      tenancyDuration?: string;
+      rentAmount?: number;
+      rentPaymentPeriod?: 'Weekly' | 'Monthly' | 'Termly' | 'Annual';
+      commissionable?: boolean;
+      // Compatibility for non-CRM modules during the rollout.
       leadStatus?: LeadStatus;
       accommodationStatus?: AccommodationStatus;
       bookingStatus?: BookingStatus;
       moveInStatus?: MoveInStatus;
       commissionStatus?: CommissionStatus;
-      priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
-      nextFollowUpAt?: string;
-      notes?: string;
     }
   ) => void;
 
@@ -306,7 +330,16 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const unsubStudents = onSnapshot(
       collection(db, 'students'),
       (snapshot) => {
-        const list = snapshot.docs.map((docSnap) => docSnap.data() as Student);
+        const list = snapshot.docs.map((docSnap) => {
+          const student = { ...docSnap.data(), id: docSnap.id } as Student;
+          const pipelineStage = getInitialPipelineStage(student);
+          if (student.pipelineStage !== pipelineStage) {
+            setDoc(docSnap.ref, { pipelineStage }, { merge: true }).catch((err) => {
+              handleFirestoreError(err, OperationType.WRITE, `students/${docSnap.id}`);
+            });
+          }
+          return { ...student, pipelineStage };
+        });
         setStudents(list);
       },
       (err) => {
@@ -965,6 +998,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         partnerName,
         assignedSalesExecutiveId: assignedRep.uid,
         assignedSalesExecutiveName: assignedRep.displayName,
+        pipelineStage: 'New',
         leadStatus: 'New',
         accommodationStatus: 'Requirement Pending',
         bookingStatus: 'Not Started',
@@ -1058,6 +1092,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       assignedSalesExecutiveId: 'EMP-001',
       assignedSalesExecutiveName: 'Harshul Mehta',
 
+      pipelineStage: 'New',
       leadStatus: 'New',
       accommodationStatus: 'Requirement Pending',
       bookingStatus: 'Not Started',
@@ -1090,14 +1125,22 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const updateStudentDecoupledStatus = (
     studentId: string,
     updates: {
+      pipelineStage?: PipelineStage;
+      exitReason?: ExitReason;
+      priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
+      nextFollowUpAt?: string;
+      notes?: string;
+      propertyName?: string;
+      providerType?: 'PBSA' | 'HMO' | 'Landlord';
+      tenancyDuration?: string;
+      rentAmount?: number;
+      rentPaymentPeriod?: 'Weekly' | 'Monthly' | 'Termly' | 'Annual';
+      commissionable?: boolean;
       leadStatus?: LeadStatus;
       accommodationStatus?: AccommodationStatus;
       bookingStatus?: BookingStatus;
       moveInStatus?: MoveInStatus;
       commissionStatus?: CommissionStatus;
-      priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
-      nextFollowUpAt?: string;
-      notes?: string;
     }
   ) => {
     const student = students.find((s) => s.studentId === studentId || s.id === studentId);
@@ -1113,15 +1156,16 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       minute: '2-digit',
     });
 
-    if (updates.leadStatus && updates.leadStatus !== student.leadStatus) {
+    if (updates.pipelineStage && updates.pipelineStage !== student.pipelineStage) {
       logStudentActivity(
         student.studentId,
-        'Lead Stage Change',
-        `Changed Lead Status from "${student.leadStatus}" to "${updates.leadStatus}"`,
-        student.leadStatus,
-        updates.leadStatus
+        'Pipeline Stage Change',
+        `Changed pipeline from "${student.pipelineStage || 'New'}" to "${updates.pipelineStage}"`,
+        student.pipelineStage || 'New',
+        updates.pipelineStage
       );
     }
+
     if (updates.accommodationStatus && updates.accommodationStatus !== student.accommodationStatus) {
       logStudentActivity(
         student.studentId,

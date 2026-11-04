@@ -22,7 +22,7 @@ import {
   Download,
 } from 'lucide-react';
 import { exportToCSV } from '@/lib/export-csv';
-import type { Student } from '@/lib/types';
+import type { PipelineStage } from '@/lib/types';
 
 const PIPELINE_STAGES = [
   { key: 'New', label: 'New', hint: 'Lead enters CRM' },
@@ -34,19 +34,7 @@ const PIPELINE_STAGES = [
   { key: 'Closed Won', label: 'Closed won', hint: 'Student moved in' },
 ] as const;
 
-type PipelineStage = (typeof PIPELINE_STAGES)[number]['key'] | 'Disqualified' | 'Cancelled';
-
-function getPipelineStage(student: Student): PipelineStage {
-  if (student.bookingStatus === 'Cancelled' || student.moveInStatus === 'Cancelled') return 'Cancelled';
-  if (student.leadStatus === 'Lost') return 'Disqualified';
-  if (student.moveInStatus === 'Moved In' || student.bookingStatus === 'Move-in Confirmed' || student.bookingStatus === 'Booked') return 'Closed Won';
-  if (['Processing', 'Documents Pending', 'Application Submitted', 'Approved'].includes(student.bookingStatus)) return 'Fulfilment';
-  if (student.bookingStatus === 'Payment Pending') return 'Payment';
-  if (['Options Shared', 'Shortlisted', 'Property Selected'].includes(student.accommodationStatus)) return 'Option Shared';
-  if (student.leadStatus === 'Qualified') return 'Qualified';
-  if (student.leadStatus === 'Contacted') return 'Active';
-  return 'New';
-}
+type PipelineFilter = PipelineStage | 'All';
 
 export default function SalesPage() {
   const {
@@ -56,13 +44,13 @@ export default function SalesPage() {
     setSelectedStudentId,
     reassignLeadSalesOwner,
     submitPartnerLead,
+    updateStudentDecoupledStatus,
     currentUser,
     hideTestRecords,
   } = useHearthAway();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStage, setFilterStage] = useState<string>('All');
-  const [filterBookingStatus, setFilterBookingStatus] = useState<string>('All');
+  const [filterStage, setFilterStage] = useState<PipelineFilter>('All');
   const [filterSalesOwner, setFilterSalesOwner] = useState<string>('All');
   const [filterPriority, setFilterPriority] = useState<string>('All');
   const [filterDestination, setFilterDestination] = useState<string>('All');
@@ -81,16 +69,16 @@ export default function SalesPage() {
     return availableUsers.filter((u) => u.role === 'sales');
   }, [availableUsers]);
 
-
-
-
-
-
-
-
-
-
-
+  const stats = useMemo(() => {
+    return {
+      newLeads: students.filter((s) => (s.pipelineStage || 'New') === 'New').length,
+      activeLeads: students.filter((s) => ['Active', 'Qualified'].includes(s.pipelineStage || 'New')).length,
+      followUpsToday: students.filter((s) => s.nextFollowUpAt?.toLowerCase().includes('today') || s.nextFollowUpAt?.toLowerCase().includes('2 hours')).length,
+      processing: students.filter((s) => (s.pipelineStage || 'New') === 'Fulfilment').length,
+      paymentPending: students.filter((s) => (s.pipelineStage || 'New') === 'Payment').length,
+      booked: students.filter((s) => (s.pipelineStage || 'New') === 'Closed Won').length,
+    };
+  }, [students]);
 
   const filteredStudents = useMemo(() => {
     return students.filter((student) => {
@@ -104,16 +92,15 @@ export default function SalesPage() {
         (student.partnerName && student.partnerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
         student.assignedSalesExecutiveName.toLowerCase().includes(searchQuery.toLowerCase());
 
-      const matchStage = filterStage === 'All' || getPipelineStage(student) === filterStage;
-      const matchBooking = filterBookingStatus === 'All' || student.bookingStatus === filterBookingStatus;
+      const matchStage = filterStage === 'All' || (student.pipelineStage || 'New') === filterStage;
       const matchOwner =
         filterSalesOwner === 'All' || student.assignedSalesExecutiveId === filterSalesOwner;
       const matchPriority = filterPriority === 'All' || student.priority === filterPriority;
       const matchDest = filterDestination === 'All' || student.destinationCity === filterDestination;
 
-      return matchArchived && matchSearch && matchStage && matchBooking && matchOwner && matchPriority && matchDest;
+      return matchArchived && matchSearch && matchStage && matchOwner && matchPriority && matchDest;
     });
-  }, [students, searchQuery, filterStage, filterBookingStatus, filterSalesOwner, filterPriority, filterDestination, hideTestRecords]);
+  }, [students, searchQuery, filterStage, filterSalesOwner, filterPriority, filterDestination, hideTestRecords]);
 
   const handleCreateLead = (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,8 +141,7 @@ export default function SalesPage() {
         { header: 'Destination City', accessor: (s) => s.destinationCity },
         { header: 'Destination Country', accessor: (s) => s.destinationCountry },
         { header: 'Intake', accessor: (s) => s.intake },
-        { header: 'Lead Status', accessor: (s) => s.leadStatus },
-        { header: 'Booking Status', accessor: (s) => s.bookingStatus },
+        { header: 'Pipeline', accessor: (s) => s.pipelineStage || 'New' },
         { header: 'Priority', accessor: (s) => s.priority || 'Medium' },
         { header: 'Budget', accessor: (s) => `${s.currency || 'GBP'} ${s.budget}` },
         { header: 'Next Follow Up', accessor: (s) => s.nextFollowUpAt || '' },
@@ -196,33 +182,33 @@ export default function SalesPage() {
             </button>
           </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          {/* Quick Metrics Ribbon */}
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 mt-6">
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
+              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">New Leads</span>
+              <span className="text-lg font-extrabold text-[#00319D]">{stats.newLeads}</span>
+            </div>
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
+              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Active In Sales</span>
+              <span className="text-lg font-extrabold text-[#1A1A1A]">{stats.activeLeads}</span>
+            </div>
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
+              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Follow-Ups Due</span>
+              <span className="text-lg font-extrabold text-amber-700">{stats.followUpsToday}</span>
+            </div>
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
+              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Processing</span>
+              <span className="text-lg font-extrabold text-indigo-700">{stats.processing}</span>
+            </div>
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
+              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Payment Pending</span>
+              <span className="text-lg font-extrabold text-amber-600">{stats.paymentPending}</span>
+            </div>
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
+              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Booked Tenancies</span>
+              <span className="text-lg font-extrabold text-emerald-700">{stats.booked}</span>
+            </div>
+          </div>
 
           <div className="mt-5 rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
@@ -234,14 +220,14 @@ export default function SalesPage() {
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
               {PIPELINE_STAGES.map((stage) => {
-                const count = students.filter((student) => getPipelineStage(student) === stage.key).length;
+                const count = students.filter((student) => (student.pipelineStage || 'New') === stage.key).length;
                 const isActive = filterStage === stage.key;
                 return (
                   <button
                     key={stage.key}
                     type="button"
                     onClick={() => setFilterStage(isActive ? 'All' : stage.key)}
-                    className={`rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-[#00319D] bg-[#00319D] text-white' : 'border-[#E8E6E1] bg-white text-[#1A1A1A] hover:bg-[#F7F6F3]'}`}
+                    className={`rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-[#00319D] bg-[#00319D] text-white' : 'border-[#E8E6E1] bg-white text-[#1A1A1A] hover:border-[#00319D]/40'}`}
                     aria-pressed={isActive}
                   >
                     <span className={`block text-lg font-extrabold ${isActive ? 'text-white' : 'text-[#00319D]'}`}>{count}</span>
@@ -288,7 +274,7 @@ export default function SalesPage() {
               {/* Lead Stage Filter */}
               <select
                 value={filterStage}
-                onChange={(e) => setFilterStage(e.target.value)}
+                onChange={(e) => setFilterStage(e.target.value as PipelineFilter)}
                 className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
               >
                 <option value="All">All Pipeline Stages</option>
@@ -297,19 +283,6 @@ export default function SalesPage() {
                 ))}
                 <option value="Disqualified">Disqualified</option>
                 <option value="Cancelled">Cancelled</option>
-              </select>
-
-              {/* Booking Status Filter */}
-              <select
-                value={filterBookingStatus}
-                onChange={(e) => setFilterBookingStatus(e.target.value)}
-                className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-              >
-                <option value="All">All Booking Statuses</option>
-                <option value="Not Started">Not Started</option>
-                <option value="Processing">Processing</option>
-                <option value="Payment Pending">Payment Pending</option>
-                <option value="Booked">Booked</option>
               </select>
 
               {/* Priority Filter */}
@@ -354,8 +327,8 @@ export default function SalesPage() {
                   <th className="py-3 px-4 font-bold">Portfolio Owner (Derived)</th>
                   <th className="py-3 px-4 font-bold">Sales Owner</th>
                   <th className="py-3 px-4 font-bold">University &amp; City</th>
-                  <th className="py-3 px-4 font-bold">Lead Status</th>
-                  <th className="py-3 px-4 font-bold">Booking Status</th>
+                  <th className="py-3 px-4 font-bold">Pipeline</th>
+                  <th className="py-3 px-4 font-bold">Priority</th>
                   <th className="py-3 px-4 font-bold text-right">Actions</th>
                 </tr>
               </thead>
@@ -415,36 +388,26 @@ export default function SalesPage() {
                         <div className="text-[11px] text-[#6B6860] truncate max-w-[130px]">{student.university}</div>
                       </td>
 
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                            student.leadStatus === 'New'
-                              ? 'bg-blue-100 text-blue-800'
-                              : student.leadStatus === 'Qualified'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : student.leadStatus === 'Contacted'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-zinc-100 text-zinc-700'
-                          }`}
+                      <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={student.pipelineStage || 'New'}
+                          onChange={(e) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: e.target.value as PipelineStage })}
+                          className="rounded-md border border-[#E8E6E1] bg-white px-2 py-1 text-[10px] font-bold text-[#00319D] focus:border-[#00319D] focus:outline-none"
                         >
-                          {student.leadStatus}
-                        </span>
+                          {PIPELINE_STAGES.map((stage) => <option key={stage.key} value={stage.key}>{stage.label}</option>)}
+                          <option value="Disqualified">Disqualified</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
                       </td>
 
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                            student.bookingStatus === 'Booked' || student.bookingStatus === 'Move-in Confirmed'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : student.bookingStatus === 'Payment Pending'
-                              ? 'bg-amber-100 text-amber-800'
-                              : student.bookingStatus === 'Processing'
-                              ? 'bg-indigo-100 text-indigo-800'
-                              : 'bg-zinc-100 text-zinc-600'
-                          }`}
+                      <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={student.priority || 'Medium'}
+                          onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as 'Low' | 'Medium' | 'High' | 'Urgent' })}
+                          className="rounded-md border border-[#E8E6E1] bg-white px-2 py-1 text-[10px] font-bold text-[#1A1A1A] focus:border-[#00319D] focus:outline-none"
                         >
-                          {student.bookingStatus}
-                        </span>
+                          <option>Urgent</option><option>High</option><option>Medium</option><option>Low</option>
+                        </select>
                       </td>
 
                       <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
