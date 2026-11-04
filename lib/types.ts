@@ -169,9 +169,11 @@ export const StudentSchema = z.object({
   flaggedAt: z.string().optional(),
   flaggedBy: z.string().optional(),
 });
+
+// Firestore documents and direct constructors may predate the unified schema.
+// Allow the new lifecycle fields to be missing at the application boundary while
+// still keeping the schema itself strict for new writes.
 type StudentSchemaOutput = z.infer<typeof StudentSchema>;
-// Firestore documents and direct record constructors may predate schema parsing,
-// so keep newly introduced defaulted fields optional at the application boundary.
 export type Student = Omit<StudentSchemaOutput, 'pipelineStage' | 'exitStatus' | 'providerType' | 'commissionable'> &
   Partial<Pick<StudentSchemaOutput, 'pipelineStage' | 'exitStatus' | 'providerType' | 'commissionable'>>;
 
