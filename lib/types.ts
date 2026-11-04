@@ -1,8 +1,33 @@
 import { z } from 'zod';
 
 // ==========================================
-// DECOUPLED STATUSES (Strict Separation)
+// UNIFIED CRM LIFECYCLE
 // ==========================================
+export const PipelineStageSchema = z.enum([
+  'New',
+  'Active',
+  'Qualified',
+  'Option Shared',
+  'Payment',
+  'Fulfilment',
+  'Closed Won',
+  'Disqualified',
+  'Cancelled',
+]);
+export type PipelineStage = z.infer<typeof PipelineStageSchema>;
+
+export const ExitReasonSchema = z.enum([
+  'No response',
+  'Not qualified',
+  'Budget mismatch',
+  'No suitable option',
+  'Changed plans',
+  'Payment failed',
+  'Requested cancellation',
+  'Other',
+]);
+export type ExitReason = z.infer<typeof ExitReasonSchema>;
+
 export const LeadStatusSchema = z.enum(['New', 'Contacted', 'Qualified', 'Lost']);
 export type LeadStatus = z.infer<typeof LeadStatusSchema>;
 
@@ -93,14 +118,22 @@ export const StudentSchema = z.object({
   assignedSalesExecutiveId: z.string(), // e.g. EMP-001
   assignedSalesExecutiveName: z.string(),
   
-  // Decoupled Status Block
-  leadStatus: LeadStatusSchema,
-  accommodationStatus: AccommodationStatusSchema,
-  bookingStatus: BookingStatusSchema,
-  moveInStatus: MoveInStatusSchema,
-  commissionStatus: CommissionStatusSchema,
+  // Unified CRM lifecycle. Legacy fields remain optional for backward-compatible reads only.
+  pipelineStage: PipelineStageSchema.default('New'),
+  exitReason: ExitReasonSchema.optional(),
+  leadStatus: LeadStatusSchema.optional(),
+  accommodationStatus: AccommodationStatusSchema.optional(),
+  bookingStatus: BookingStatusSchema.optional(),
+  moveInStatus: MoveInStatusSchema.optional(),
+  commissionStatus: CommissionStatusSchema.optional(),
 
   priority: z.enum(['Low', 'Medium', 'High', 'Urgent']).default('Medium'),
+  propertyName: z.string().optional(),
+  providerType: z.enum(['PBSA', 'HMO', 'Landlord']).optional(),
+  tenancyDuration: z.string().optional(),
+  rentAmount: z.number().optional(),
+  rentPaymentPeriod: z.enum(['Weekly', 'Monthly', 'Termly', 'Annual']).optional(),
+  commissionable: z.boolean().optional(),
   nextFollowUpAt: z.string().optional(),
   lastContactAt: z.string().optional(),
   firstContactAt: z.string().optional(),
