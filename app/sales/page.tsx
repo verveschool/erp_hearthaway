@@ -1,3 +1,4 @@
+@@ -1,557 +1,518 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -37,35 +38,14 @@ const PIPELINE_STAGES = [
 type PipelineStage = (typeof PIPELINE_STAGES)[number]['key'] | 'Disqualified' | 'Cancelled';
 
 function getPipelineStage(student: Student): PipelineStage {
-  const pipelineStage = student.pipelineStage ?? 'new';
-
-  switch (pipelineStage) {
-    case 'new': return 'New';
-    case 'active': return 'Active';
-    case 'qualified': return 'Qualified';
-    case 'option_shared': return 'Option Shared';
-    case 'payment': return 'Payment';
-    case 'fulfilment': return 'Fulfilment';
-    case 'closed_won': return 'Closed Won';
-    case 'disqualified': return 'Disqualified';
-    case 'cancelled': return 'Cancelled';
-    default: break;
-  }
-
-  // Use legacy status values only for records not yet migrated to the unified lifecycle.
-  const bookingStatus = student.bookingStatus ?? '';
-  const accommodationStatus = student.accommodationStatus ?? '';
-  const leadStatus = student.leadStatus ?? '';
-  const moveInStatus = student.moveInStatus ?? '';
-
-  if (bookingStatus === 'Cancelled' || moveInStatus === 'Cancelled') return 'Cancelled';
-  if (leadStatus === 'Lost') return 'Disqualified';
-  if (moveInStatus === 'Moved In' || bookingStatus === 'Move-in Confirmed' || bookingStatus === 'Booked') return 'Closed Won';
-  if (['Processing', 'Documents Pending', 'Application Submitted', 'Approved'].includes(bookingStatus)) return 'Fulfilment';
-  if (bookingStatus === 'Payment Pending') return 'Payment';
-  if (['Options Shared', 'Shortlisted', 'Property Selected'].includes(accommodationStatus)) return 'Option Shared';
-  if (leadStatus === 'Qualified') return 'Qualified';
-  if (leadStatus === 'Contacted') return 'Active';
+  if (student.bookingStatus === 'Cancelled' || student.moveInStatus === 'Cancelled') return 'Cancelled';
+  if (student.leadStatus === 'Lost') return 'Disqualified';
+  if (student.moveInStatus === 'Moved In' || student.bookingStatus === 'Move-in Confirmed' || student.bookingStatus === 'Booked') return 'Closed Won';
+  if (['Processing', 'Documents Pending', 'Application Submitted', 'Approved'].includes(student.bookingStatus)) return 'Fulfilment';
+  if (student.bookingStatus === 'Payment Pending') return 'Payment';
+  if (['Options Shared', 'Shortlisted', 'Property Selected'].includes(student.accommodationStatus)) return 'Option Shared';
+  if (student.leadStatus === 'Qualified') return 'Qualified';
+  if (student.leadStatus === 'Contacted') return 'Active';
   return 'New';
 }
 
@@ -101,6 +81,17 @@ export default function SalesPage() {
   const salesUsers = useMemo(() => {
     return availableUsers.filter((u) => u.role === 'sales');
   }, [availableUsers]);
+
+  const stats = useMemo(() => {
+    return {
+      newLeads: students.filter((s) => s.leadStatus === 'New').length,
+      activeLeads: students.filter((s) => s.leadStatus === 'Contacted' || s.leadStatus === 'Qualified').length,
+      followUpsToday: students.filter((s) => s.nextFollowUpAt?.toLowerCase().includes('today') || s.nextFollowUpAt?.toLowerCase().includes('2 hours')).length,
+      processing: students.filter((s) => s.bookingStatus === 'Processing' || s.bookingStatus === 'Application Submitted').length,
+      paymentPending: students.filter((s) => s.bookingStatus === 'Payment Pending').length,
+      booked: students.filter((s) => s.bookingStatus === 'Booked' || s.bookingStatus === 'Move-in Confirmed').length,
+    };
+  }, [students]);
 
   const filteredStudents = useMemo(() => {
     return students.filter((student) => {
@@ -206,6 +197,34 @@ export default function SalesPage() {
             </button>
           </div>
 
+          {/* Quick Metrics Ribbon */}
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 mt-6">
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
+              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">New Leads</span>
+              <span className="text-lg font-extrabold text-[#00319D]">{stats.newLeads}</span>
+            </div>
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
+              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Active In Sales</span>
+              <span className="text-lg font-extrabold text-[#1A1A1A]">{stats.activeLeads}</span>
+            </div>
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
+              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Follow-Ups Due</span>
+              <span className="text-lg font-extrabold text-amber-700">{stats.followUpsToday}</span>
+            </div>
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
+              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Processing</span>
+              <span className="text-lg font-extrabold text-indigo-700">{stats.processing}</span>
+            </div>
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
+              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Payment Pending</span>
+              <span className="text-lg font-extrabold text-amber-600">{stats.paymentPending}</span>
+            </div>
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
+              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Booked Tenancies</span>
+              <span className="text-lg font-extrabold text-emerald-700">{stats.booked}</span>
+            </div>
+          </div>
+
           <div className="mt-5 rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
@@ -223,7 +242,7 @@ export default function SalesPage() {
                     key={stage.key}
                     type="button"
                     onClick={() => setFilterStage(isActive ? 'All' : stage.key)}
-                    className={`rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-[#00319D] bg-[#00319D] text-white' : 'border-[#E8E6E1] bg-white text-[#1A1A1A] hover:bg-[#F7F6F3]'}`}
+                    className={`rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-[#00319D] bg-[#00319D] text-white' : 'border-[#E8E6E1] bg-white text-[#1A1A1A] hover:border-[#00319D]/40'}`}
                     aria-pressed={isActive}
                   >
                     <span className={`block text-lg font-extrabold ${isActive ? 'text-white' : 'text-[#00319D]'}`}>{count}</span>
@@ -310,7 +329,7 @@ export default function SalesPage() {
               <button
                 onClick={handleExportSalesLeadsCSV}
                 disabled={filteredStudents.length === 0}
-                className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-2 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-2 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
                 title="Download current leads table as CSV"
               >
                 <Download className="h-3.5 w-3.5" />
@@ -409,7 +428,7 @@ export default function SalesPage() {
                               : 'bg-zinc-100 text-zinc-700'
                           }`}
                         >
-                          {student.leadStatus ?? getPipelineStage(student)}
+                          {student.leadStatus}
                         </span>
                       </td>
 
@@ -425,7 +444,7 @@ export default function SalesPage() {
                               : 'bg-zinc-100 text-zinc-600'
                           }`}
                         >
-                          {student.bookingStatus ?? '—'}
+                          {student.bookingStatus}
                         </span>
                       </td>
 
