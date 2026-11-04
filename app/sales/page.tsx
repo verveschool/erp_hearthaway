@@ -163,7 +163,7 @@ export default function SalesPage() {
                   <Briefcase className="h-3.5 w-3.5" />
                   Module 3
                 </span>
-                <span className="text-xs text-[#6B6860]">• Sales &amp; Booking Pipeline</span>
+                <span className="text-xs text-[#6B6860]">• Sales & Booking Pipeline</span>
               </div>
               <h1 className="text-2xl font-extrabold text-[#1A1A1A] mt-1 tracking-tight">
                 Sales
@@ -180,34 +180,6 @@ export default function SalesPage() {
               <Plus className="h-3.5 w-3.5" />
               Add Sales Lead
             </button>
-          </div>
-
-          {/* Quick Metrics Ribbon */}
-          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 mt-6">
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">New Leads</span>
-              <span className="text-lg font-extrabold text-[#00319D]">{stats.newLeads}</span>
-            </div>
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Active In Sales</span>
-              <span className="text-lg font-extrabold text-[#1A1A1A]">{stats.activeLeads}</span>
-            </div>
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Follow-Ups Due</span>
-              <span className="text-lg font-extrabold text-amber-700">{stats.followUpsToday}</span>
-            </div>
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Processing</span>
-              <span className="text-lg font-extrabold text-indigo-700">{stats.processing}</span>
-            </div>
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Payment Pending</span>
-              <span className="text-lg font-extrabold text-amber-600">{stats.paymentPending}</span>
-            </div>
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Booked Tenancies</span>
-              <span className="text-lg font-extrabold text-emerald-700">{stats.booked}</span>
-            </div>
           </div>
 
           <div className="mt-5 rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3">
@@ -322,11 +294,11 @@ export default function SalesPage() {
             <table className="w-full text-left text-xs">
               <thead className="bg-[#F7F6F3] text-[#6B6860] uppercase text-[10px] tracking-wider border-b border-[#E8E6E1]">
                 <tr>
-                  <th className="py-3 px-4 font-bold">Student Name &amp; ID</th>
+                  <th className="py-3 px-4 font-bold">Student Name & ID</th>
                   <th className="py-3 px-4 font-bold">Sourcing Partner</th>
                   <th className="py-3 px-4 font-bold">Portfolio Owner (Derived)</th>
                   <th className="py-3 px-4 font-bold">Sales Owner</th>
-                  <th className="py-3 px-4 font-bold">University &amp; City</th>
+                  <th className="py-3 px-4 font-bold">University & City</th>
                   <th className="py-3 px-4 font-bold">Pipeline</th>
                   <th className="py-3 px-4 font-bold">Priority</th>
                   <th className="py-3 px-4 font-bold text-right">Actions</th>
