@@ -111,7 +111,7 @@ interface HearthAwayContextType {
 
   // Workflows & Mutations with Audit Logs
   reassignPartnerPortfolioOwner: (partnerId: string, newOwnerId: string, newOwnerName: string) => void;
-  reassignLeadSalesOwner: (studentId: string, newSalesOwnerId: string, newSalesOwnerName: string) => void;
+  reassignLeadSalesOwner: (studentId: string, newSalesOwnerId: string, newSalesOwnerName: string) => Promise<void>;
   bulkImportPartnerLeads: (
     leads: Array<any>,
     explicitPartnerId?: string,
@@ -818,27 +818,38 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const reassignLeadSalesOwner = (studentId: string, newSalesOwnerId: string, newSalesOwnerName: string) => {
+  const reassignLeadSalesOwner = async (studentId: string, newSalesOwnerId: string, newSalesOwnerName: string): Promise<void> => {
     const student = students.find((s) => s.studentId === studentId || s.id === studentId);
-    if (student) {
-      const docId = student.id || `std-${student.studentId.toLowerCase()}`;
-      logStudentActivity(
-        student.studentId,
-        'Sales Owner Reassigned',
-        `Sales owner changed from ${student.assignedSalesExecutiveName} to ${newSalesOwnerName}`
-      );
-      updateDoc(doc(db, 'students', docId), {
-        assignedSalesExecutiveId: newSalesOwnerId,
-        assignedSalesExecutiveName: newSalesOwnerName,
-        updatedAt: new Date().toLocaleString('en-GB', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      }).catch((err) => handleFirestoreError(err, OperationType.WRITE, `students/${docId}`));
-    }
+    if (!student) return;
+
+    const docId = student.id || `std-${student.studentId.toLowerCase()}`;
+    const previousOwnerName = student.assignedSalesExecutiveName || 'Unassigned';
+    const nextOwnerName = newSalesOwnerName || 'Unassigned';
+    if (previousOwnerName === nextOwnerName) return;
+
+    const activityType = previousOwnerName === 'Unassigned' ? 'Sales Owner Assigned' : 'Sales Owner Reassigned';
+    await logStudentActivity(
+      student.studentId,
+      activityType,
+      `Sales owner changed from ${previousOwnerName} to ${nextOwnerName}`,
+      previousOwnerName,
+      nextOwnerName
+    );
+
+    await updateDoc(doc(db, 'students', docId), {
+      assignedSalesExecutiveId: newSalesOwnerId || '',
+      assignedSalesExecutiveName: nextOwnerName,
+      updatedAt: new Date().toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    }).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `students/${docId}`);
+      throw err;
+    });
   };
 
   const onboardNewPartner = async (partnerData: any): Promise<Partner> => {
@@ -975,12 +986,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       const [firstName, ...rest] = lead.fullName.trim().split(' ');
       const lastName = rest.join(' ') || 'Lead';
 
-      const salesReps = availableUsers.filter((u) => u.role === 'sales');
-      const assignedRep =
-        salesReps.length > 0
-          ? salesReps[index % salesReps.length]
-          : { uid: 'user-emp-001', displayName: 'Harshul Mehta' };
-
       const docId = `std-${generatedId.toLowerCase()}`;
       const record: Student = {
         id: docId,
@@ -1009,8 +1014,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         leadSource: 'Study Abroad Consultants',
         partnerId,
         partnerName,
-        assignedSalesExecutiveId: assignedRep.uid,
-        assignedSalesExecutiveName: assignedRep.displayName,
+        assignedSalesExecutiveId: '',
+        assignedSalesExecutiveName: 'Unassigned',
         pipelineStage: 'New',
         leadStatus: 'New',
         accommodationStatus: 'Requirement Pending',
@@ -1102,8 +1107,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       leadSource: 'Study Abroad Consultants',
       partnerId,
       partnerName,
-      assignedSalesExecutiveId: 'EMP-001',
-      assignedSalesExecutiveName: 'Harshul Mehta',
+      assignedSalesExecutiveId: '',
+      assignedSalesExecutiveName: 'Unassigned',
 
       pipelineStage: 'New',
       leadStatus: 'New',
