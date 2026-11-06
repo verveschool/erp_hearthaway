@@ -136,6 +136,7 @@ export const StudentSchema = z.object({
   commissionable: z.boolean().optional(),
   nextFollowUpAt: z.string().optional(),
   lastContactAt: z.string().optional(),
+  lastActivityAt: z.string().optional(),
   firstContactAt: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),

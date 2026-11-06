@@ -208,7 +208,7 @@ interface HearthAwayContextType {
     description: string,
     oldValue?: string,
     newValue?: string
-  ) => void;
+  ) => Promise<void>;
 
   // Selected student for drawer
   selectedStudentId: string | null;
@@ -747,13 +747,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     return { allowed: true, requiredRoles: [] };
   };
 
-  const logStudentActivity = (
+  const logStudentActivity = async (
     studentId: string,
     activityType: string,
     description: string,
     oldValue?: string,
     newValue?: string
-  ) => {
+  ): Promise<void> => {
     const now = new Date();
     const formattedTimestamp = now.toLocaleString('en-GB', {
       day: '2-digit',
@@ -780,9 +780,22 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       ...(typeof newValue === 'string' ? { newValue } : {}),
     };
 
-    setDoc(doc(db, 'activities', actId), newActivity).catch((err) => {
+    await setDoc(doc(db, 'activities', actId), newActivity).catch((err) => {
       handleFirestoreError(err, OperationType.WRITE, `activities/${actId}`);
+      throw err;
     });
+
+    const relatedStudent = students.find((student) => student.studentId === studentId || student.id === studentId);
+    const isQualifyingActivity = !/(status|stage|priority|owner reassigned|lead updated)/i.test(activityType);
+    if (relatedStudent && isQualifyingActivity) {
+      const studentDocId = relatedStudent.id || `std-${relatedStudent.studentId.toLowerCase()}`;
+      await updateDoc(doc(db, 'students', studentDocId), {
+        lastActivityAt: formattedTimestamp,
+      }).catch((err) => {
+        handleFirestoreError(err, OperationType.WRITE, `students/${studentDocId}`);
+        throw err;
+      });
+    }
   };
 
   const reassignPartnerPortfolioOwner = (partnerId: string, newOwnerId: string, newOwnerName: string) => {

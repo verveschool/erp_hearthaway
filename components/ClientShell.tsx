@@ -26,7 +26,6 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
                 height={24}
                 className="h-6 w-6 object-contain select-none opacity-85 hover:opacity-100 transition-opacity"
               />
-              <span className="font-semibold text-xs text-[#1A1A1A]">HearthAway</span>
             </div>
             <div className="text-[11px] text-[#6B6860]">
               © 2026 JIRAIYA EDUCATION LLP
