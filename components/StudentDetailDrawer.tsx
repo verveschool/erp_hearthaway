@@ -539,7 +539,7 @@ export function StudentDetailDrawer() {
               </a>
 
               {/* Ownership & Relationships Bar */}
-              <div className="ml-auto flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-2 text-xs">
                 {(() => {
                   const partner = partners.find((p) => p.partnerId === student.partnerId);
                   const portfolioOwner = partner?.portfolioOwnerName || 'Beatrice Vance';
@@ -562,6 +562,7 @@ export function StudentDetailDrawer() {
                           }}
                           className="bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-[11px]"
                         >
+                          <option value="">Unassigned</option>
                           {salesUsers.map((su) => (
                             <option key={su.uid} value={su.uid}>
                               {su.displayName}
@@ -569,6 +570,39 @@ export function StudentDetailDrawer() {
                           ))}
                         </select>
                       </div>
+                      <label className="flex items-center gap-1 text-[11px] text-[#6B6860] bg-[#FFFFFF] px-2 py-1 rounded border border-[#E8E6E1]">
+                        <span>Pipeline Stage:</span>
+                        <select
+                          aria-label="Pipeline Stage"
+                          value={student.pipelineStage || 'New'}
+                          onChange={(e) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: e.target.value as any })}
+                          className="bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-[11px]"
+                        >
+                          <option>New</option>
+                          <option>Active</option>
+                          <option>Qualified</option>
+                          <option>Option Shared</option>
+                          <option>Payment</option>
+                          <option>Fulfilment</option>
+                          <option>Closed Won</option>
+                          <option>Disqualified</option>
+                          <option>Cancelled</option>
+                        </select>
+                      </label>
+                      <label className="flex items-center gap-1 text-[11px] text-[#6B6860] bg-[#FFFFFF] px-2 py-1 rounded border border-[#E8E6E1]">
+                        <span>Priority:</span>
+                        <select
+                          aria-label="Priority"
+                          value={student.priority || 'Medium'}
+                          onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as any })}
+                          className="bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-[11px]"
+                        >
+                          <option>Urgent</option>
+                          <option>High</option>
+                          <option>Medium</option>
+                          <option>Low</option>
+                        </select>
+                      </label>
                     </div>
                   );
                 })()}

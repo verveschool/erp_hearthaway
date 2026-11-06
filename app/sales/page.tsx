@@ -404,6 +404,7 @@ export default function SalesPage() {
                           }}
                           className="rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-xs font-bold text-[#00319D] focus:outline-none focus:border-[#00319D] cursor-pointer"
                         >
+                          <option value="">Unassigned</option>
                           {salesUsers.map((su) => (
                             <option key={su.uid} value={su.uid}>
                               {su.displayName}
