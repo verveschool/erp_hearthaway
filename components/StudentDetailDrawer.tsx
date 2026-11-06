@@ -95,7 +95,7 @@ export function StudentDetailDrawer() {
   // ==========================================
   // PROPERTY BOOKING FORM STATE
   // ==========================================
-  const [showBookingForm, setShowBookingForm] = useState(false);
+  const [showBookingForm, setShowBookingForm] = useState(true);
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
 
   const [bookingPropertyName, setBookingPropertyName] = useState('');
@@ -635,26 +635,6 @@ export function StudentDetailDrawer() {
                     </p>
                   </div>
 
-                  {!showBookingForm && (
-                    <button
-                      onClick={() => {
-                        setEditingBookingId(null);
-                        setBookingPropertyName('');
-                        setBookingPropertyAddress('');
-                        setBookingRentAmount('');
-                        setBookingDepositAmount('0');
-                        setBookingReference('');
-                        setBookingNotes('');
-                        setBookingCommissionRate(String(defaultPartnerRate));
-                        setBookingCommissionableAmount('');
-                        setShowBookingForm(true);
-                      }}
-                      className="flex items-center gap-1.5 rounded-lg bg-[#00319D] px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] shadow-xs transition-colors"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Record Property Booking
-                    </button>
-                  )}
                 </div>
 
                 {/* Form: Record or Edit Property Booking */}
@@ -667,15 +647,6 @@ export function StudentDetailDrawer() {
                           {editingBookingId ? 'Edit Property Booking Record' : 'Record Property Booking'}
                         </h4>
                       </div>
-                      <button
-                        onClick={() => {
-                          setShowBookingForm(false);
-                          setEditingBookingId(null);
-                        }}
-                        className="rounded p-1 text-[#6B6860] hover:bg-[#F7F6F3]"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
                     </div>
 
                     <form onSubmit={handleSaveBooking} className="space-y-4">

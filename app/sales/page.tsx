@@ -70,10 +70,13 @@ export default function SalesPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStage, setFilterStage] = useState<PipelineFilter>('All');
-  const [filterSalesOwner, setFilterSalesOwner] = useState<string>('All');
+  const [filterSalesOwner, setFilterSalesOwner] = useState<string | null>(null);
   const [filterPriority, setFilterPriority] = useState<string>('All');
   const [filterDestination, setFilterDestination] = useState<string>('All');
+  const [sortColumn, setSortColumn] = useState<'createdAt' | 'lastActivity'>('lastActivity');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
+  const effectiveSalesOwnerFilter = filterSalesOwner ?? (currentUser?.role === 'sales' ? currentUser.uid : 'All');
 
   // New Lead Modal state
   const [newLeadName, setNewLeadName] = useState('');
@@ -100,7 +103,7 @@ export default function SalesPage() {
   }, [students]);
 
   const filteredStudents = useMemo(() => {
-    return students.filter((student) => {
+    const matchingStudents = students.filter((student) => {
       const matchArchived = !hideTestRecords || (!student.isTestRecord && student.archivalStatus !== 'Flagged For Archival');
       const matchSearch =
         searchQuery === '' ||
@@ -112,14 +115,49 @@ export default function SalesPage() {
         student.assignedSalesExecutiveName.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchStage = filterStage === 'All' || (student.pipelineStage || 'New') === filterStage;
-      const matchOwner =
-        filterSalesOwner === 'All' || student.assignedSalesExecutiveId === filterSalesOwner;
+      const matchOwner = effectiveSalesOwnerFilter === 'All' || student.assignedSalesExecutiveId === effectiveSalesOwnerFilter;
       const matchPriority = filterPriority === 'All' || student.priority === filterPriority;
       const matchDest = filterDestination === 'All' || student.destinationCity === filterDestination;
 
       return matchArchived && matchSearch && matchStage && matchOwner && matchPriority && matchDest;
     });
-  }, [students, searchQuery, filterStage, filterSalesOwner, filterPriority, filterDestination, hideTestRecords]);
+
+    return matchingStudents.sort((a, b) => {
+      const createdA = new Date(a.createdAt).getTime();
+      const createdB = new Date(b.createdAt).getTime();
+      const activityA = a.lastActivityAt
+        ? new Date(a.lastActivityAt).getTime()
+        : activities
+            .filter((activity) => activity.studentId === a.studentId && !NON_QUALIFYING_ACTIVITY.test(activity.activityType))
+            .reduce((latest, activity) => Math.max(latest, new Date(activity.timestamp).getTime()), 0);
+      const activityB = b.lastActivityAt
+        ? new Date(b.lastActivityAt).getTime()
+        : activities
+            .filter((activity) => activity.studentId === b.studentId && !NON_QUALIFYING_ACTIVITY.test(activity.activityType))
+            .reduce((latest, activity) => Math.max(latest, new Date(activity.timestamp).getTime()), 0);
+
+      if (sortColumn === 'lastActivity') {
+        if (activityA === 0 && activityB !== 0) return 1;
+        if (activityB === 0 && activityA !== 0) return -1;
+      }
+
+      const primaryA = sortColumn === 'createdAt' ? createdA : activityA;
+      const primaryB = sortColumn === 'createdAt' ? createdB : activityB;
+      const primaryDifference = primaryA - primaryB;
+      if (primaryDifference !== 0) return sortDirection === 'asc' ? primaryDifference : -primaryDifference;
+
+      return createdB - createdA;
+    });
+  }, [students, activities, searchQuery, filterStage, effectiveSalesOwnerFilter, filterPriority, filterDestination, hideTestRecords, sortColumn, sortDirection]);
+
+  const toggleSort = (column: 'createdAt' | 'lastActivity') => {
+    if (sortColumn === column) {
+      setSortDirection((direction) => direction === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
 
   const handleCreateLead = (e: React.FormEvent) => {
     e.preventDefault();
@@ -244,7 +282,7 @@ export default function SalesPage() {
             <div className="flex flex-wrap items-center gap-2">
               {/* Sales Owner Filter */}
               <select
-                value={filterSalesOwner}
+                value={effectiveSalesOwnerFilter}
                 onChange={(e) => setFilterSalesOwner(e.target.value)}
                 className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
               >
@@ -313,8 +351,20 @@ export default function SalesPage() {
                   <th className="py-3 px-4 font-bold">University & City</th>
                   <th className="py-3 px-4 font-bold">Pipeline</th>
                   <th className="py-3 px-4 font-bold">Priority</th>
-                  <th className="py-3 px-4 font-bold">Created On</th>
-                  <th className="py-3 px-4 font-bold">Last Activity</th>
+                  <th className="py-3 px-4 font-bold">
+                    <button type="button" onClick={() => toggleSort('createdAt')} className="inline-flex items-center gap-1 hover:text-[#00319D]">
+                      Created On
+                      <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
+                      <span className="sr-only">{sortColumn === 'createdAt' ? `sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}` : 'sort'}</span>
+                    </button>
+                  </th>
+                  <th className="py-3 px-4 font-bold">
+                    <button type="button" onClick={() => toggleSort('lastActivity')} className="inline-flex items-center gap-1 hover:text-[#00319D]">
+                      Last Activity
+                      <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
+                      <span className="sr-only">{sortColumn === 'lastActivity' ? `sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}` : 'sort'}</span>
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8E6E1]">
@@ -322,7 +372,7 @@ export default function SalesPage() {
                   const leadActivities = activities
                     .filter((activity) => activity.studentId === student.studentId && !NON_QUALIFYING_ACTIVITY.test(activity.activityType))
                     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-                  const lastActivity = leadActivities[0]?.timestamp;
+                  const lastActivity = student.lastActivityAt || leadActivities[0]?.timestamp;
 
                   return (
                     <tr
@@ -362,9 +412,9 @@ export default function SalesPage() {
                         </select>
                       </td>
 
-                      <td className="py-3.5 px-4">
-                        <div className="text-[#1A1A1A] font-medium">{student.destinationCity}</div>
-                        <div className="text-[11px] text-[#6B6860] truncate max-w-[130px]">{student.university}</div>
+                      <td className="py-3.5 px-4 align-top">
+                        <div className="text-[#1A1A1A] font-medium whitespace-normal break-words">{student.destinationCity}</div>
+                        <div className="text-[11px] text-[#6B6860] whitespace-normal break-words">{student.university}</div>
                       </td>
 
                       <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
