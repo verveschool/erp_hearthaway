@@ -16,7 +16,6 @@ import {
   ChevronRight,
   CreditCard,
   Plus,
-  Layers,
   ArrowUpDown,
   Building,
   Download,
@@ -36,10 +35,30 @@ const PIPELINE_STAGES = [
 
 type PipelineFilter = PipelineStage | 'All';
 
+const NON_QUALIFYING_ACTIVITY = /(status|stage|priority|owner reassigned|lead updated)/i;
+
+function formatLeadDate(value?: string, includeTime = false) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-GB', includeTime ? {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  } : {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 export default function SalesPage() {
   const {
     students,
     partners,
+    activities,
     availableUsers,
     setSelectedStudentId,
     reassignLeadSalesOwner,
@@ -290,18 +309,20 @@ export default function SalesPage() {
                 <tr>
                   <th className="py-3 px-4 font-bold">Student Name & ID</th>
                   <th className="py-3 px-4 font-bold">Sourcing Partner</th>
-                  <th className="py-3 px-4 font-bold">Portfolio Owner (Derived)</th>
                   <th className="py-3 px-4 font-bold">Sales Owner</th>
                   <th className="py-3 px-4 font-bold">University & City</th>
                   <th className="py-3 px-4 font-bold">Pipeline</th>
                   <th className="py-3 px-4 font-bold">Priority</th>
-                  <th className="py-3 px-4 font-bold text-right">Actions</th>
+                  <th className="py-3 px-4 font-bold">Created On</th>
+                  <th className="py-3 px-4 font-bold">Last Activity</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8E6E1]">
                 {filteredStudents.map((student) => {
-                  const partner = partners.find((p) => p.partnerId === student.partnerId);
-                  const portfolioOwnerName = partner?.portfolioOwnerName || 'Beatrice Vance';
+                  const leadActivities = activities
+                    .filter((activity) => activity.studentId === student.studentId && !NON_QUALIFYING_ACTIVITY.test(activity.activityType))
+                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                  const lastActivity = leadActivities[0]?.timestamp;
 
                   return (
                     <tr
@@ -319,14 +340,6 @@ export default function SalesPage() {
                           {student.partnerName || student.partnerId}
                         </div>
                         <div className="font-mono text-[10px] text-[#6B6860]">{student.partnerId}</div>
-                      </td>
-
-                      {/* Derived Portfolio Owner */}
-                      <td className="py-3.5 px-4">
-                        <span className="inline-flex items-center gap-1 rounded bg-[#F7F6F3] px-2 py-0.5 text-[11px] font-semibold text-[#1A1A1A] border border-[#E8E6E1]">
-                          <Layers className="h-3 w-3 text-[#00319D]" />
-                          {portfolioOwnerName}
-                        </span>
                       </td>
 
                       {/* Sales Owner with inline reassignment */}
@@ -376,13 +389,12 @@ export default function SalesPage() {
                         </select>
                       </td>
 
-                      <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => setSelectedStudentId(student.studentId)}
-                          className="rounded-lg bg-[#F7F6F3] border border-[#E8E6E1] px-2.5 py-1 text-[11px] font-bold text-[#00319D] hover:bg-[#E8E6E1] transition-colors"
-                        >
-                          Open Lead →
-                        </button>
+                      <td className="py-3.5 px-4 whitespace-nowrap text-[#1A1A1A]">
+                        {formatLeadDate(student.createdAt)}
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap text-[#6B6860]">
+                        {formatLeadDate(lastActivity, true)}
                       </td>
                     </tr>
                   );

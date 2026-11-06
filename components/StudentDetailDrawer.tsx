@@ -9,7 +9,6 @@ import {
   MessageSquare,
   Clock,
   Shield,
-  FileText,
   DollarSign,
   Building,
   User,
@@ -33,7 +32,6 @@ import {
   Check,
   TrendingUp,
   Percent,
-  Layers,
   FileSpreadsheet,
   Archive,
   Tag,
@@ -68,7 +66,7 @@ export function StudentDetailDrawer() {
     unflagRecordForArchival,
   } = useHearthAway();
 
-  const [activeTab, setActiveTab] = useState<'timeline' | 'statuses' | 'bookings' | 'payments' | 'notes'>('timeline');
+  const [activeTab, setActiveTab] = useState<'timeline' | 'bookings' | 'payments'>('timeline');
 
   // ==========================================
   // PAYMENT FORM & PROOF UPLOAD STATE
@@ -419,14 +417,15 @@ export function StudentDetailDrawer() {
     await updatePropertyBooking(bookingId, { bookingStatus: 'Cancelled' });
   };
 
-  const handleAddNote = (e: React.FormEvent) => {
+  const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newNote.trim()) return;
+    const note = newNote.trim();
+    if (!note) return;
 
-    logStudentActivity(
+    await logStudentActivity(
       student.studentId,
       'Internal Note Added',
-      `${currentUser.displayName}: ${newNote.trim()}`
+      `${currentUser.displayName}: ${note}`
     );
     setNewNote('');
   };
@@ -580,7 +579,7 @@ export function StudentDetailDrawer() {
             <div className="mt-4 flex border-b border-[#E8E6E1] gap-4 text-xs font-semibold overflow-x-auto">
               <button
                 onClick={() => setActiveTab('bookings')}
-                className={`order-4 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
+                className={`order-3 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'bookings'
                     ? 'border-[#00319D] text-[#00319D]'
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
@@ -592,7 +591,7 @@ export function StudentDetailDrawer() {
 
               <button
                 onClick={() => setActiveTab('payments')}
-                className={`order-5 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
+                className={`order-4 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'payments'
                     ? 'border-[#00319D] text-[#00319D]'
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
@@ -611,32 +610,9 @@ export function StudentDetailDrawer() {
                 }`}
               >
                 <Clock className="h-3.5 w-3.5" />
-                Attribution ({studentActivities.length})
+                Activity ({studentActivities.length})
               </button>
 
-              <button
-                onClick={() => setActiveTab('statuses')}
-                className={`order-2 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
-                  activeTab === 'statuses'
-                    ? 'border-[#00319D] text-[#00319D]'
-                    : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
-                }`}
-              >
-                <Layers className="h-3.5 w-3.5" />
-                Decoupled Statuses
-              </button>
-
-              <button
-                onClick={() => setActiveTab('notes')}
-                className={`order-3 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
-                  activeTab === 'notes'
-                    ? 'border-[#00319D] text-[#00319D]'
-                    : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
-                }`}
-              >
-                <FileText className="h-3.5 w-3.5" />
-                Notes
-              </button>
             </div>
           </div>
 
@@ -1637,11 +1613,16 @@ export function StudentDetailDrawer() {
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5">
                     <Clock className="h-4 w-4 text-[#00319D]" />
-                    Immutable Audit Trail ({studentActivities.length})
+                    Activity Timeline ({studentActivities.length})
                   </h3>
                   <span className="text-[10px] font-mono text-[#6B6860] bg-[#F7F6F3] px-2 py-0.5 rounded border border-[#E8E6E1]">
                     ABAC Log Guard Active
                   </span>
+                </div>
+
+                <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3.5 text-xs text-[#1A1A1A]">
+                  <span className="font-bold block mb-1">Lead Requirement Notes</span>
+                  <p className="text-[#6B6860] whitespace-pre-wrap">{student.notes || 'No preliminary notes recorded.'}</p>
                 </div>
 
                 <div className="relative pl-6 space-y-6 before:absolute before:bottom-0 before:top-2 before:left-2.5 before:w-0.5 before:bg-[#E8E6E1]">
@@ -1677,108 +1658,32 @@ export function StudentDetailDrawer() {
                     <p className="text-xs text-[#6B6860] italic">No historical activities found.</p>
                   )}
                 </div>
-              </div>
-            )}
-
-            {/* ========================================================= */}
-            {/* TAB: UNIFIED PIPELINE */}
-            {/* ========================================================= */}
-            {activeTab === 'statuses' && (
-              <div className="space-y-4">
-                <h3 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5">
-                  <Layers className="h-4 w-4 text-[#00319D]" />
-                  Unified lead lifecycle
-                </h3>
-                <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3.5 space-y-3">
-                  <label className="block text-xs font-bold text-[#1A1A1A]">Pipeline stage</label>
-                  <select
-                    value={student.pipelineStage || 'New'}
-                    onChange={(e) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: e.target.value as any })}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-                  >
-                    <option>New</option><option>Active</option><option>Qualified</option><option>Option Shared</option><option>Payment</option><option>Fulfilment</option><option>Closed Won</option><option>Disqualified</option><option>Cancelled</option>
-                  </select>
-                  {(student.pipelineStage === 'Disqualified' || student.pipelineStage === 'Cancelled') && (
-                    <>
-                      <label className="block text-xs font-bold text-[#1A1A1A]">Exit reason</label>
-                      <select
-                        value={student.exitReason || ''}
-                        onChange={(e) => updateStudentDecoupledStatus(student.studentId, { exitReason: e.target.value as any })}
-                        className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-                      >
-                        <option value="">Select a reason</option><option>No response</option><option>Not qualified</option><option>Budget mismatch</option><option>No suitable option</option><option>Changed plans</option><option>Payment failed</option><option>Requested cancellation</option><option>Other</option>
-                      </select>
-                    </>
-                  )}
-                </div>
-                <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3.5 space-y-2">
-                  <label className="block text-xs font-bold text-[#1A1A1A]">Priority</label>
-                  <select
-                    value={student.priority || 'Medium'}
-                    onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as any })}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-                  >
-                    <option>Urgent</option><option>High</option><option>Medium</option><option>Low</option>
-                  </select>
-                </div>
-                <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3.5 space-y-3">
-                  <label className="block text-xs font-bold text-[#1A1A1A]">Booking details</label>
-                  <input aria-label="Property" placeholder="Property" defaultValue={student.propertyName || ''} onBlur={(e) => updateStudentDecoupledStatus(student.studentId, { propertyName: e.target.value })} className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs" />
-                  <select aria-label="Provider type" defaultValue={student.providerType || ''} onChange={(e) => updateStudentDecoupledStatus(student.studentId, { providerType: e.target.value as any })} className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs">
-                    <option value="">Provider type</option><option>PBSA</option><option>HMO</option><option>Landlord</option>
-                  </select>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input aria-label="Tenancy duration" placeholder="Tenancy duration" defaultValue={student.tenancyDuration || ''} onBlur={(e) => updateStudentDecoupledStatus(student.studentId, { tenancyDuration: e.target.value })} className="rounded-lg border border-[#E8E6E1] p-2 text-xs" />
-                    <input aria-label="Rent amount" type="number" placeholder="Rent amount" defaultValue={student.rentAmount || ''} onBlur={(e) => updateStudentDecoupledStatus(student.studentId, { rentAmount: Number(e.target.value) || 0 })} className="rounded-lg border border-[#E8E6E1] p-2 text-xs" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <select aria-label="Rent payment period" defaultValue={student.rentPaymentPeriod || ''} onChange={(e) => updateStudentDecoupledStatus(student.studentId, { rentPaymentPeriod: e.target.value as any })} className="rounded-lg border border-[#E8E6E1] p-2 text-xs">
-                      <option value="">Payment period</option><option>Weekly</option><option>Monthly</option><option>Termly</option><option>Annual</option>
-                    </select>
-                    <select aria-label="Commissionable" defaultValue={student.commissionable === undefined ? '' : String(student.commissionable)} onChange={(e) => updateStudentDecoupledStatus(student.studentId, { commissionable: e.target.value === 'true' })} className="rounded-lg border border-[#E8E6E1] p-2 text-xs">
-                      <option value="">Commissionable?</option><option value="true">Yes</option><option value="false">No</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ========================================================= */}
-            {/* TAB: STAFF NOTES */}
-            {/* ========================================================= */}
-            {activeTab === 'notes' && (
-              <div className="space-y-4">
-                <h3 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-[#00319D]" />
-                  Operational Notes
-                </h3>
-
-                <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3.5 text-xs text-[#1A1A1A]">
-                  <span className="font-bold text-[#1A1A1A] block mb-1">Lead Requirement Notes:</span>
-                  <p className="text-[#6B6860]">{student.notes || 'No preliminary notes recorded.'}</p>
-                </div>
 
                 <form onSubmit={handleAddNote} className="space-y-2">
-                  <label className="block text-xs font-bold text-[#1A1A1A]">
-                    Add Counselor / Operations Note
-                  </label>
+                  <label htmlFor="activity-note" className="sr-only">Add activity note</label>
                   <textarea
-                    rows={3}
+                    id="activity-note"
+                    rows={2}
                     value={newNote}
                     onChange={(e) => setNewNote(e.target.value)}
-                    placeholder="Enter counselor observations, guarantor details, or accommodation preference notes..."
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-3 text-xs text-[#1A1A1A] placeholder:text-[#6B6860] focus:outline-none focus:border-[#00319D]"
+                    placeholder="Add a note about this lead..."
+                    className="w-full resize-none overflow-hidden rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-3 text-xs text-[#1A1A1A] placeholder:text-[#6B6860] focus:outline-none focus:border-[#00319D]"
+                    onInput={(e) => {
+                      e.currentTarget.style.height = 'auto';
+                      e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                    }}
                   />
                   <button
                     type="submit"
-                    className="flex items-center gap-1.5 rounded-lg bg-[#00319D] px-4 py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors"
+                    className="rounded-lg bg-[#00319D] px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors"
                   >
-                    <Send className="h-3.5 w-3.5" />
-                    Save Note to Activity Log
+                    Add Note
                   </button>
                 </form>
               </div>
             )}
+
+
           </div>
         </div>
       </div>
