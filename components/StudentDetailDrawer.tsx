@@ -68,7 +68,7 @@ export function StudentDetailDrawer() {
     unflagRecordForArchival,
   } = useHearthAway();
 
-  const [activeTab, setActiveTab] = useState<'timeline' | 'statuses' | 'bookings' | 'payments' | 'notes'>('bookings');
+  const [activeTab, setActiveTab] = useState<'timeline' | 'statuses' | 'bookings' | 'payments' | 'notes'>('timeline');
 
   // ==========================================
   // PAYMENT FORM & PROOF UPLOAD STATE
@@ -580,7 +580,7 @@ export function StudentDetailDrawer() {
             <div className="mt-4 flex border-b border-[#E8E6E1] gap-4 text-xs font-semibold overflow-x-auto">
               <button
                 onClick={() => setActiveTab('bookings')}
-                className={`pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
+                className={`order-4 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'bookings'
                     ? 'border-[#00319D] text-[#00319D]'
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
@@ -592,7 +592,7 @@ export function StudentDetailDrawer() {
 
               <button
                 onClick={() => setActiveTab('payments')}
-                className={`pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
+                className={`order-5 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'payments'
                     ? 'border-[#00319D] text-[#00319D]'
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
@@ -604,19 +604,19 @@ export function StudentDetailDrawer() {
 
               <button
                 onClick={() => setActiveTab('timeline')}
-                className={`pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
+                className={`order-1 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'timeline'
                     ? 'border-[#00319D] text-[#00319D]'
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
                 }`}
               >
                 <Clock className="h-3.5 w-3.5" />
-                Audit Timeline ({studentActivities.length})
+                Attribution ({studentActivities.length})
               </button>
 
               <button
                 onClick={() => setActiveTab('statuses')}
-                className={`pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
+                className={`order-2 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'statuses'
                     ? 'border-[#00319D] text-[#00319D]'
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
@@ -628,14 +628,14 @@ export function StudentDetailDrawer() {
 
               <button
                 onClick={() => setActiveTab('notes')}
-                className={`pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
+                className={`order-3 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'notes'
                     ? 'border-[#00319D] text-[#00319D]'
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
                 }`}
               >
                 <FileText className="h-3.5 w-3.5" />
-                Staff Notes
+                Notes
               </button>
             </div>
           </div>
