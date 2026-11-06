@@ -157,7 +157,7 @@ interface HearthAwayContextType {
       moveInStatus?: MoveInStatus;
       commissionStatus?: CommissionStatus;
     }
-  ) => void;
+  ) => Promise<void>;
 
   recordPropertyBooking: (bookingData: {
     studentId: string;
@@ -1122,7 +1122,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     return newStudent;
   };
 
-  const updateStudentDecoupledStatus = (
+  const updateStudentDecoupledStatus = async (
     studentId: string,
     updates: {
       pipelineStage?: PipelineStage;
@@ -1203,11 +1203,12 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       );
     }
 
-    updateDoc(doc(db, 'students', docId), {
+    await updateDoc(doc(db, 'students', docId), {
       ...updates,
       updatedAt: updatedTime,
     }).catch((err) => {
       handleFirestoreError(err, OperationType.WRITE, `students/${docId}`);
+      throw err;
     });
   };
 
@@ -1404,12 +1405,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       partnerId: student?.partnerId,
     };
 
-    setDoc(doc(db, 'payments', docId), newPayment).catch((err) => {
+    await setDoc(doc(db, 'payments', docId), newPayment).catch((err) => {
       handleFirestoreError(err, OperationType.WRITE, `payments/${docId}`);
+      throw err;
     });
 
-    updateStudentDecoupledStatus(data.studentId, {
-      bookingStatus: 'Payment Pending',
+    await updateStudentDecoupledStatus(data.studentId, {
+      pipelineStage: 'Payment',
     });
 
     if (data.proofBypassReason) {
