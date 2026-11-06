@@ -502,111 +502,120 @@ export function StudentDetailDrawer() {
             </div>
 
             {/* Quick Action Ribbon */}
-            <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div className="mt-4 grid w-full grid-cols-1 gap-x-2 gap-y-2 text-xs sm:w-max sm:grid-cols-[max-content_max-content]">
+              {/* Call */}
               <a
                 href={`tel:${student.phone}`}
                 onClick={() =>
                   logStudentActivity(student.studentId, 'Phone Call', `Outbound call initiated to ${student.phone}`)
                 }
-                className="flex items-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
               >
                 <Phone className="h-3.5 w-3.5 text-[#00319D]" />
                 Call ({student.phone})
               </a>
 
-              <a
-                href={`https://wa.me/${student.whatsApp.replace(/[^0-9]/g, '')}?text=Hi%20${encodeURIComponent(student.firstName)},%20this%20is%20${encodeURIComponent(currentUser.displayName)}%20from%20HearthAway.`}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() =>
-                  logStudentActivity(student.studentId, 'WhatsApp Outbound', `WhatsApp chat initiated to ${student.whatsApp}`)
-                }
-                className="flex items-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
-              >
-                <MessageSquare className="h-3.5 w-3.5 text-[#00319D]" />
-                WhatsApp
-              </a>
+              {/* WhatsApp + Email */}
+              <div className="flex w-full min-w-0 items-center gap-2 sm:w-max">
+                <a
+                  href={`https://wa.me/${student.whatsApp.replace(/[^0-9]/g, '')}?text=Hi%20${encodeURIComponent(student.firstName)},%20this%20is%20${encodeURIComponent(currentUser.displayName)}%20from%20HearthAway.`}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() =>
+                    logStudentActivity(student.studentId, 'WhatsApp Outbound', `WhatsApp chat initiated to ${student.whatsApp}`)
+                  }
+                  className="flex flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
+                >
+                  <MessageSquare className="h-3.5 w-3.5 text-[#00319D]" />
+                  WhatsApp
+                </a>
 
-              <a
-                href={`mailto:${student.email}?subject=HearthAway%20Accommodation%20Update%20-${student.studentId}`}
-                onClick={() =>
-                  logStudentActivity(student.studentId, 'Email Outbound', `Email client opened for ${student.email}`)
-                }
-                className="flex items-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
-              >
-                <Mail className="h-3.5 w-3.5 text-[#00319D]" />
-                Email
-              </a>
-
-              {/* Ownership & Relationships Bar */}
-              <div className="flex items-center gap-2 text-xs">
-                {(() => {
-                  const partner = partners.find((p) => p.partnerId === student.partnerId);
-                  const portfolioOwner = partner?.portfolioOwnerName || 'Beatrice Vance';
-                  const salesUsers = availableUsers.filter((u) => u.role === 'sales');
-                  return (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="flex items-center gap-1 text-[11px] text-[#6B6860] bg-[#FFFFFF] px-2 py-1 rounded border border-[#E8E6E1]">
-                        <span>Portfolio Owner:</span>
-                        <strong className="text-[#1A1A1A]">{portfolioOwner}</strong>
-                      </div>
-                      <div className="flex items-center gap-1 text-[11px] text-[#6B6860] bg-[#FFFFFF] px-2 py-0.5 rounded border border-[#E8E6E1]">
-                        <span>Sales Owner:</span>
-                        <select
-                          value={student.assignedSalesExecutiveId}
-                          onChange={(e) => {
-                            const selectedUser = availableUsers.find((u) => u.uid === e.target.value);
-                            if (selectedUser) {
-                              reassignLeadSalesOwner(student.studentId, selectedUser.uid, selectedUser.displayName);
-                            }
-                          }}
-                          className="bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-[11px]"
-                        >
-                          <option value="">Unassigned</option>
-                          {salesUsers.map((su) => (
-                            <option key={su.uid} value={su.uid}>
-                              {su.displayName}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <label className="flex items-center gap-1 text-[11px] text-[#6B6860] bg-[#FFFFFF] px-2 py-1 rounded border border-[#E8E6E1]">
-                        <span>Pipeline Stage:</span>
-                        <select
-                          aria-label="Pipeline Stage"
-                          value={student.pipelineStage || 'New'}
-                          onChange={(e) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: e.target.value as any })}
-                          className="bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-[11px]"
-                        >
-                          <option>New</option>
-                          <option>Active</option>
-                          <option>Qualified</option>
-                          <option>Option Shared</option>
-                          <option>Payment</option>
-                          <option>Fulfilment</option>
-                          <option>Closed Won</option>
-                          <option>Disqualified</option>
-                          <option>Cancelled</option>
-                        </select>
-                      </label>
-                      <label className="flex items-center gap-1 text-[11px] text-[#6B6860] bg-[#FFFFFF] px-2 py-1 rounded border border-[#E8E6E1]">
-                        <span>Priority:</span>
-                        <select
-                          aria-label="Priority"
-                          value={student.priority || 'Medium'}
-                          onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as any })}
-                          className="bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-[11px]"
-                        >
-                          <option>Urgent</option>
-                          <option>High</option>
-                          <option>Medium</option>
-                          <option>Low</option>
-                        </select>
-                      </label>
-                    </div>
-                  );
-                })()}
+                <a
+                  href={`mailto:${student.email}?subject=HearthAway%20Accommodation%20Update%20-${student.studentId}`}
+                  onClick={() =>
+                    logStudentActivity(student.studentId, 'Email Outbound', `Email client opened for ${student.email}`)
+                  }
+                  className="flex flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
+                >
+                  <Mail className="h-3.5 w-3.5 text-[#00319D]" />
+                  Email
+                </a>
               </div>
+
+              {(() => {
+                const partner = partners.find((p) => p.partnerId === student.partnerId);
+                const portfolioOwner = partner?.portfolioOwnerName || 'Beatrice Vance';
+                const salesUsers = availableUsers.filter((u) => u.role === 'sales');
+
+                return (
+                  <>
+                    {/* Portfolio Owner */}
+                    <div className="flex w-full min-w-0 items-center gap-1 overflow-hidden rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-[11px] text-[#6B6860]">
+                      <span className="shrink-0">Portfolio Owner:</span>
+                      <strong className="min-w-0 truncate text-[#1A1A1A]">{portfolioOwner}</strong>
+                    </div>
+
+                    {/* Sales Owner */}
+                    <div className="flex w-full min-w-0 items-center gap-1 rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-[11px] text-[#6B6860]">
+                      <span className="shrink-0">Sales Owner:</span>
+                      <select
+                        value={student.assignedSalesExecutiveId}
+                        onChange={(e) => {
+                          const selectedUser = availableUsers.find((u) => u.uid === e.target.value);
+                          if (selectedUser) {
+                            reassignLeadSalesOwner(student.studentId, selectedUser.uid, selectedUser.displayName);
+                          }
+                        }}
+                        className="min-w-0 flex-1 bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-[11px]"
+                      >
+                        <option value="">Unassigned</option>
+                        {salesUsers.map((su) => (
+                          <option key={su.uid} value={su.uid}>
+                            {su.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Priority */}
+                    <label className="flex w-full min-w-0 items-center gap-1 rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-[11px] text-[#6B6860]">
+                      <span className="shrink-0">Priority:</span>
+                      <select
+                        aria-label="Priority"
+                        value={student.priority || 'Medium'}
+                        onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as any })}
+                        className="min-w-0 flex-1 bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-[11px]"
+                      >
+                        <option>Urgent</option>
+                        <option>High</option>
+                        <option>Medium</option>
+                        <option>Low</option>
+                      </select>
+                    </label>
+
+                    {/* Pipeline Stage */}
+                    <label className="flex w-full min-w-0 items-center gap-1 rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-[11px] text-[#6B6860]">
+                      <span className="shrink-0">Pipeline Stage:</span>
+                      <select
+                        aria-label="Pipeline Stage"
+                        value={student.pipelineStage || 'New'}
+                        onChange={(e) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: e.target.value as any })}
+                        className="min-w-0 flex-1 bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-[11px]"
+                      >
+                        <option>New</option>
+                        <option>Active</option>
+                        <option>Qualified</option>
+                        <option>Option Shared</option>
+                        <option>Payment</option>
+                        <option>Fulfilment</option>
+                        <option>Closed Won</option>
+                        <option>Disqualified</option>
+                        <option>Cancelled</option>
+                      </select>
+                    </label>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Navigation Tabs */}
@@ -1194,156 +1203,6 @@ export function StudentDetailDrawer() {
             {/* ========================================================= */}
             {activeTab === 'payments' && (
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5">
-                    <DollarSign className="h-4 w-4 text-[#00319D]" />
-                    Payment Transactions &amp; Proofs
-                  </h3>
-                  <p className="text-xs text-[#6B6860] mt-0.5">
-                    Audited ledger of reservation payments, holding deposits, and receipts for {student.fullName}.
-                  </p>
-                </div>
-
-                {/* List of Payments */}
-                <div className="space-y-4">
-                  {studentPayments.map((pmt) => (
-                    <div
-                      key={pmt.paymentId || pmt.id}
-                      className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-[#1A1A1A]">{pmt.paymentId}</span>
-                            {pmt.bookingId && (
-                              <span className="font-mono text-[10px] text-[#00319D] bg-[#F7F6F3] px-1.5 py-0.5 rounded border border-[#E8E6E1]">
-                                Booking: {pmt.bookingId}
-                              </span>
-                            )}
-                            <span
-                              className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${
-                                pmt.paymentStatus === 'Verified'
-                                  ? 'bg-[#00319D]/10 text-[#00319D] border-[#00319D]/30'
-                                  : pmt.paymentStatus === 'Rejected'
-                                  ? 'bg-[#1A1A1A]/5 text-[#1A1A1A] border-[#E8E6E1]'
-                                  : 'bg-[#FCC20A]/20 text-[#1A1A1A] border-[#FCC20A]'
-                              }`}
-                            >
-                              {pmt.paymentStatus}
-                            </span>
-                          </div>
-
-                          <p className="text-lg font-bold text-[#1A1A1A] mt-1">
-                            {CURRENCY_SYMBOLS[pmt.currency] || pmt.currency} {pmt.amount.toLocaleString()}
-                          </p>
-                          <p className="text-xs text-[#6B6860] mt-0.5">
-                            Method: {pmt.paymentMethod} • Date: {pmt.paymentDate}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Payment Proof Attachments List */}
-                      {pmt.attachments && pmt.attachments.length > 0 && (
-                        <div className="rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] p-3 space-y-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#00319D] block">
-                            Attached Payment Proofs ({pmt.attachments.length})
-                          </span>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {pmt.attachments.map((att) => {
-                              const isPdf = att.fileType.includes('pdf') || att.fileName.toLowerCase().endsWith('.pdf');
-                              return (
-                                <div
-                                  key={att.id}
-                                  className="flex items-center justify-between gap-2 p-2 rounded-md bg-[#FFFFFF] border border-[#E8E6E1] text-xs"
-                                >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    {isPdf ? (
-                                      <File className="h-4 w-4 text-[#00319D] shrink-0" />
-                                    ) : (
-                                      <ImageIcon className="h-4 w-4 text-[#00319D] shrink-0" />
-                                    )}
-                                    <div className="min-w-0">
-                                      <p className="text-xs font-semibold text-[#1A1A1A] truncate" title={att.fileName}>
-                                        {att.fileName}
-                                      </p>
-                                      <p className="text-[10px] text-[#6B6860]">
-                                        {formatFileSize(att.fileSize)}
-                                      </p>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    <button
-                                      type="button"
-                                      onClick={() => setPreviewAttachment(att)}
-                                      className="rounded p-1 text-[#00319D] hover:bg-[#F7F6F3] transition-colors"
-                                      title="Preview Proof"
-                                    >
-                                      <Eye className="h-3.5 w-3.5" />
-                                    </button>
-                                    <a
-                                      href={att.fileUrl}
-                                      download={att.fileName}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="rounded p-1 text-[#6B6860] hover:bg-[#F7F6F3] hover:text-[#1A1A1A] transition-colors"
-                                      title="Download Proof"
-                                    >
-                                      <Download className="h-3.5 w-3.5" />
-                                    </a>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Management Proof Bypass Notice */}
-                      {pmt.proofBypassReason && (
-                        <div className="rounded-lg border border-[#FCC20A] bg-[#FCC20A]/10 p-2.5 text-xs text-[#1A1A1A] flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 text-[#00319D] shrink-0 mt-0.5" />
-                          <div>
-                            <span className="font-bold block">
-                              Payment Proof Requirement Bypassed by Management:
-                            </span>
-                            <span className="text-[#6B6860]">
-                              &quot;{pmt.proofBypassReason}&quot;
-                            </span>
-                            {pmt.proofBypassedBy && (
-                              <span className="text-[10px] text-[#6B6860] block mt-0.5">
-                                Authorized by: {pmt.proofBypassedBy}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="pt-2 border-t border-[#E8E6E1] text-[11px] text-[#6B6860] flex flex-wrap justify-between gap-1">
-                        <span>Uploaded by: <strong className="text-[#1A1A1A]">{pmt.uploadedBy}</strong> ({pmt.uploadedTimestamp})</span>
-                        {pmt.verifiedBy && (
-                          <span className="text-[#00319D] font-semibold">
-                            Verified by: {pmt.verifiedBy} ({pmt.verificationTimestamp})
-                          </span>
-                        )}
-                      </div>
-
-                      {pmt.remarks && (
-                        <p className="text-xs bg-[#F7F6F3] p-2 rounded-lg text-[#6B6860] italic">
-                          &quot;{pmt.remarks}&quot;
-                        </p>
-                      )}
-                    </div>
-                  ))}
-
-                  {studentPayments.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-[#E8E6E1] p-6 text-center text-xs text-[#6B6860]">
-                      No payments submitted yet for this student record.
-                    </div>
-                  )}
-                </div>
-
                 {/* Upload Terminal: Record Payment Transaction */}
                 <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-5 shadow-xs">
                   <h4 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5 mb-3">
@@ -1607,6 +1466,157 @@ export function StudentDetailDrawer() {
                     </button>
                   </form>
                 </div>
+
+                <div>
+                  <h3 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5">
+                    <DollarSign className="h-4 w-4 text-[#00319D]" />
+                    Payment Transactions &amp; Proofs
+                  </h3>
+                  <p className="text-xs text-[#6B6860] mt-0.5">
+                    Audited ledger of reservation payments, holding deposits, and receipts for {student.fullName}.
+                  </p>
+                </div>
+
+                {/* List of Payments */}
+                <div className="space-y-4">
+                  {studentPayments.map((pmt) => (
+                    <div
+                      key={pmt.paymentId || pmt.id}
+                      className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-[#1A1A1A]">{pmt.paymentId}</span>
+                            {pmt.bookingId && (
+                              <span className="font-mono text-[10px] text-[#00319D] bg-[#F7F6F3] px-1.5 py-0.5 rounded border border-[#E8E6E1]">
+                                Booking: {pmt.bookingId}
+                              </span>
+                            )}
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${
+                                pmt.paymentStatus === 'Verified'
+                                  ? 'bg-[#00319D]/10 text-[#00319D] border-[#00319D]/30'
+                                  : pmt.paymentStatus === 'Rejected'
+                                  ? 'bg-[#1A1A1A]/5 text-[#1A1A1A] border-[#E8E6E1]'
+                                  : 'bg-[#FCC20A]/20 text-[#1A1A1A] border-[#FCC20A]'
+                              }`}
+                            >
+                              {pmt.paymentStatus}
+                            </span>
+                          </div>
+
+                          <p className="text-lg font-bold text-[#1A1A1A] mt-1">
+                            {CURRENCY_SYMBOLS[pmt.currency] || pmt.currency} {pmt.amount.toLocaleString()}
+                          </p>
+                          <p className="text-xs text-[#6B6860] mt-0.5">
+                            Method: {pmt.paymentMethod} • Date: {pmt.paymentDate}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Payment Proof Attachments List */}
+                      {pmt.attachments && pmt.attachments.length > 0 && (
+                        <div className="rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] p-3 space-y-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#00319D] block">
+                            Attached Payment Proofs ({pmt.attachments.length})
+                          </span>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {pmt.attachments.map((att) => {
+                              const isPdf = att.fileType.includes('pdf') || att.fileName.toLowerCase().endsWith('.pdf');
+                              return (
+                                <div
+                                  key={att.id}
+                                  className="flex items-center justify-between gap-2 p-2 rounded-md bg-[#FFFFFF] border border-[#E8E6E1] text-xs"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    {isPdf ? (
+                                      <File className="h-4 w-4 text-[#00319D] shrink-0" />
+                                    ) : (
+                                      <ImageIcon className="h-4 w-4 text-[#00319D] shrink-0" />
+                                    )}
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold text-[#1A1A1A] truncate" title={att.fileName}>
+                                        {att.fileName}
+                                      </p>
+                                      <p className="text-[10px] text-[#6B6860]">
+                                        {formatFileSize(att.fileSize)}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewAttachment(att)}
+                                      className="rounded p-1 text-[#00319D] hover:bg-[#F7F6F3] transition-colors"
+                                      title="Preview Proof"
+                                    >
+                                      <Eye className="h-3.5 w-3.5" />
+                                    </button>
+                                    <a
+                                      href={att.fileUrl}
+                                      download={att.fileName}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="rounded p-1 text-[#6B6860] hover:bg-[#F7F6F3] hover:text-[#1A1A1A] transition-colors"
+                                      title="Download Proof"
+                                    >
+                                      <Download className="h-3.5 w-3.5" />
+                                    </a>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Management Proof Bypass Notice */}
+                      {pmt.proofBypassReason && (
+                        <div className="rounded-lg border border-[#FCC20A] bg-[#FCC20A]/10 p-2.5 text-xs text-[#1A1A1A] flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 text-[#00319D] shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold block">
+                              Payment Proof Requirement Bypassed by Management:
+                            </span>
+                            <span className="text-[#6B6860]">
+                              &quot;{pmt.proofBypassReason}&quot;
+                            </span>
+                            {pmt.proofBypassedBy && (
+                              <span className="text-[10px] text-[#6B6860] block mt-0.5">
+                                Authorized by: {pmt.proofBypassedBy}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="pt-2 border-t border-[#E8E6E1] text-[11px] text-[#6B6860] flex flex-wrap justify-between gap-1">
+                        <span>Uploaded by: <strong className="text-[#1A1A1A]">{pmt.uploadedBy}</strong> ({pmt.uploadedTimestamp})</span>
+                        {pmt.verifiedBy && (
+                          <span className="text-[#00319D] font-semibold">
+                            Verified by: {pmt.verifiedBy} ({pmt.verificationTimestamp})
+                          </span>
+                        )}
+                      </div>
+
+                      {pmt.remarks && (
+                        <p className="text-xs bg-[#F7F6F3] p-2 rounded-lg text-[#6B6860] italic">
+                          &quot;{pmt.remarks}&quot;
+                        </p>
+                      )}
+                    </div>
+                  ))}
+
+                  {studentPayments.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-[#E8E6E1] p-6 text-center text-xs text-[#6B6860]">
+                      No payments submitted yet for this student record.
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
 
