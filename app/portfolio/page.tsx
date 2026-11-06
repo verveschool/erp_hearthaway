@@ -594,13 +594,6 @@ export default function PortfolioPage() {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-md bg-[#00319D]/10 px-2.5 py-0.5 text-xs font-bold text-[#00319D] uppercase tracking-wider">
-                  <Layers className="h-3.5 w-3.5" />
-                  Management &amp; Portfolio
-                </span>
-                <span className="text-xs text-[#6B6860]">• Organization-Wide Control &amp; Audit</span>
-              </div>
               <h1 className="text-2xl font-extrabold text-[#1A1A1A] mt-1 tracking-tight">
                 Management Dashboard
               </h1>

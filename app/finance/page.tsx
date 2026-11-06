@@ -195,13 +195,6 @@ export default function FinancePage() {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-md bg-[#00319D]/10 px-2.5 py-0.5 text-xs font-bold text-[#00319D] uppercase tracking-wider">
-                  <CreditCard className="h-3.5 w-3.5" />
-                  Module 4
-                </span>
-                <span className="text-xs text-[#6B6860]">• Financial Ledger &amp; Payouts</span>
-              </div>
               <h1 className="text-2xl font-extrabold text-[#1A1A1A] mt-1 tracking-tight">
                 Finance
               </h1>

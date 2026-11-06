@@ -16,7 +16,6 @@ export default function ManagementPage() {
   return (
     <main className="mx-auto max-w-6xl p-6 lg:p-10">
       <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">Management</p>
         <h1 className="mt-2 text-3xl font-bold text-slate-900">User administration</h1>
         <p className="mt-2 text-sm text-slate-600">Change access levels or remove Firebase profiles. Invalid sign-ins are no longer added here.</p>
       </div>
