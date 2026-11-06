@@ -635,7 +635,7 @@ export default function PartnersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F6F3] pb-16">
+    <div className="min-h-screen bg-[#FFFFFF] pb-16">
       {/* Top Header */}
       <div className="border-b border-[#E8E6E1] bg-[#FFFFFF] px-4 sm:px-6 lg:px-8 py-6">
         <div className="max-w-7xl mx-auto">
