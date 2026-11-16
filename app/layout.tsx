@@ -2,6 +2,7 @@ import type {Metadata} from 'next';
 import { Manrope } from 'next/font/google';
 import './globals.css'; // Global styles
 import { ClientShell } from '@/components/ClientShell';
+import { Analytics } from '@vercel/analytics/next';
 
 const manrope = Manrope({
   subsets: ['latin'],
@@ -34,6 +35,7 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
     <html lang="en" className={manrope.variable} suppressHydrationWarning>
       <body className={`${manrope.className} bg-[#F7F6F3] text-[#1A1A1A] antialiased`} suppressHydrationWarning>
         <ClientShell>{children}</ClientShell>
+        <Analytics />
       </body>
     </html>
   );
