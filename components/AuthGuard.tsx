@@ -28,7 +28,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   } = useHearthAway();
 
   if (!authInitialized) {
-    return <div className="min-h-[70vh]" aria-busy="true" />;
+    return <div className="min-h-[70vh] grid place-items-center text-sm text-ha-secondary" role="status">Opening workspace…</div>;
   }
 
   const access = canAccessRoute(pathname);
@@ -42,7 +42,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   if (access.reason === 'unauthenticated') {
     return (
       <div className="min-h-[70vh] flex items-center justify-center py-12 px-4 sm:px-6">
-        <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 text-center shadow-xs space-y-6">
+        <div className="ha-auth-card w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 text-center shadow-xs space-y-6">
           <div className="h-12 w-12 rounded-xl bg-[#F7F6F3] border border-[#E8E6E1] text-[#00319D] flex items-center justify-center mx-auto">
             <Lock className="h-5 w-5" />
           </div>
@@ -75,7 +75,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   if (access.reason === 'pending_approval') {
     return (
       <div className="min-h-[70vh] flex items-center justify-center py-12 px-4 sm:px-6">
-        <div className="w-full max-w-lg rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 text-center shadow-xs space-y-6">
+        <div className="ha-auth-card w-full max-w-lg rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 text-center shadow-xs space-y-6">
           <div className="h-12 w-12 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center mx-auto">
             <Lock className="h-5 w-5 text-amber-600" />
           </div>
@@ -133,7 +133,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center py-12 px-4 sm:px-6">
-      <div className="w-full max-w-lg rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 text-center shadow-xs space-y-6">
+      <div className="ha-auth-card w-full max-w-lg rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 text-center shadow-xs space-y-6">
         <div className="h-12 w-12 rounded-xl bg-[#F7F6F3] border border-[#E8E6E1] text-[#1A1A1A] flex items-center justify-center mx-auto">
           <ShieldAlert className="h-5 w-5 text-[#00319D]" />
         </div>

@@ -1,5 +1,7 @@
 'use client';
 
+import { WorkspaceDialog } from '@/components/WorkspaceDialog';
+
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { useHearthAway } from '@/lib/context';
@@ -217,10 +219,11 @@ export function LoginModal() {
     .toUpperCase();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+    <WorkspaceDialog label="Account access and profile" onDismiss={() => setIsLoginModalOpen(false)}>
       <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 sm:p-7 shadow-2xl relative animate-in zoom-in-95 duration-150">
         {/* Close Button */}
         <button
+          aria-label="Close dialog"
           onClick={() => setIsLoginModalOpen(false)}
           className="absolute top-5 right-5 rounded-lg p-1 text-[#6B6860] hover:bg-[#F7F6F3] hover:text-[#1A1A1A] transition-colors focus:outline-none cursor-pointer"
         >
@@ -242,6 +245,7 @@ export function LoginModal() {
         {/* Auth Mode Tabs (Sign In or Profile & Photo) */}
         <div className="grid grid-cols-2 gap-1 bg-[#F7F6F3] p-1 rounded-lg text-xs font-semibold mb-5 border border-[#E8E6E1]">
           <button
+            aria-pressed={authModalTab === 'signin'}
             onClick={() => setAuthModalTab('signin')}
             className={`flex items-center justify-center gap-1.5 py-1.5 rounded-md transition-all cursor-pointer ${
               authModalTab === 'signin'
@@ -253,6 +257,7 @@ export function LoginModal() {
             Sign In
           </button>
           <button
+            aria-pressed={authModalTab === 'manage'}
             onClick={() => setAuthModalTab('manage')}
             className={`flex items-center justify-center gap-1.5 py-1.5 rounded-md transition-all cursor-pointer ${
               authModalTab === 'manage'
@@ -271,12 +276,13 @@ export function LoginModal() {
             {!isForgotPassword ? (
               <form onSubmit={handleSignIn} className="space-y-3.5">
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
+                  <label htmlFor="loginmodal-signin-email" className="block text-xs font-semibold text-[#1A1A1A] mb-1">
                     Email Address
                   </label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
                     <input
+                      id="loginmodal-signin-email"
                       type="email"
                       required
                       value={signinEmail}
@@ -288,7 +294,7 @@ export function LoginModal() {
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-semibold text-[#1A1A1A]">
+                    <label htmlFor="loginmodal-signin-password" className="block text-xs font-semibold text-[#1A1A1A]">
                       Password
                     </label>
                     <button
@@ -307,6 +313,7 @@ export function LoginModal() {
                   <div className="relative">
                     <Key className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
                     <input
+                      id="loginmodal-signin-password"
                       type="password"
                       value={signinPassword}
                       onChange={(e) => setSigninPassword(e.target.value)}
@@ -337,7 +344,7 @@ export function LoginModal() {
                 </div>
 
                 {resetSuccess && (
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 flex items-start gap-2 text-xs text-emerald-800">
+                  <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 flex items-start gap-2 text-xs text-emerald-800">
                     <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
                     <div>
                       <p className="font-bold">Password Reset Link Sent!</p>
@@ -349,7 +356,7 @@ export function LoginModal() {
                 )}
 
                 {resetError && (
-                  <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 flex items-start gap-2 text-xs text-rose-800">
+                  <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 flex items-start gap-2 text-xs text-rose-800">
                     <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
                     <div>
                       <p className="font-bold">Reset Request Failed</p>
@@ -359,12 +366,13 @@ export function LoginModal() {
                 )}
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
+                  <label htmlFor="loginmodal-forgot-email" className="block text-xs font-semibold text-[#1A1A1A] mb-1">
                     Registered Email Address
                   </label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
                     <input
+                      id="loginmodal-forgot-email"
                       type="email"
                       required
                       value={forgotEmail}
@@ -491,7 +499,7 @@ export function LoginModal() {
               </div>
 
               {uploadError && (
-                <p className="text-[11px] text-rose-600 font-medium">{uploadError}</p>
+                <p role="alert" className="text-[11px] text-rose-600 font-medium">{uploadError}</p>
               )}
 
               {/* Preset Avatars for quick selection */}
@@ -527,10 +535,11 @@ export function LoginModal() {
             {/* Edit Display Name Form */}
             <form onSubmit={handleSaveProfile} className="space-y-3 border-t border-[#E8E6E1] pt-4">
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
+                <label htmlFor="loginmodal-edit-name" className="block text-xs font-semibold text-[#1A1A1A] mb-1">
                   Update Display Name
                 </label>
                 <input
+                  id="loginmodal-edit-name"
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
@@ -579,6 +588,6 @@ export function LoginModal() {
           setTimeout(() => setProfileSaved(false), 2000);
         }}
       />
-    </div>
+    </WorkspaceDialog>
   );
 }

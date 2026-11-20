@@ -1,5 +1,7 @@
 'use client';
 
+import { WorkspaceDialog } from '@/components/WorkspaceDialog';
+
 import React, { useState, useMemo, useRef } from 'react';
 import { useHearthAway } from '@/lib/context';
 import { Partner, Student } from '@/lib/types';
@@ -635,26 +637,27 @@ export default function PartnersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFFFF] pb-16">
+    <div className="ha-workspace">
       {/* Top Header */}
-      <div className="border-b border-[#E8E6E1] bg-[#FFFFFF] px-4 sm:px-6 lg:px-8 py-6">
-        <div className="max-w-7xl mx-auto">
+      <div className="ha-page-header">
+        <div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-extrabold text-[#1A1A1A] mt-1 tracking-tight">
+              <h1 className="ha-title">
                 Partners
               </h1>
-              <p className="text-xs text-[#6B6860] mt-0.5 max-w-2xl">
-                Bifurcate and manage education consultants by state, city, agreements, and portfolio owners.
+              <p className="ha-summary">
+                Manage partner agencies, agreements, portfolio owners and student referrals.
               </p>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex max-w-full flex-wrap items-center gap-2.5">
               {/* View Switcher: Directory vs Bifurcated */}
               {!isPartner && (
                 <div className="inline-flex items-center rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] p-1 text-xs">
                   <button
+                    aria-pressed={viewMode === 'directory'}
                     onClick={() => setViewMode('directory')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold transition-all cursor-pointer ${
                       viewMode === 'directory'
@@ -666,6 +669,7 @@ export default function PartnersPage() {
                     Table View
                   </button>
                   <button
+                    aria-pressed={viewMode === 'bifurcated'}
                     onClick={() => setViewMode('bifurcated')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold transition-all cursor-pointer ${
                       viewMode === 'bifurcated'
@@ -674,7 +678,7 @@ export default function PartnersPage() {
                     }`}
                   >
                     <Grid className="h-3.5 w-3.5" />
-                    Bifurcate by State &amp; City
+                    Group by location
                   </button>
                 </div>
               )}
@@ -682,7 +686,7 @@ export default function PartnersPage() {
               {isManagement && (
                 <button
                   onClick={() => { setOnboardingPartner(null); setOnboardingError(''); setShowOnboardModal(true); }}
-                  className="flex items-center gap-1.5 rounded-lg bg-[#00319D] px-3.5 py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs cursor-pointer"
+                  className="ha-primary-action"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Onboard Partner
@@ -715,7 +719,7 @@ export default function PartnersPage() {
               {isPartner && (
                 <button
                   onClick={() => setShowSingleLeadModal(true)}
-                  className="flex items-center gap-1.5 rounded-lg bg-[#00319D] px-3.5 py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs cursor-pointer"
+                  className="ha-primary-action"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Submit Single Lead
@@ -726,7 +730,7 @@ export default function PartnersPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <div className="min-w-0 pt-5">
         {/* VIEW 1: PARTNER USER VIEW (Their agency dashboard) */}
         {isPartner && (
           <div className="space-y-6">
@@ -739,15 +743,15 @@ export default function PartnersPage() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-bold text-[#1A1A1A]">
+                      <h2 className="text-lg font-semibold tabular-nums text-[#1A1A1A]">
                         {currentPartnerRecord?.companyName || currentUser.partnerName || 'Partner Agency'}
                       </h2>
                       {currentPartnerRecord?.partnerId && (
-                        <span className="font-mono text-[10px] font-bold bg-[#F7F6F3] text-[#00319D] px-2 py-0.5 rounded border border-[#E8E6E1]">
+                        <span className="font-mono text-xs font-bold bg-[#F7F6F3] text-[#00319D] px-2 py-0.5 rounded border border-[#E8E6E1]">
                           {currentPartnerRecord.partnerId}
                         </span>
                       )}
-                      <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold border ${formatAgreementBadge(currentPartnerRecord?.agreementStatus)}`}>
+                      <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold border ${formatAgreementBadge(currentPartnerRecord?.agreementStatus)}`}>
                         <FileCheck className="h-3 w-3" />
                         Agreement: {currentPartnerRecord?.agreementStatus || 'Active'}
                       </span>
@@ -760,7 +764,7 @@ export default function PartnersPage() {
 
                 {/* Sourcing & Portfolio Rollup Relation */}
                 <div className="bg-[#F7F6F3] px-4 py-2.5 rounded-xl border border-[#E8E6E1] text-xs">
-                  <span className="text-[10px] font-bold uppercase text-[#6B6860] block">
+                  <span className="text-xs font-bold uppercase text-[#6B6860] block">
                     Your HearthAway Portfolio Owner:
                   </span>
                   <div className="flex items-center gap-1.5 mt-0.5">
@@ -775,24 +779,24 @@ export default function PartnersPage() {
               {/* Agency Quick Stats */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-[#E8E6E1]">
                 <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
-                  <span className="text-[10px] font-bold text-[#6B6860] uppercase block">Total Leads Submitted</span>
-                  <span className="text-lg font-extrabold text-[#00319D]">{partnerLeads.length}</span>
+                  <span className="text-xs font-bold text-[#6B6860] uppercase block">Total Leads Submitted</span>
+                  <span className="text-lg font-semibold tabular-nums text-[#00319D]">{partnerLeads.length}</span>
                 </div>
                 <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
-                  <span className="text-[10px] font-bold text-[#6B6860] uppercase block">Active In Pipeline</span>
-                  <span className="text-lg font-extrabold text-[#1A1A1A]">
+                  <span className="text-xs font-bold text-[#6B6860] uppercase block">Active In Pipeline</span>
+                  <span className="text-lg font-semibold tabular-nums text-[#1A1A1A]">
                     {partnerLeads.filter((s) => s.bookingStatus !== 'Booked' && s.leadStatus !== 'Lost').length}
                   </span>
                 </div>
                 <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
-                  <span className="text-[10px] font-bold text-[#6B6860] uppercase block">Booked Tenancies</span>
-                  <span className="text-lg font-extrabold text-emerald-700">
+                  <span className="text-xs font-bold text-[#6B6860] uppercase block">Booked Tenancies</span>
+                  <span className="text-lg font-semibold tabular-nums text-emerald-700">
                     {partnerLeads.filter((s) => s.bookingStatus === 'Booked' || s.bookingStatus === 'Move-in Confirmed').length}
                   </span>
                 </div>
                 <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
-                  <span className="text-[10px] font-bold text-[#6B6860] uppercase block">Commission Tier</span>
-                  <span className="text-lg font-extrabold text-[#1A1A1A]">{currentPartnerRecord?.commissionRate ?? 20}%</span>
+                  <span className="text-xs font-bold text-[#6B6860] uppercase block">Commission Tier</span>
+                  <span className="text-lg font-semibold tabular-nums text-[#1A1A1A]">{currentPartnerRecord?.commissionRate ?? 20}%</span>
                 </div>
               </div>
             </div>
@@ -831,17 +835,17 @@ export default function PartnersPage() {
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#F7F6F3] text-[#6B6860] uppercase text-[10px] tracking-wider border-b border-[#E8E6E1]">
+                <div className="ha-table-scroll">
+                  <table className="ha-table">
+                    <thead>
                       <tr>
-                        <th className="py-3 px-4 font-bold">Student Name</th>
-                        <th className="py-3 px-4 font-bold">University &amp; City</th>
-                        <th className="py-3 px-4 font-bold">Assigned Sales Owner</th>
-                        <th className="py-3 px-4 font-bold">Lead Status</th>
-                        <th className="py-3 px-4 font-bold">Booking Status</th>
-                        <th className="py-3 px-4 font-bold">Intake</th>
-                        <th className="py-3 px-4 font-bold text-right">Actions</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Student Name</th>
+                        <th scope="col" className="py-3 px-4 font-bold">University &amp; City</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Assigned Sales Owner</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Lead Status</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Booking Status</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Intake</th>
+                        <th scope="col" className="py-3 px-4 font-bold text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E8E6E1]">
@@ -853,22 +857,22 @@ export default function PartnersPage() {
                         >
                           <td className="py-3.5 px-4">
                             <div className="font-bold text-[#1A1A1A]">{lead.fullName}</div>
-                            <div className="font-mono text-[11px] text-[#00319D]">{lead.studentId}</div>
+                            <div className="font-mono text-xs text-[#00319D]">{lead.studentId}</div>
                           </td>
                           <td className="py-3.5 px-4">
                             <div className="text-[#1A1A1A] font-medium">{lead.destinationCity}</div>
-                            <div className="text-[11px] text-[#6B6860]">{lead.university}</div>
+                            <div className="text-xs text-[#6B6860]">{lead.university}</div>
                           </td>
                           <td className="py-3.5 px-4 font-bold text-[#1A1A1A]">
                             {lead.assignedSalesExecutiveName}
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
+                            <span className="inline-block px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800">
                               {lead.leadStatus}
                             </span>
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-100 text-zinc-800">
+                            <span className="inline-block px-2 py-0.5 rounded text-xs font-bold bg-zinc-100 text-zinc-800">
                               {lead.bookingStatus}
                             </span>
                           </td>
@@ -876,7 +880,7 @@ export default function PartnersPage() {
                           <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={() => setSelectedStudentId(lead.studentId)}
-                              className="text-[11px] font-bold text-[#00319D] hover:underline cursor-pointer"
+                              className="text-xs font-bold text-[#00319D] hover:underline cursor-pointer"
                             >
                               Inspect →
                             </button>
@@ -896,10 +900,11 @@ export default function PartnersPage() {
           <div className="space-y-5">
             {/* Multi-Dimensional Filters Bar (State, City, Agreement, PO, Type) */}
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
+              <div className="flex flex-col xl:flex-row gap-3">
+                <div className="relative min-w-0 flex-1">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
                   <input
+                    aria-label="Search partners"
                     type="text"
                     placeholder="Search partners by agency, city, state, code, contact person..."
                     value={searchQuery}
@@ -908,11 +913,12 @@ export default function PartnersPage() {
                   />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex max-w-full flex-wrap items-center gap-2">
                   {/* Bifurcate by State Filter */}
                   <div className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5 text-[#00319D]" />
                     <select
+                      aria-label="Filter by state"
                       value={filterState}
                       onChange={(e) => {
                         setFilterState(e.target.value);
@@ -931,6 +937,7 @@ export default function PartnersPage() {
 
                   {/* Bifurcate by City Filter */}
                   <select
+                    aria-label="Filter by city"
                     value={filterCity}
                     onChange={(e) => setFilterCity(e.target.value)}
                     className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-semibold text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -945,6 +952,7 @@ export default function PartnersPage() {
 
                   {/* Filter by Agreement Status */}
                   <select
+                    aria-label="Filter by agreement"
                     value={filterAgreement}
                     onChange={(e) => setFilterAgreement(e.target.value)}
                     className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-semibold text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -959,6 +967,7 @@ export default function PartnersPage() {
 
                   {/* Filter by Partner Type */}
                   <select
+                    aria-label="Filter by partner type"
                     value={filterType}
                     onChange={(e) => setFilterType(e.target.value)}
                     className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -973,6 +982,7 @@ export default function PartnersPage() {
 
                   {/* Filter by Portfolio Owner */}
                   <select
+                    aria-label="Filter by portfolio owner"
                     value={filterPortfolioOwner}
                     onChange={(e) => setFilterPortfolioOwner(e.target.value)}
                     className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -989,7 +999,7 @@ export default function PartnersPage() {
 
               {/* Active Filter Badges */}
               {(filterState !== 'All' || filterCity !== 'All' || filterAgreement !== 'All' || searchQuery) && (
-                <div className="flex items-center gap-2 pt-1 border-t border-[#E8E6E1] text-[11px] text-[#6B6860]">
+                <div className="flex items-center gap-2 pt-1 border-t border-[#E8E6E1] text-xs text-[#6B6860]">
                   <span className="font-semibold text-[#1A1A1A]">Active Bifurcation:</span>
                   {filterState !== 'All' && (
                     <span className="inline-flex items-center gap-1 rounded bg-[#00319D]/10 px-2 py-0.5 font-bold text-[#00319D]">
@@ -1043,13 +1053,13 @@ export default function PartnersPage() {
                               <MapPin className="h-4 w-4" />
                             </div>
                             <div>
-                              <h3 className="text-sm font-extrabold text-[#1A1A1A] flex items-center gap-2">
+                              <h3 className="text-sm font-bold text-[#1A1A1A] flex items-center gap-2">
                                 State: {stateName}
-                                <span className="rounded bg-[#00319D]/10 px-2 py-0.5 text-[10px] font-bold text-[#00319D]">
+                                <span className="rounded bg-[#00319D]/10 px-2 py-0.5 text-xs font-bold text-[#00319D]">
                                   {stateTotalPartners} {stateTotalPartners === 1 ? 'Partner' : 'Partners'}
                                 </span>
                               </h3>
-                              <p className="text-[11px] text-[#6B6860]">
+                              <p className="text-xs text-[#6B6860]">
                                 Across {Object.keys(cityDict).length} {Object.keys(cityDict).length === 1 ? 'city hub' : 'city hubs'}
                               </p>
                             </div>
@@ -1065,7 +1075,7 @@ export default function PartnersPage() {
                                 <h4 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wide">
                                   City: {cityName}
                                 </h4>
-                                <span className="text-[10px] text-[#6B6860] font-semibold">
+                                <span className="text-xs text-[#6B6860] font-semibold">
                                   ({cityPartners.length} {cityPartners.length === 1 ? 'agency' : 'agencies'})
                                 </span>
                               </div>
@@ -1090,13 +1100,13 @@ export default function PartnersPage() {
                                             <h5 className="text-xs font-bold text-[#1A1A1A] leading-snug">
                                               {partner.companyName}
                                             </h5>
-                                            <span className="font-mono text-[10px] font-bold text-[#00319D]">
+                                            <span className="font-mono text-xs font-bold text-[#00319D]">
                                               {partner.partnerId}
                                             </span>
                                           </div>
                                           <button
                                             onClick={() => handleOpenAgreementModal(partner)}
-                                            className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold border cursor-pointer ${formatAgreementBadge(partner.agreementStatus)}`}
+                                            className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold border cursor-pointer ${formatAgreementBadge(partner.agreementStatus)}`}
                                             title="View / Edit Agreement"
                                           >
                                             <FileCheck className="h-3 w-3" />
@@ -1104,11 +1114,11 @@ export default function PartnersPage() {
                                           </button>
                                         </div>
 
-                                        <p className="text-[11px] text-[#6B6860] mt-1.5 line-clamp-1">
+                                        <p className="text-xs text-[#6B6860] mt-1.5 line-clamp-1">
                                           Contact: {partner.contactPerson} ({partner.email})
                                         </p>
 
-                                        <div className="mt-2.5 pt-2.5 border-t border-[#E8E6E1] text-[11px] flex items-center justify-between">
+                                        <div className="mt-2.5 pt-2.5 border-t border-[#E8E6E1] text-xs flex items-center justify-between">
                                           <span className="text-[#6B6860]">Portfolio Owner:</span>
                                           <strong className="text-[#1A1A1A]">
                                             {partner.portfolioOwnerName || 'Beatrice Vance'}
@@ -1117,14 +1127,14 @@ export default function PartnersPage() {
                                       </div>
 
                                       <div className="pt-2 border-t border-[#E8E6E1] flex items-center justify-between">
-                                        <div className="text-[10px] text-[#6B6860]">
+                                        <div className="text-xs text-[#6B6860]">
                                           Leads: <strong className="text-[#00319D]">{leadsCount}</strong> • Bookings: <strong className="text-emerald-700">{bookingsCount}</strong>
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                           {isManagement && (
                                             <button
                                               onClick={() => openPartnerOnboarding(partner)}
-                                              className="rounded-md border border-[#00319D] bg-[#00319D]/5 px-2 py-1 text-[10px] font-bold text-[#00319D] hover:bg-[#00319D]/10 cursor-pointer"
+                                              className="rounded-md border border-[#00319D] bg-[#00319D]/5 px-2 py-1 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/10 cursor-pointer"
                                             >
                                               <Pencil className="mr-1 inline h-3 w-3" />
                                               Edit
@@ -1133,21 +1143,21 @@ export default function PartnersPage() {
                                           {isManagement && partner.status !== 'Active' && (
                                             <button
                                               onClick={() => openPartnerOnboarding(partner)}
-                                              className="rounded-md border border-[#00319D] bg-[#00319D]/5 px-2 py-1 text-[10px] font-bold text-[#00319D] hover:bg-[#00319D]/10 cursor-pointer"
+                                              className="rounded-md border border-[#00319D] bg-[#00319D]/5 px-2 py-1 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/10 cursor-pointer"
                                             >
                                               Onboard
                                             </button>
                                           )}
                                           <button
                                             onClick={() => handleOpenAgreementModal(partner)}
-                                            className="rounded-md border border-[#E8E6E1] bg-[#F7F6F3] px-2 py-1 text-[10px] font-bold text-[#1A1A1A] hover:bg-[#E8E6E1] cursor-pointer"
+                                            className="rounded-md border border-[#E8E6E1] bg-[#F7F6F3] px-2 py-1 text-xs font-bold text-[#1A1A1A] hover:bg-[#E8E6E1] cursor-pointer"
                                           >
                                             Agreement
                                           </button>
                                           {isManagement && (
                                             <button
                                               onClick={() => handleDeletePartner(partner)}
-                                              className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-700 hover:bg-rose-100 cursor-pointer"
+                                              className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100 cursor-pointer"
                                               title="Delete partner"
                                             >
                                               <Trash2 className="h-3 w-3" />
@@ -1155,7 +1165,7 @@ export default function PartnersPage() {
                                           )}
                                           <button
                                             onClick={() => setInspectPartnerId(partner.partnerId)}
-                                            className="rounded-md bg-[#00319D] px-2.5 py-1 text-[10px] font-bold text-[#FFFFFF] hover:bg-[#00257A] cursor-pointer"
+                                            className="rounded-md bg-[#00319D] px-2.5 py-1 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] cursor-pointer"
                                           >
                                             Leads →
                                           </button>
@@ -1178,19 +1188,19 @@ export default function PartnersPage() {
             {/* MODE B: STANDARD DIRECTORY TABLE */}
             {viewMode === 'directory' && (
               <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#F7F6F3] text-[#6B6860] uppercase text-[10px] tracking-wider border-b border-[#E8E6E1]">
+                <div className="ha-table-scroll">
+                  <table className="ha-table">
+                    <thead>
                       <tr>
-                        <th className="py-3 px-4 font-bold">Partner Agency</th>
-                        <th className="py-3 px-4 font-bold">City &amp; State</th>
-                        <th className="py-3 px-4 font-bold">Agreement</th>
-                        <th className="py-3 px-4 font-bold">Type</th>
-                        <th className="py-3 px-4 font-bold">Contact Person</th>
-                        <th className="py-3 px-4 font-bold">Portfolio Owner</th>
-                        <th className="py-3 px-4 font-bold">Leads</th>
-                        <th className="py-3 px-4 font-bold">Bookings</th>
-                        <th className="py-3 px-4 font-bold text-right">Actions</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Partner Agency</th>
+                        <th scope="col" className="py-3 px-4 font-bold">City &amp; State</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Agreement</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Type</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Contact Person</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Portfolio Owner</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Leads</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Bookings</th>
+                        <th scope="col" className="py-3 px-4 font-bold text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E8E6E1]">
@@ -1216,7 +1226,7 @@ export default function PartnersPage() {
                             >
                               <td className="py-3.5 px-4">
                                 <div className="font-bold text-[#1A1A1A]">{partner.companyName}</div>
-                                <div className="font-mono text-[11px] text-[#00319D]">{partner.partnerId}</div>
+                                <div className="font-mono text-xs text-[#00319D]">{partner.partnerId}</div>
                               </td>
 
                               {/* City & State Location */}
@@ -1225,14 +1235,14 @@ export default function PartnersPage() {
                                   <MapPin className="h-3 w-3 text-[#00319D]" />
                                   {partner.city || 'Mumbai'}
                                 </div>
-                                <div className="text-[11px] text-[#6B6860] pl-4">{partner.state || 'Maharashtra'}</div>
+                                <div className="text-xs text-[#6B6860] pl-4">{partner.state || 'Maharashtra'}</div>
                               </td>
 
                               {/* Agreement Status & Modal Action */}
                               <td className="py-3.5 px-4">
                                 <button
                                   onClick={() => handleOpenAgreementModal(partner)}
-                                  className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold border cursor-pointer ${formatAgreementBadge(partner.agreementStatus)}`}
+                                  className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold border cursor-pointer ${formatAgreementBadge(partner.agreementStatus)}`}
                                   title="View / Manage Contract Terms"
                                 >
                                   <FileCheck className="h-3 w-3" />
@@ -1244,7 +1254,7 @@ export default function PartnersPage() {
 
                               <td className="py-3.5 px-4">
                                 <div className="font-medium text-[#1A1A1A]">{partner.contactPerson}</div>
-                                <div className="text-[11px] text-[#6B6860]">{partner.email}</div>
+                                <div className="text-xs text-[#6B6860]">{partner.email}</div>
                               </td>
 
                               {/* Portfolio Owner & Reassignment Action */}
@@ -1260,7 +1270,7 @@ export default function PartnersPage() {
                                     setReassignPartnerTarget(partner);
                                     setSelectedNewOwnerId(partner.portfolioOwnerId || portfolioOwners[0]?.uid || '');
                                   }}
-                                  className="text-[10px] text-[#00319D] hover:underline mt-0.5 block cursor-pointer"
+                                  className="text-xs text-[#00319D] hover:underline mt-0.5 block cursor-pointer"
                                 >
                                   Reassign Owner
                                 </button>
@@ -1280,13 +1290,13 @@ export default function PartnersPage() {
                                     <>
                                       <button
                                         onClick={() => openPartnerOnboarding(partner)}
-                                        className="rounded-md border border-[#00319D] bg-[#00319D]/5 px-2.5 py-1 text-[11px] font-bold text-[#00319D] hover:bg-[#00319D]/10 cursor-pointer"
+                                        className="rounded-md border border-[#00319D] bg-[#00319D]/5 px-2.5 py-1 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/10 cursor-pointer"
                                       >
                                         Edit
                                       </button>
                                       <button
                                         onClick={() => handleDeletePartner(partner)}
-                                        className="rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 cursor-pointer"
+                                        className="rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100 cursor-pointer"
                                       >
                                         Delete
                                       </button>
@@ -1294,13 +1304,13 @@ export default function PartnersPage() {
                                   )}
                                   <button
                                     onClick={() => handleOpenAgreementModal(partner)}
-                                    className="rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-1 text-[11px] font-bold text-[#1A1A1A] hover:bg-[#F7F6F3] transition-colors cursor-pointer"
+                                    className="rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-1 text-xs font-bold text-[#1A1A1A] hover:bg-[#F7F6F3] transition-colors cursor-pointer"
                                   >
                                     Agreement
                                   </button>
                                   <button
                                     onClick={() => setInspectPartnerId(partner.partnerId)}
-                                    className="rounded-md border border-[#E8E6E1] bg-[#F7F6F3] px-2.5 py-1 text-[11px] font-bold text-[#00319D] hover:bg-[#E8E6E1] transition-colors cursor-pointer"
+                                    className="rounded-md border border-[#E8E6E1] bg-[#F7F6F3] px-2.5 py-1 text-xs font-bold text-[#00319D] hover:bg-[#E8E6E1] transition-colors cursor-pointer"
                                   >
                                     Leads ({leadsCount})
                                   </button>
@@ -1321,9 +1331,10 @@ export default function PartnersPage() {
 
       {/* MODAL: AGREEMENT MANAGEMENT MODAL */}
       {selectedAgreementPartner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+        <WorkspaceDialog label="Partner agreement" onDismiss={() => setSelectedAgreementPartner(null)}>
           <div className="w-full max-w-lg rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 sm:p-7 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
+              aria-label="Close dialog"
               onClick={() => setSelectedAgreementPartner(null)}
               className="absolute top-5 right-5 rounded-lg p-1 text-[#6B6860] hover:bg-[#F7F6F3] hover:text-[#1A1A1A] cursor-pointer"
             >
@@ -1331,7 +1342,7 @@ export default function PartnersPage() {
             </button>
 
             <div className="flex items-center gap-2 mb-2">
-              <span className="inline-flex items-center gap-1 rounded bg-[#00319D]/10 px-2 py-0.5 text-[10px] font-bold text-[#00319D]">
+              <span className="inline-flex items-center gap-1 rounded bg-[#00319D]/10 px-2 py-0.5 text-xs font-bold text-[#00319D]">
                 <FileCheck className="h-3.5 w-3.5" />
                 Partner Agreement &amp; Contract Terms
               </span>
@@ -1340,7 +1351,7 @@ export default function PartnersPage() {
               </span>
             </div>
 
-            <h3 className="text-lg font-bold text-[#1A1A1A]">
+            <h3 className="text-lg font-semibold tabular-nums text-[#1A1A1A]">
               {selectedAgreementPartner.companyName}
             </h3>
             <p className="text-xs text-[#6B6860]">
@@ -1351,10 +1362,11 @@ export default function PartnersPage() {
             <form onSubmit={handleSaveAgreement} className="space-y-4 mt-5 pt-4 border-t border-[#E8E6E1]">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
+                  <label htmlFor="partners-agreement-status" className="block text-xs font-semibold text-[#1A1A1A] mb-1">
                     Agreement Status
                   </label>
                   <select
+                    id="partners-agreement-status"
                     value={agreementStatus}
                     onChange={(e) => setAgreementStatus(e.target.value)}
                     className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs font-semibold text-[#1A1A1A] focus:border-[#00319D] focus:outline-none"
@@ -1370,10 +1382,11 @@ export default function PartnersPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
+                  <label htmlFor="partners-agreement-type" className="block text-xs font-semibold text-[#1A1A1A] mb-1">
                     Agreement Type
                   </label>
                   <input
+                    id="partners-agreement-type"
                     type="text"
                     value={agreementType}
                     onChange={(e) => setAgreementType(e.target.value)}
@@ -1384,11 +1397,12 @@ export default function PartnersPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1 flex items-center gap-1">
+                  <label htmlFor="partners-agreement-signed-date" className="block text-xs font-semibold text-[#1A1A1A] mb-1 flex items-center gap-1">
                     <Calendar className="h-3 w-3 text-[#6B6860]" />
                     Signed Date
                   </label>
                   <input
+                    id="partners-agreement-signed-date"
                     type="date"
                     value={agreementSignedDate}
                     onChange={(e) => setAgreementSignedDate(e.target.value)}
@@ -1396,11 +1410,12 @@ export default function PartnersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1 flex items-center gap-1">
+                  <label htmlFor="partners-agreement-expiry-date" className="block text-xs font-semibold text-[#1A1A1A] mb-1 flex items-center gap-1">
                     <Calendar className="h-3 w-3 text-[#6B6860]" />
                     Expiry / Renewal Date
                   </label>
                   <input
+                    id="partners-agreement-expiry-date"
                     type="date"
                     value={agreementExpiryDate}
                     onChange={(e) => setAgreementExpiryDate(e.target.value)}
@@ -1410,10 +1425,11 @@ export default function PartnersPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
+                <label htmlFor="partners-agreement-terms" className="block text-xs font-semibold text-[#1A1A1A] mb-1">
                   Commercial Terms &amp; Commission Payout
                 </label>
                 <input
+                  id="partners-agreement-terms"
                   type="text"
                   value={agreementTerms}
                   onChange={(e) => setAgreementTerms(e.target.value)}
@@ -1444,11 +1460,11 @@ export default function PartnersPage() {
                     <FileText className="h-3.5 w-3.5 text-[#00319D]" />
                     Contract Document File
                   </span>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                     Audit Verified
                   </span>
                 </div>
-                <p className="text-[11px] text-[#6B6860]">
+                <p className="text-xs text-[#6B6860]">
                   Attach or download the signed MSA document or authorization letter for this partner.
                 </p>
 
@@ -1520,14 +1536,15 @@ export default function PartnersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
 
       {/* MODAL 1: BULK CSV UPLOAD WORKFLOW */}
       {showBulkUploadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+        <WorkspaceDialog label="Bulk lead upload" onDismiss={handleResetBulkModal}>
           <div className="w-full max-w-2xl rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
+              aria-label="Close dialog"
               onClick={handleResetBulkModal}
               className="absolute top-5 right-5 rounded-lg p-1 text-[#6B6860] hover:bg-[#F7F6F3] hover:text-[#1A1A1A] cursor-pointer"
             >
@@ -1536,7 +1553,7 @@ export default function PartnersPage() {
 
             {/* Modal Title */}
             <div className="mb-4">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#00319D] bg-[#00319D]/10 px-2 py-0.5 rounded">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#00319D] bg-[#00319D]/10 px-2 py-0.5 rounded">
                 Bulk Lead Import Workflow
               </span>
               <h2 className="text-xl font-bold text-[#1A1A1A] mt-1">Bulk Lead Upload (CSV)</h2>
@@ -1546,7 +1563,7 @@ export default function PartnersPage() {
             </div>
 
             {/* Step Progress Indicators */}
-            <div className="grid grid-cols-4 gap-2 mb-6 text-center text-[10px] font-bold">
+            <div className="grid grid-cols-4 gap-2 mb-6 text-center text-xs font-bold">
               <div
                 className={`py-1.5 rounded-lg border ${
                   bulkStep === 1
@@ -1615,7 +1632,7 @@ export default function PartnersPage() {
                 </div>
 
                 {csvParseError && (
-                  <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 flex items-center gap-2">
+                  <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4 shrink-0" />
                     <span>{csvParseError}</span>
                   </div>
@@ -1625,7 +1642,7 @@ export default function PartnersPage() {
                 <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div>
                     <h4 className="text-xs font-bold text-[#1A1A1A]">Need the HearthAway CSV Format?</h4>
-                    <p className="text-[11px] text-[#6B6860]">
+                    <p className="text-xs text-[#6B6860]">
                       Download our verified CSV template containing pre-formatted headers and sample lead rows.
                     </p>
                   </div>
@@ -1673,7 +1690,7 @@ export default function PartnersPage() {
                   <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 space-y-1 text-xs text-rose-700 max-h-32 overflow-y-auto">
                     <span className="font-bold block">Validation Errors (Rows will be skipped):</span>
                     {validationErrors.map((err, idx) => (
-                      <div key={idx} className="text-[11px]">
+                      <div key={idx} className="text-xs">
                         Row {err.row}: {err.field} — {err.message}
                       </div>
                     ))}
@@ -1685,7 +1702,7 @@ export default function PartnersPage() {
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1 text-xs text-amber-800 max-h-32 overflow-y-auto">
                     <span className="font-bold block">Duplicate Records Detected (Skipped to prevent double-entry):</span>
                     {duplicateRows.map((dup, idx) => (
-                      <div key={idx} className="text-[11px]">
+                      <div key={idx} className="text-xs">
                         Row {dup.row}: {dup.email} — {dup.reason}
                       </div>
                     ))}
@@ -1698,14 +1715,14 @@ export default function PartnersPage() {
                     Valid Leads Ready to Import ({validRows.length})
                   </div>
                   <div className="max-h-48 overflow-y-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-[#FFFFFF] text-[#6B6860] uppercase text-[10px] border-b border-[#E8E6E1]">
+                    <table className="ha-table">
+                      <thead className="bg-[#FFFFFF] text-[#6B6860] uppercase text-xs border-b border-[#E8E6E1]">
                         <tr>
-                          <th className="py-2 px-3">Name</th>
-                          <th className="py-2 px-3">Email</th>
-                          <th className="py-2 px-3">University</th>
-                          <th className="py-2 px-3">City</th>
-                          <th className="py-2 px-3">Budget</th>
+                          <th scope="col" className="py-2 px-3">Name</th>
+                          <th scope="col" className="py-2 px-3">Email</th>
+                          <th scope="col" className="py-2 px-3">University</th>
+                          <th scope="col" className="py-2 px-3">City</th>
+                          <th scope="col" className="py-2 px-3">Budget</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#E8E6E1]">
@@ -1751,7 +1768,7 @@ export default function PartnersPage() {
                   <CheckCircle2 className="h-8 w-8" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-[#1A1A1A]">Batch Import Complete</h3>
+                  <h3 className="text-lg font-semibold tabular-nums text-[#1A1A1A]">Batch Import Complete</h3>
                   <p className="text-xs text-[#6B6860] mt-1">
                     Successfully imported <strong>{importResults.importedCount}</strong> new leads into the master system.
                   </p>
@@ -1759,16 +1776,16 @@ export default function PartnersPage() {
 
                 <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto text-xs py-2">
                   <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
-                    <span className="text-[10px] text-[#6B6860] uppercase block">Imported</span>
-                    <span className="text-base font-bold text-emerald-600">{importResults.importedCount}</span>
+                    <span className="text-xs text-[#6B6860] uppercase block">Imported</span>
+                    <span className="text-base font-semibold text-emerald-600">{importResults.importedCount}</span>
                   </div>
                   <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
-                    <span className="text-[10px] text-[#6B6860] uppercase block">Duplicates</span>
-                    <span className="text-base font-bold text-amber-600">{importResults.duplicatesCount}</span>
+                    <span className="text-xs text-[#6B6860] uppercase block">Duplicates</span>
+                    <span className="text-base font-semibold text-amber-600">{importResults.duplicatesCount}</span>
                   </div>
                   <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
-                    <span className="text-[10px] text-[#6B6860] uppercase block">Errors</span>
-                    <span className="text-base font-bold text-rose-600">{importResults.errorsCount}</span>
+                    <span className="text-xs text-[#6B6860] uppercase block">Errors</span>
+                    <span className="text-base font-semibold text-rose-600">{importResults.errorsCount}</span>
                   </div>
                 </div>
 
@@ -1782,16 +1799,17 @@ export default function PartnersPage() {
               </div>
             )}
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
 
       {/* MODAL 2: ONBOARD NEW PARTNER (with State, City, Agreement) */}
       {showOnboardModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+        <WorkspaceDialog label="Onboard education consultant" onDismiss={() => setShowOnboardModal(false)}>
           <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-[#1A1A1A]">Onboard Education Consultant</h3>
+              <h3 className="text-base font-semibold text-[#1A1A1A]">Onboard Education Consultant</h3>
               <button
+                aria-label="Close dialog"
                 onClick={() => setShowOnboardModal(false)}
                 className="text-[#6B6860] hover:text-[#1A1A1A] cursor-pointer"
               >
@@ -1801,8 +1819,9 @@ export default function PartnersPage() {
 
             <form onSubmit={handleOnboardPartner} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Company / Agency Name</label>
+                <label htmlFor="partners-new-company-name" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Company / Agency Name</label>
                 <input
+                  id="partners-new-company-name"
                   type="text"
                   required
                   placeholder="e.g. Apex Global Advisors"
@@ -1814,8 +1833,9 @@ export default function PartnersPage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">City Hub</label>
+                  <label htmlFor="partners-new-city" className="block text-xs font-semibold text-[#1A1A1A] mb-1">City Hub</label>
                   <input
+                    id="partners-new-city"
                     type="text"
                     required
                     placeholder="e.g. Mumbai"
@@ -1825,8 +1845,9 @@ export default function PartnersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">State / Province</label>
+                  <label htmlFor="partners-new-state" className="block text-xs font-semibold text-[#1A1A1A] mb-1">State / Province</label>
                   <input
+                    id="partners-new-state"
                     type="text"
                     required
                     placeholder="e.g. Maharashtra"
@@ -1838,8 +1859,9 @@ export default function PartnersPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Partner Type</label>
+                <label htmlFor="partners-new-partner-type" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Partner Type</label>
                 <select
+                  id="partners-new-partner-type"
                   value={newPartnerType}
                   onChange={(e) => setNewPartnerType(e.target.value as any)}
                   className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
@@ -1855,8 +1877,9 @@ export default function PartnersPage() {
               {/* Agreement Status */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Agreement Status</label>
+                  <label htmlFor="partners-new-agreement-status" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Agreement Status</label>
                   <select
+                    id="partners-new-agreement-status"
                     value={newAgreementStatus}
                     onChange={(e) => setNewAgreementStatus(e.target.value)}
                     className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
@@ -1868,8 +1891,9 @@ export default function PartnersPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Commission %</label>
+                  <label htmlFor="partners-new-commission-rate" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Commission %</label>
                   <input
+                    id="partners-new-commission-rate"
                     type="number"
                     value={newCommissionRate}
                     onChange={(e) => setNewCommissionRate(e.target.value)}
@@ -1880,13 +1904,14 @@ export default function PartnersPage() {
 
               {/* Required Portfolio Owner Assignment */}
               <div className="bg-[#F7F6F3] p-3 rounded-xl border border-[#E8E6E1]">
-                <label className="block text-xs font-bold text-[#00319D] mb-1">
+                <label htmlFor="partners-new-portfolio-owner-id" className="block text-xs font-bold text-[#00319D] mb-1">
                   Assign Portfolio Owner (Internal):
                 </label>
-                <p className="text-[11px] text-[#6B6860] mb-2">
+                <p className="text-xs text-[#6B6860] mb-2">
                   All future leads received from this partner will automatically appear in this user&apos;s Portfolio.
                 </p>
                 <select
+                  id="partners-new-portfolio-owner-id"
                   value={newPortfolioOwnerId}
                   onChange={(e) => setNewPortfolioOwnerId(e.target.value)}
                   className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs font-semibold text-[#1A1A1A] focus:border-[#00319D] focus:outline-none"
@@ -1900,8 +1925,9 @@ export default function PartnersPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Contact Person</label>
+                <label htmlFor="partners-new-contact-person" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Contact Person</label>
                 <input
+                  id="partners-new-contact-person"
                   type="text"
                   required
                   placeholder="e.g. David Ross"
@@ -1913,8 +1939,9 @@ export default function PartnersPage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Email</label>
+                  <label htmlFor="partners-new-email" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Email</label>
                   <input
+                    id="partners-new-email"
                     type="email"
                     required
                     placeholder="contact@agency.com"
@@ -1924,8 +1951,9 @@ export default function PartnersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Phone</label>
+                  <label htmlFor="partners-new-phone" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Phone</label>
                   <input
+                    id="partners-new-phone"
                     type="text"
                     placeholder="+91 22 2490 0000"
                     value={newPhone}
@@ -1961,14 +1989,14 @@ export default function PartnersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
 
       {/* MODAL 3: REASSIGN PORTFOLIO OWNER */}
       {reassignPartnerTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-xs p-4">
+        <WorkspaceDialog label="Reassign portfolio owner" onDismiss={() => setReassignPartnerTarget(null)}>
           <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-[#1A1A1A]">
+            <h3 className="text-base font-semibold text-[#1A1A1A]">
               Reassign {reassignPartnerTarget.companyName}
             </h3>
             <p className="text-xs text-[#6B6860] leading-relaxed">
@@ -1976,10 +2004,11 @@ export default function PartnersPage() {
             </p>
 
             <div>
-              <label className="block text-xs font-bold text-[#1A1A1A] mb-1">
+              <label htmlFor="partners-selected-new-owner-id" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                 New Portfolio Owner:
               </label>
               <select
+                id="partners-selected-new-owner-id"
                 value={selectedNewOwnerId}
                 onChange={(e) => setSelectedNewOwnerId(e.target.value)}
                 className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -2007,16 +2036,17 @@ export default function PartnersPage() {
               </button>
             </div>
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
 
       {/* MODAL 4: SUBMIT SINGLE LEAD (For Partner) */}
       {showSingleLeadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-xs p-4">
+        <WorkspaceDialog label="Submit student lead" onDismiss={() => setShowSingleLeadModal(false)}>
           <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-[#1A1A1A]">Submit Student Lead</h3>
+              <h3 className="text-base font-semibold text-[#1A1A1A]">Submit Student Lead</h3>
               <button
+                aria-label="Close dialog"
                 onClick={() => setShowSingleLeadModal(false)}
                 className="text-[#6B6860] hover:text-[#1A1A1A] cursor-pointer"
               >
@@ -2026,8 +2056,9 @@ export default function PartnersPage() {
 
             <form onSubmit={handleSingleLeadSubmit} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Student Full Name</label>
+                <label htmlFor="partners-single-name" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Student Full Name</label>
                 <input
+                  id="partners-single-name"
                   type="text"
                   required
                   placeholder="e.g. Maya Patel"
@@ -2039,8 +2070,9 @@ export default function PartnersPage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Email</label>
+                  <label htmlFor="partners-single-email" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Email</label>
                   <input
+                    id="partners-single-email"
                     type="email"
                     required
                     placeholder="maya@example.com"
@@ -2050,8 +2082,9 @@ export default function PartnersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Phone</label>
+                  <label htmlFor="partners-single-phone" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Phone</label>
                   <input
+                    id="partners-single-phone"
                     type="text"
                     required
                     placeholder="+44 7700 900123"
@@ -2063,8 +2096,9 @@ export default function PartnersPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Target University</label>
+                <label htmlFor="partners-single-uni" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Target University</label>
                 <input
+                  id="partners-single-uni"
                   type="text"
                   required
                   placeholder="e.g. University of Manchester"
@@ -2076,8 +2110,9 @@ export default function PartnersPage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Destination City</label>
+                  <label htmlFor="partners-single-city" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Destination City</label>
                   <input
+                    id="partners-single-city"
                     type="text"
                     value={singleCity}
                     onChange={(e) => setSingleCity(e.target.value)}
@@ -2085,8 +2120,9 @@ export default function PartnersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Budget (£/week)</label>
+                  <label htmlFor="partners-single-budget" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Budget (£/week)</label>
                   <input
+                    id="partners-single-budget"
                     type="number"
                     value={singleBudget}
                     onChange={(e) => setSingleBudget(e.target.value)}
@@ -2096,8 +2132,9 @@ export default function PartnersPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Notes / Preferences</label>
+                <label htmlFor="partners-single-notes" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Notes / Preferences</label>
                 <textarea
+                  id="partners-single-notes"
                   rows={2}
                   value={singleNotes}
                   onChange={(e) => setSingleNotes(e.target.value)}
@@ -2123,15 +2160,15 @@ export default function PartnersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
 
       {inspectPartnerId && !isPartner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="partner-leads-title">
+        <WorkspaceDialog label="Partner leads" onDismiss={() => setInspectPartnerId(null)}>
           <div className="max-h-[80vh] w-full max-w-3xl overflow-hidden rounded-2xl bg-[#FFFFFF] shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#E8E6E1] px-5 py-4">
               <div>
-                <h2 id="partner-leads-title" className="text-base font-extrabold text-[#1A1A1A]">Partner Leads</h2>
+                <h2 id="partner-leads-title" className="text-base font-semibold text-[#1A1A1A]">Partner Leads</h2>
                 <p className="text-xs text-[#6B6860]">{activeInspectedPartner?.companyName || 'Selected partner'}</p>
               </div>
               <button type="button" onClick={() => setInspectPartnerId(null)} className="rounded-lg p-2 text-[#6B6860] hover:bg-[#F7F6F3] cursor-pointer" aria-label="Close partner leads">
@@ -2158,7 +2195,7 @@ export default function PartnersPage() {
               </div>
             )}
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
     </div>
   );

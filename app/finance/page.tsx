@@ -1,5 +1,8 @@
 'use client';
 
+import { WorkspaceMetric } from '@/components/WorkspaceMetric';
+import { WorkspaceDialog } from '@/components/WorkspaceDialog';
+
 import React, { useState, useMemo } from 'react';
 import { useHearthAway } from '@/lib/context';
 import {
@@ -189,23 +192,23 @@ export default function FinancePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFFFF] pb-16">
+    <div className="ha-workspace">
       {/* Top Header */}
-      <div className="border-b border-[#E8E6E1] bg-[#FFFFFF] px-4 sm:px-6 lg:px-8 py-6">
-        <div className="max-w-7xl mx-auto">
+      <div className="ha-page-header">
+        <div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-extrabold text-[#1A1A1A] mt-1 tracking-tight">
+              <h1 className="ha-title">
                 Finance
               </h1>
-              <p className="text-xs text-[#6B6860] mt-0.5 max-w-2xl">
+              <p className="ha-summary">
                 Ledger management, payment verification, tenancy bookings, and partner commission payouts.
               </p>
             </div>
 
             <button
               onClick={() => setShowRecordModal(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-[#00319D] px-3.5 py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs"
+              className="ha-primary-action"
             >
               <Plus className="h-3.5 w-3.5" />
               Record Payment
@@ -213,36 +216,17 @@ export default function FinancePage() {
           </div>
 
           {/* Metrics Ribbon */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Verified Receipts</span>
-              <span className="text-lg font-extrabold text-emerald-700">
-                £{metrics.totalPaymentsReceived.toLocaleString()}
-              </span>
-            </div>
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Pending Verification</span>
-              <span className="text-lg font-extrabold text-amber-700">
-                {metrics.pendingVerificationCount} Transactions
-              </span>
-            </div>
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Gross Commission</span>
-              <span className="text-lg font-extrabold text-[#00319D]">
-                £{metrics.totalCommissionsExpected.toLocaleString()}
-              </span>
-            </div>
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3 text-left">
-              <span className="text-[10px] font-bold uppercase text-[#6B6860] block">Partner Payouts Payable</span>
-              <span className="text-lg font-extrabold text-[#1A1A1A]">
-                £{metrics.totalPartnerPayouts.toLocaleString()}
-              </span>
-            </div>
-          </div>
+          <dl className="ha-metrics mt-5">
+            <WorkspaceMetric label="Verified Receipts">£{metrics.totalPaymentsReceived.toLocaleString()}</WorkspaceMetric>
+            <WorkspaceMetric label="Pending Verification">{metrics.pendingVerificationCount} Transactions</WorkspaceMetric>
+            <WorkspaceMetric label="Gross Commission">£{metrics.totalCommissionsExpected.toLocaleString()}</WorkspaceMetric>
+            <WorkspaceMetric label="Partner Payouts Payable">£{metrics.totalPartnerPayouts.toLocaleString()}</WorkspaceMetric>
+          </dl>
 
           {/* Sub-Tabs */}
-          <div className="mt-6 flex border-b border-[#E8E6E1] gap-6 text-xs font-bold">
+          <div className="ha-tabs mt-5 border-b border-ha-line text-sm font-semibold">
             <button
+              aria-pressed={activeTab === 'payments'}
               onClick={() => setActiveTab('payments')}
               className={`pb-3 transition-colors border-b-2 flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'payments'
@@ -254,6 +238,7 @@ export default function FinancePage() {
               Payments Ledger ({payments.length})
             </button>
             <button
+              aria-pressed={activeTab === 'bookings'}
               onClick={() => setActiveTab('bookings')}
               className={`pb-3 transition-colors border-b-2 flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'bookings'
@@ -265,6 +250,7 @@ export default function FinancePage() {
               Bookings Ledger ({bookings.length})
             </button>
             <button
+              aria-pressed={activeTab === 'commissions'}
               onClick={() => setActiveTab('commissions')}
               className={`pb-3 transition-colors border-b-2 flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'commissions'
@@ -279,14 +265,15 @@ export default function FinancePage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <div className="min-w-0 pt-5">
         {/* TAB 1: PAYMENTS LEDGER */}
         {activeTab === 'payments' && (
           <div className="space-y-4">
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs flex flex-col xl:flex-row gap-3">
+              <div className="relative min-w-0 flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
                 <input
+                  aria-label="Search payments"
                   type="text"
                   placeholder="Search by Payment ID, Student Name, Student ID, or Uploader..."
                   value={searchQuery}
@@ -295,8 +282,9 @@ export default function FinancePage() {
                 />
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <select
+                  aria-label="Filter by payment status"
                   value={filterPaymentStatus}
                   onChange={(e) => setFilterPaymentStatus(e.target.value)}
                   className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -320,17 +308,17 @@ export default function FinancePage() {
             </div>
 
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F7F6F3] text-[#6B6860] uppercase text-[10px] tracking-wider border-b border-[#E8E6E1]">
+              <div className="ha-table-scroll">
+                <table className="ha-table">
+                  <thead>
                     <tr>
-                      <th className="py-3 px-4 font-bold">Payment ID</th>
-                      <th className="py-3 px-4 font-bold">Student Lead</th>
-                      <th className="py-3 px-4 font-bold">Amount</th>
-                      <th className="py-3 px-4 font-bold">Method</th>
-                      <th className="py-3 px-4 font-bold">Date &amp; Time</th>
-                      <th className="py-3 px-4 font-bold">Status</th>
-                      <th className="py-3 px-4 font-bold text-right">Verification Action</th>
+                      <th scope="col" className="py-3 px-4 font-bold">Payment ID</th>
+                      <th scope="col" className="py-3 px-4 font-bold">Student Lead</th>
+                      <th scope="col" className="py-3 px-4 font-bold">Amount</th>
+                      <th scope="col" className="py-3 px-4 font-bold">Method</th>
+                      <th scope="col" className="py-3 px-4 font-bold">Date &amp; Time</th>
+                      <th scope="col" className="py-3 px-4 font-bold">Status</th>
+                      <th scope="col" className="py-3 px-4 font-bold text-right">Verification Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E8E6E1]">
@@ -344,26 +332,26 @@ export default function FinancePage() {
                           <div className="font-bold text-[#1A1A1A]">
                             {payment.studentName || payment.studentId}
                           </div>
-                          <span className="font-mono text-[10px] text-[#6B6860]">{payment.studentId}</span>
+                          <span className="font-mono text-xs text-[#6B6860]">{payment.studentId}</span>
                         </td>
 
                         <td className="py-3.5 px-4">
-                          <span className="font-extrabold text-sm text-[#1A1A1A]">
+                          <span className="whitespace-nowrap tabular-nums font-semibold text-sm text-ha-ink">
                             £{payment.amount.toLocaleString()}
                           </span>
-                          <span className="text-[10px] text-[#6B6860] ml-1">{payment.currency}</span>
+                          <span className="text-xs text-[#6B6860] ml-1">{payment.currency}</span>
                         </td>
 
                         <td className="py-3.5 px-4 text-[#6B6860]">{payment.paymentMethod}</td>
 
                         <td className="py-3.5 px-4 text-[#6B6860]">
                           <div>{payment.paymentDate}</div>
-                          <div className="text-[10px]">{payment.uploadedBy}</div>
+                          <div className="text-xs">{payment.uploadedBy}</div>
                         </td>
 
                         <td className="py-3.5 px-4">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                            className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
                               payment.paymentStatus === 'Verified'
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : payment.paymentStatus === 'Pending Verification'
@@ -382,7 +370,7 @@ export default function FinancePage() {
                                 onClick={() =>
                                   verifyPaymentTransaction(payment.paymentId, 'Verified', 'Verified by Finance')
                                 }
-                                className="rounded bg-emerald-600 px-2 py-1 text-[10px] font-bold text-[#FFFFFF] hover:bg-emerald-700 transition-colors"
+                                className="rounded bg-emerald-600 px-2 py-1 text-xs font-bold text-[#FFFFFF] hover:bg-emerald-700 transition-colors"
                               >
                                 Verify
                               </button>
@@ -390,13 +378,13 @@ export default function FinancePage() {
                                 onClick={() =>
                                   verifyPaymentTransaction(payment.paymentId, 'Rejected', 'Insufficient proof of transfer')
                                 }
-                                className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-700 hover:bg-rose-100 transition-colors"
+                                className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors"
                               >
                                 Reject
                               </button>
                             </div>
                           ) : (
-                            <span className="text-[11px] text-[#6B6860] font-medium">
+                            <span className="text-xs text-[#6B6860] font-medium">
                               {payment.verifiedBy || 'Processed'}
                             </span>
                           )}
@@ -429,17 +417,17 @@ export default function FinancePage() {
             </div>
 
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                <thead className="bg-[#F7F6F3] text-[#6B6860] uppercase text-[10px] tracking-wider border-b border-[#E8E6E1]">
+              <div className="ha-table-scroll">
+                <table className="ha-table">
+                <thead>
                   <tr>
-                    <th className="py-3 px-4 font-bold">Booking ID</th>
-                    <th className="py-3 px-4 font-bold">Student Name</th>
-                    <th className="py-3 px-4 font-bold">Sourcing Partner</th>
-                    <th className="py-3 px-4 font-bold">Booking Value</th>
-                    <th className="py-3 px-4 font-bold">HearthAway Commission</th>
-                    <th className="py-3 px-4 font-bold">Partner Payout</th>
-                    <th className="py-3 px-4 font-bold">Status</th>
+                    <th scope="col" className="py-3 px-4 font-bold">Booking ID</th>
+                    <th scope="col" className="py-3 px-4 font-bold">Student Name</th>
+                    <th scope="col" className="py-3 px-4 font-bold">Sourcing Partner</th>
+                    <th scope="col" className="py-3 px-4 font-bold">Booking Value</th>
+                    <th scope="col" className="py-3 px-4 font-bold">HearthAway Commission</th>
+                    <th scope="col" className="py-3 px-4 font-bold">Partner Payout</th>
+                    <th scope="col" className="py-3 px-4 font-bold">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E8E6E1]">
@@ -448,13 +436,13 @@ export default function FinancePage() {
                       <td className="py-3.5 px-4 font-mono font-bold text-[#00319D]">{booking.bookingId}</td>
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-[#1A1A1A]">{booking.studentName}</div>
-                        <span className="font-mono text-[10px] text-[#6B6860]">{booking.studentId}</span>
+                        <span className="font-mono text-xs text-[#6B6860]">{booking.studentId}</span>
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="font-semibold text-[#1A1A1A]">
                           {booking.partnerName || booking.partnerId}
                         </div>
-                        <span className="font-mono text-[10px] text-[#6B6860]">{booking.partnerId}</span>
+                        <span className="font-mono text-xs text-[#6B6860]">{booking.partnerId}</span>
                       </td>
                       <td className="py-3.5 px-4 font-bold text-[#1A1A1A]">
                         £{booking.bookingValue.toLocaleString()}
@@ -466,7 +454,7 @@ export default function FinancePage() {
                         £{(booking.partnerPayoutAmount || 0).toLocaleString()} ({booking.partnerPayoutPercent}%)
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className="rounded bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold">
+                        <span className="rounded bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-bold">
                           {booking.bookingStatus}
                         </span>
                       </td>
@@ -498,16 +486,16 @@ export default function FinancePage() {
             </div>
 
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                <thead className="bg-[#F7F6F3] text-[#6B6860] uppercase text-[10px] tracking-wider border-b border-[#E8E6E1]">
+              <div className="ha-table-scroll">
+                <table className="ha-table">
+                <thead>
                   <tr>
-                    <th className="py-3 px-4 font-bold">Partner Agency</th>
-                    <th className="py-3 px-4 font-bold">Portfolio Owner</th>
-                    <th className="py-3 px-4 font-bold">Booked Tenancies</th>
-                    <th className="py-3 px-4 font-bold">Gross Booking Value</th>
-                    <th className="py-3 px-4 font-bold">Expected Revenue</th>
-                    <th className="py-3 px-4 font-bold">Partner Payout Due</th>
+                    <th scope="col" className="py-3 px-4 font-bold">Partner Agency</th>
+                    <th scope="col" className="py-3 px-4 font-bold">Portfolio Owner</th>
+                    <th scope="col" className="py-3 px-4 font-bold">Booked Tenancies</th>
+                    <th scope="col" className="py-3 px-4 font-bold">Gross Booking Value</th>
+                    <th scope="col" className="py-3 px-4 font-bold">Expected Revenue</th>
+                    <th scope="col" className="py-3 px-4 font-bold">Partner Payout Due</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E8E6E1]">
@@ -515,7 +503,7 @@ export default function FinancePage() {
                     <tr key={partner.id} className="hover:bg-[#F7F6F3]/50">
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-[#1A1A1A]">{partner.companyName}</div>
-                        <span className="font-mono text-[10px] text-[#00319D]">{partner.partnerId}</span>
+                        <span className="font-mono text-xs text-[#00319D]">{partner.partnerId}</span>
                       </td>
                       <td className="py-3.5 px-4">
                         <span className="inline-flex items-center gap-1 font-semibold text-[#1A1A1A]">
@@ -545,19 +533,20 @@ export default function FinancePage() {
 
       {/* RECORD PAYMENT MODAL */}
       {showRecordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-xs p-4">
+        <WorkspaceDialog label="Record student payment" onDismiss={() => setShowRecordModal(false)}>
           <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-[#1A1A1A]">Record Student Payment</h3>
-              <button onClick={() => setShowRecordModal(false)} className="text-[#6B6860] hover:text-[#1A1A1A]">
+              <h3 className="text-base font-semibold text-[#1A1A1A]">Record Student Payment</h3>
+              <button aria-label="Close dialog" onClick={() => setShowRecordModal(false)} className="text-[#6B6860] hover:text-[#1A1A1A]">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <form onSubmit={handleRecordPayment} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Student Lead</label>
+                <label htmlFor="finance-record-student-id" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Student Lead</label>
                 <select
+                  id="finance-record-student-id"
                   value={recordStudentId}
                   onChange={(e) => setRecordStudentId(e.target.value)}
                   className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
@@ -572,8 +561,9 @@ export default function FinancePage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Amount</label>
+                  <label htmlFor="finance-record-amount" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Amount</label>
                   <input
+                    id="finance-record-amount"
                     type="number"
                     required
                     placeholder="e.g. 500"
@@ -583,8 +573,9 @@ export default function FinancePage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Currency</label>
+                  <label htmlFor="finance-record-currency" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Currency</label>
                   <select
+                    id="finance-record-currency"
                     value={recordCurrency}
                     onChange={(e) => setRecordCurrency(e.target.value)}
                     className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
@@ -597,8 +588,9 @@ export default function FinancePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Payment Method</label>
+                <label htmlFor="finance-record-method" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Payment Method</label>
                 <select
+                  id="finance-record-method"
                   value={recordMethod}
                   onChange={(e) => setRecordMethod(e.target.value as any)}
                   className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
@@ -612,8 +604,9 @@ export default function FinancePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Remarks / Reference</label>
+                <label htmlFor="finance-record-remarks" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Remarks / Reference</label>
                 <input
+                  id="finance-record-remarks"
                   type="text"
                   placeholder="e.g. Booking deposit payment receipt #4029"
                   value={recordRemarks}
@@ -639,7 +632,7 @@ export default function FinancePage() {
               </div>
             </form>
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
     </div>
   );

@@ -1,5 +1,7 @@
 'use client';
 
+import { WorkspaceDialog } from '@/components/WorkspaceDialog';
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useHearthAway } from '@/lib/context';
 import {
@@ -145,8 +147,8 @@ export function StudentDetailDrawer() {
   const isPartner = currentUser.role === 'partner';
   if (isPartner && student.partnerId !== currentUser.partnerId) {
     return (
-      <div className="fixed inset-y-0 right-0 z-[110] flex max-w-full pl-10">
-        <div className="w-screen max-w-md bg-[#FFFFFF] p-6 shadow-2xl flex flex-col justify-center items-center text-center border-l border-[#E8E6E1]">
+      <WorkspaceDialog label="Access restricted" onDismiss={() => setSelectedStudentId(null)} drawer>
+        <div className="w-full max-w-md bg-[#FFFFFF] p-6 shadow-2xl flex flex-col justify-center items-center text-center border-l border-[#E8E6E1]">
           <div className="h-12 w-12 rounded-xl bg-[#F7F6F3] border border-[#E8E6E1] flex items-center justify-center text-[#00319D] mb-4">
             <AlertCircle className="h-6 w-6" />
           </div>
@@ -161,7 +163,7 @@ export function StudentDetailDrawer() {
             Close
           </button>
         </div>
-      </div>
+      </WorkspaceDialog>
     );
   }
 
@@ -439,9 +441,9 @@ export function StudentDetailDrawer() {
   ];
 
   return (
-    <div className="fixed inset-0 z-[110] overflow-hidden bg-[#1A1A1A]/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200">
-      <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
-        <div className="w-screen max-w-3xl bg-[#FFFFFF] shadow-2xl flex flex-col h-full border-l border-[#E8E6E1] animate-in slide-in-from-right duration-200">
+    <WorkspaceDialog label="Student details" onDismiss={() => setSelectedStudentId(null)} drawer>
+      <div className="h-full min-w-0">
+        <div className="ha-drawer-layout w-full max-w-3xl bg-[#FFFFFF] shadow-2xl flex flex-col h-full border-l border-[#E8E6E1] animate-in slide-in-from-right duration-200">
           
           {/* Header */}
           <div className="border-b border-[#E8E6E1] px-6 py-4 bg-[#F7F6F3]">
@@ -456,13 +458,13 @@ export function StudentDetailDrawer() {
                   </span>
                   {student.isTestRecord || student.archivalStatus === 'Flagged For Archival' ? (
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded flex items-center gap-1">
+                      <span className="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded flex items-center gap-1">
                         <Tag className="h-3 w-3" />
                         FLAGGED FOR ARCHIVAL
                       </span>
                       <button
                         onClick={() => unflagRecordForArchival('student', student.id)}
-                        className="text-[10px] text-[#00319D] hover:underline font-semibold"
+                        className="text-xs text-[#00319D] hover:underline font-semibold"
                       >
                         Unflag
                       </button>
@@ -477,7 +479,7 @@ export function StudentDetailDrawer() {
                           'Flagged for archival from student detail panel'
                         )
                       }
-                      className="text-[10px] text-[#6B6860] hover:text-[#00319D] transition-colors flex items-center gap-1"
+                      className="text-xs text-[#6B6860] hover:text-[#00319D] transition-colors flex items-center gap-1"
                       title="Flag lead for archival"
                     >
                       <Archive className="h-3 w-3" />
@@ -502,7 +504,7 @@ export function StudentDetailDrawer() {
             </div>
 
             {/* Quick Action Ribbon */}
-            <div className="mt-4 grid w-full grid-cols-1 gap-x-2 gap-y-2 text-xs sm:w-max sm:grid-cols-[max-content_max-content]">
+            <div className="mt-4 grid w-full grid-cols-1 gap-x-2 gap-y-2 text-xs sm:grid-cols-2">
               {/* Call */}
               <a
                 href={`tel:${student.phone}`}
@@ -550,15 +552,16 @@ export function StudentDetailDrawer() {
                 return (
                   <>
                     {/* Portfolio Owner */}
-                    <div className="flex w-full min-w-0 items-center gap-1 overflow-hidden rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-[11px] text-[#6B6860]">
+                    <div className="flex w-full min-w-0 items-center gap-1 overflow-hidden rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-xs text-[#6B6860]">
                       <span className="shrink-0">Portfolio Owner:</span>
                       <strong className="min-w-0 truncate text-[#1A1A1A]">{portfolioOwner}</strong>
                     </div>
 
                     {/* Sales Owner */}
-                    <div className="flex w-full min-w-0 items-center gap-1 rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-[11px] text-[#6B6860]">
+                    <div className="flex w-full min-w-0 items-center gap-1 rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-xs text-[#6B6860]">
                       <span className="shrink-0">Sales Owner:</span>
                       <select
+                        aria-label="Assigned sales owner"
                         value={student.assignedSalesExecutiveId}
                         onChange={(e) => {
                           const selectedUser = availableUsers.find((u) => u.uid === e.target.value);
@@ -566,7 +569,7 @@ export function StudentDetailDrawer() {
                             reassignLeadSalesOwner(student.studentId, selectedUser.uid, selectedUser.displayName);
                           }
                         }}
-                        className="min-w-0 flex-1 bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-[11px]"
+                        className="min-w-0 flex-1 bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-xs"
                       >
                         <option value="">Unassigned</option>
                         {salesUsers.map((su) => (
@@ -578,13 +581,13 @@ export function StudentDetailDrawer() {
                     </div>
 
                     {/* Priority */}
-                    <label className="flex w-full min-w-0 items-center gap-1 rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-[11px] text-[#6B6860]">
+                    <label className="flex w-full min-w-0 items-center gap-1 rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-xs text-[#6B6860]">
                       <span className="shrink-0">Priority:</span>
                       <select
                         aria-label="Priority"
                         value={student.priority || 'Medium'}
                         onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as any })}
-                        className="min-w-0 flex-1 bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-[11px]"
+                        className="min-w-0 flex-1 bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-xs"
                       >
                         <option>Urgent</option>
                         <option>High</option>
@@ -594,13 +597,13 @@ export function StudentDetailDrawer() {
                     </label>
 
                     {/* Pipeline Stage */}
-                    <label className="flex w-full min-w-0 items-center gap-1 rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-[11px] text-[#6B6860]">
+                    <label className="flex w-full min-w-0 items-center gap-1 rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-xs text-[#6B6860]">
                       <span className="shrink-0">Pipeline Stage:</span>
                       <select
                         aria-label="Pipeline Stage"
                         value={student.pipelineStage || 'New'}
                         onChange={(e) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: e.target.value as any })}
-                        className="min-w-0 flex-1 bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-[11px]"
+                        className="min-w-0 flex-1 bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-xs"
                       >
                         <option>New</option>
                         <option>Active</option>
@@ -621,8 +624,21 @@ export function StudentDetailDrawer() {
             {/* Navigation Tabs */}
             <div className="mt-4 flex border-b border-[#E8E6E1] gap-4 text-xs font-semibold overflow-x-auto">
               <button
+                aria-pressed={activeTab === 'timeline'}
+                onClick={() => setActiveTab('timeline')}
+                className={`pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
+                  activeTab === 'timeline'
+                    ? 'border-[#00319D] text-[#00319D]'
+                    : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
+                }`}
+              >
+                <Clock className="h-3.5 w-3.5" />
+                Activity ({studentActivities.length})
+              </button>
+              <button
+                aria-pressed={activeTab === 'bookings'}
                 onClick={() => setActiveTab('bookings')}
-                className={`order-3 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
+                className={`pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'bookings'
                     ? 'border-[#00319D] text-[#00319D]'
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
@@ -631,10 +647,10 @@ export function StudentDetailDrawer() {
                 <Building className="h-3.5 w-3.5" />
                 Bookings ({studentBookings.length})
               </button>
-
               <button
+                aria-pressed={activeTab === 'payments'}
                 onClick={() => setActiveTab('payments')}
-                className={`order-4 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
+                className={`pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'payments'
                     ? 'border-[#00319D] text-[#00319D]'
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
@@ -644,23 +660,11 @@ export function StudentDetailDrawer() {
                 Payments ({studentPayments.length})
               </button>
 
-              <button
-                onClick={() => setActiveTab('timeline')}
-                className={`order-1 pb-2.5 transition-colors border-b-2 flex items-center gap-1.5 shrink-0 ${
-                  activeTab === 'timeline'
-                    ? 'border-[#00319D] text-[#00319D]'
-                    : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
-                }`}
-              >
-                <Clock className="h-3.5 w-3.5" />
-                Activity ({studentActivities.length})
-              </button>
-
             </div>
           </div>
 
           {/* Drawer Body */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="ha-drawer-body flex-1 overflow-y-auto p-6 space-y-6">
 
             {/* ========================================================= */}
             {/* TAB: PROPERTY BOOKINGS */}
@@ -694,7 +698,7 @@ export function StudentDetailDrawer() {
 
                     <form onSubmit={handleSaveBooking} className="space-y-4">
                       {bookingFormError && (
-                        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-700 flex items-center gap-2">
+                        <div role="alert" className="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-700 flex items-center gap-2">
                           <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
                           <span>{bookingFormError}</span>
                         </div>
@@ -702,16 +706,17 @@ export function StudentDetailDrawer() {
 
                       {/* Property Details */}
                       <div className="space-y-3">
-                        <div className="text-[11px] font-bold text-[#00319D] uppercase tracking-wider">
+                        <div className="text-xs font-bold text-[#00319D] uppercase tracking-wider">
                           1. Accommodation &amp; Property Details
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                            <label htmlFor="studentdetaildrawer-booking-property-name" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Property Name *
                             </label>
                             <input
+                              id="studentdetaildrawer-booking-property-name"
                               type="text"
                               required
                               value={bookingPropertyName}
@@ -722,10 +727,11 @@ export function StudentDetailDrawer() {
                           </div>
 
                           <div>
-                            <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                            <label htmlFor="studentdetaildrawer-booking-reference" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Booking Reference (Optional)
                             </label>
                             <input
+                              id="studentdetaildrawer-booking-reference"
                               type="text"
                               value={bookingReference}
                               onChange={(e) => setBookingReference(e.target.value)}
@@ -736,10 +742,11 @@ export function StudentDetailDrawer() {
                         </div>
 
                         <div>
-                          <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                          <label htmlFor="studentdetaildrawer-booking-property-address" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                             Property Address *
                           </label>
                           <input
+                            id="studentdetaildrawer-booking-property-address"
                             type="text"
                             required
                             value={bookingPropertyAddress}
@@ -752,16 +759,17 @@ export function StudentDetailDrawer() {
 
                       {/* Rent & Deposit with Independent Currencies */}
                       <div className="space-y-3 pt-2 border-t border-[#E8E6E1]">
-                        <div className="text-[11px] font-bold text-[#00319D] uppercase tracking-wider">
+                        <div className="text-xs font-bold text-[#00319D] uppercase tracking-wider">
                           2. Rent &amp; Deposit Financials
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div>
-                            <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                            <label htmlFor="studentdetaildrawer-booking-rent-amount" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Rent Amount *
                             </label>
                             <input
+                              id="studentdetaildrawer-booking-rent-amount"
                               type="number"
                               step="any"
                               required
@@ -773,10 +781,11 @@ export function StudentDetailDrawer() {
                           </div>
 
                           <div>
-                            <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                            <label htmlFor="studentdetaildrawer-booking-rent-frequency" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Rent Frequency *
                             </label>
                             <select
+                              id="studentdetaildrawer-booking-rent-frequency"
                               value={bookingRentFrequency}
                               onChange={(e) => setBookingRentFrequency(e.target.value as RentFrequency)}
                               className="w-full rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -789,10 +798,11 @@ export function StudentDetailDrawer() {
                           </div>
 
                           <div>
-                            <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                            <label htmlFor="studentdetaildrawer-booking-rent-currency" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Rent Currency *
                             </label>
                             <select
+                              id="studentdetaildrawer-booking-rent-currency"
                               value={bookingRentCurrency}
                               onChange={(e) => {
                                 const c = e.target.value as SupportedCurrency;
@@ -812,10 +822,11 @@ export function StudentDetailDrawer() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                            <label htmlFor="studentdetaildrawer-booking-deposit-amount" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Deposit Amount (Allows 0)
                             </label>
                             <input
+                              id="studentdetaildrawer-booking-deposit-amount"
                               type="number"
                               step="any"
                               value={bookingDepositAmount}
@@ -826,10 +837,11 @@ export function StudentDetailDrawer() {
                           </div>
 
                           <div>
-                            <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                            <label htmlFor="studentdetaildrawer-booking-deposit-currency" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Deposit Currency (Independent)
                             </label>
                             <select
+                              id="studentdetaildrawer-booking-deposit-currency"
                               value={bookingDepositCurrency}
                               onChange={(e) => setBookingDepositCurrency(e.target.value as SupportedCurrency)}
                               className="w-full rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -845,10 +857,11 @@ export function StudentDetailDrawer() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div>
-                            <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                            <label htmlFor="studentdetaildrawer-booking-tenancy-start-date" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Tenancy Start Date *
                             </label>
                             <input
+                              id="studentdetaildrawer-booking-tenancy-start-date"
                               type="date"
                               required
                               value={bookingTenancyStartDate}
@@ -858,10 +871,11 @@ export function StudentDetailDrawer() {
                           </div>
 
                           <div>
-                            <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                            <label htmlFor="studentdetaildrawer-booking-tenancy-end-date" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Tenancy End Date *
                             </label>
                             <input
+                              id="studentdetaildrawer-booking-tenancy-end-date"
                               type="date"
                               required
                               value={bookingTenancyEndDate}
@@ -871,10 +885,11 @@ export function StudentDetailDrawer() {
                           </div>
 
                           <div>
-                            <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                            <label htmlFor="studentdetaildrawer-booking-status" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Booking Status *
                             </label>
                             <select
+                              id="studentdetaildrawer-booking-status"
                               value={bookingStatus}
                               onChange={(e) => setBookingStatus(e.target.value as any)}
                               className="w-full rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -896,18 +911,19 @@ export function StudentDetailDrawer() {
                               Expected Revenue &amp; Partnership Commission
                             </span>
                           </div>
-                          <span className="text-[10px] bg-[#FFFFFF] text-[#00319D] px-2 py-0.5 rounded border border-[#E8E6E1] font-semibold">
+                          <span className="text-xs bg-[#FFFFFF] text-[#00319D] px-2 py-0.5 rounded border border-[#E8E6E1] font-semibold">
                             Contractual Basis
                           </span>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div>
-                            <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                            <label htmlFor="studentdetaildrawer-booking-commission-rate" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Commission Rate (%) *
                             </label>
                             <div className="relative">
                               <input
+                                id="studentdetaildrawer-booking-commission-rate"
                                 type="number"
                                 step="any"
                                 required
@@ -918,16 +934,17 @@ export function StudentDetailDrawer() {
                               />
                               <span className="absolute right-3 top-1.5 text-xs text-[#6B6860]">%</span>
                             </div>
-                            <span className="text-[10px] text-[#6B6860] mt-0.5 block">
+                            <span className="text-xs text-[#6B6860] mt-0.5 block">
                               Partner rate: {defaultPartnerRate}%
                             </span>
                           </div>
 
                           <div>
-                            <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                            <label htmlFor="studentdetaildrawer-booking-commissionable-amount" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Commissionable Amount *
                             </label>
                             <input
+                              id="studentdetaildrawer-booking-commissionable-amount"
                               type="number"
                               step="any"
                               required
@@ -936,16 +953,17 @@ export function StudentDetailDrawer() {
                               placeholder="Total contract or monthly basis"
                               className="w-full rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
                             />
-                            <span className="text-[10px] text-[#6B6860] mt-0.5 block">
+                            <span className="text-xs text-[#6B6860] mt-0.5 block">
                               Contractual rent base
                             </span>
                           </div>
 
                           <div>
-                            <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                            <label htmlFor="studentdetaildrawer-booking-commissionable-currency" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Commission Currency
                             </label>
                             <select
+                              id="studentdetaildrawer-booking-commissionable-currency"
                               value={bookingCommissionableCurrency}
                               onChange={(e) => setBookingCommissionableCurrency(e.target.value as SupportedCurrency)}
                               className="w-full rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -962,7 +980,7 @@ export function StudentDetailDrawer() {
                         {/* Automatic Expected Revenue Calculation Box */}
                         <div className="rounded-lg bg-[#FFFFFF] border border-[#E8E6E1] p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6860]">
+                            <span className="text-xs font-bold uppercase tracking-wider text-[#6B6860]">
                               Primary Metric
                             </span>
                             <h5 className="text-sm font-extrabold text-[#1A1A1A]">Expected Revenue</h5>
@@ -975,7 +993,7 @@ export function StudentDetailDrawer() {
                                   {CURRENCY_SYMBOLS[bookingCommissionableCurrency] || bookingCommissionableCurrency}{' '}
                                   {calculatedExpectedRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
-                                <span className="text-[11px] text-[#6B6860] font-medium">
+                                <span className="text-xs text-[#6B6860] font-medium">
                                   ({bookingCommissionRate}% of {bookingCommissionableAmount})
                                 </span>
                               </div>
@@ -990,10 +1008,11 @@ export function StudentDetailDrawer() {
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                        <label htmlFor="studentdetaildrawer-booking-notes" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                           Booking Notes &amp; Special Stipulations
                         </label>
                         <textarea
+                          id="studentdetaildrawer-booking-notes"
                           rows={2}
                           value={bookingNotes}
                           onChange={(e) => setBookingNotes(e.target.value)}
@@ -1050,7 +1069,7 @@ export function StudentDetailDrawer() {
                                 </span>
                               )}
                               <span
-                                className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${
+                                className={`rounded px-2 py-0.5 text-xs font-bold uppercase tracking-wider border ${
                                   b.bookingStatus === 'Confirmed'
                                     ? 'bg-[#00319D]/10 text-[#00319D] border-[#00319D]/30'
                                     : b.bookingStatus === 'Cancelled'
@@ -1095,19 +1114,19 @@ export function StudentDetailDrawer() {
                         {/* Financial Metrics Grid */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#F7F6F3] p-3.5 rounded-lg border border-[#E8E6E1]">
                           <div>
-                            <span className="text-[10px] font-bold text-[#6B6860] uppercase tracking-wider block">
+                            <span className="text-xs font-bold text-[#6B6860] uppercase tracking-wider block">
                               Rent &amp; Frequency
                             </span>
                             <span className="text-sm font-extrabold text-[#1A1A1A]">
                               {CURRENCY_SYMBOLS[b.rentCurrency] || b.rentCurrency} {b.rentAmount?.toLocaleString()}
                             </span>
-                            <span className="text-[10px] text-[#6B6860] block capitalize">
+                            <span className="text-xs text-[#6B6860] block capitalize">
                               per {b.rentFrequency}
                             </span>
                           </div>
 
                           <div>
-                            <span className="text-[10px] font-bold text-[#6B6860] uppercase tracking-wider block">
+                            <span className="text-xs font-bold text-[#6B6860] uppercase tracking-wider block">
                               Deposit
                             </span>
                             <span className="text-sm font-extrabold text-[#1A1A1A]">
@@ -1115,32 +1134,32 @@ export function StudentDetailDrawer() {
                                 ? `${CURRENCY_SYMBOLS[b.depositCurrency] || b.depositCurrency} ${b.depositAmount?.toLocaleString()}`
                                 : 'No Deposit'}
                             </span>
-                            <span className="text-[10px] text-[#6B6860] block">
+                            <span className="text-xs text-[#6B6860] block">
                               {b.depositAmount > 0 ? 'Refundable holding' : 'Zero deposit lease'}
                             </span>
                           </div>
 
                           <div>
-                            <span className="text-[10px] font-bold text-[#6B6860] uppercase tracking-wider block">
+                            <span className="text-xs font-bold text-[#6B6860] uppercase tracking-wider block">
                               Tenancy Period
                             </span>
                             <span className="text-xs font-bold text-[#1A1A1A] block">
                               {b.tenancyStartDate}
                             </span>
-                            <span className="text-[10px] text-[#6B6860] block">
+                            <span className="text-xs text-[#6B6860] block">
                               to {b.tenancyEndDate}
                             </span>
                           </div>
 
                           <div className="border-l border-[#E8E6E1] pl-3">
-                            <span className="text-[10px] font-bold text-[#00319D] uppercase tracking-wider block">
+                            <span className="text-xs font-bold text-[#00319D] uppercase tracking-wider block">
                               Expected Revenue
                             </span>
                             <span className="text-sm font-extrabold text-[#00319D]">
                               {CURRENCY_SYMBOLS[b.commissionableCurrency || b.rentCurrency] || b.commissionableCurrency}{' '}
                               {(b.expectedRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
-                            <span className="text-[10px] text-[#6B6860] block">
+                            <span className="text-xs text-[#6B6860] block">
                               {b.commissionRate}% of {(b.commissionableAmount || b.rentAmount)?.toLocaleString()}
                             </span>
                           </div>
@@ -1177,7 +1196,7 @@ export function StudentDetailDrawer() {
                         )}
 
                         {/* Audit Footer */}
-                        <div className="text-[10px] text-[#6B6860] pt-2 border-t border-[#E8E6E1] flex flex-wrap justify-between gap-1">
+                        <div className="text-xs text-[#6B6860] pt-2 border-t border-[#E8E6E1] flex flex-wrap justify-between gap-1">
                           <span>Created by: <strong className="text-[#1A1A1A]">{b.createdBy}</strong> ({b.createdAt})</span>
                           {b.updatedBy && (
                             <span>Updated by: <strong className="text-[#1A1A1A]">{b.updatedBy}</strong> ({b.updatedAt})</span>
@@ -1212,7 +1231,7 @@ export function StudentDetailDrawer() {
 
                   <form onSubmit={handleUploadPayment} className="space-y-4">
                     {paymentUploadError && (
-                      <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 flex items-start gap-2">
+                      <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 flex items-start gap-2">
                         <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
                         <span>{paymentUploadError}</span>
                       </div>
@@ -1220,10 +1239,11 @@ export function StudentDetailDrawer() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                        <label htmlFor="studentdetaildrawer-payment-amount" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                           Amount *
                         </label>
                         <input
+                          id="studentdetaildrawer-payment-amount"
                           type="number"
                           step="any"
                           required
@@ -1235,10 +1255,11 @@ export function StudentDetailDrawer() {
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                        <label htmlFor="studentdetaildrawer-payment-currency" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                           Currency
                         </label>
                         <select
+                          id="studentdetaildrawer-payment-currency"
                           value={paymentCurrency}
                           onChange={(e) => setPaymentCurrency(e.target.value as SupportedCurrency)}
                           className="w-full rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -1252,10 +1273,11 @@ export function StudentDetailDrawer() {
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                        <label htmlFor="studentdetaildrawer-payment-method" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                           Payment Method
                         </label>
                         <select
+                          id="studentdetaildrawer-payment-method"
                           value={paymentMethod}
                           onChange={(e) => setPaymentMethod(e.target.value as any)}
                           className="w-full rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -1271,10 +1293,11 @@ export function StudentDetailDrawer() {
 
                     {/* Associated Booking Dropdown */}
                     <div>
-                      <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                      <label htmlFor="studentdetaildrawer-payment-associated-booking-id" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                         Associated Property Booking
                       </label>
                       <select
+                        id="studentdetaildrawer-payment-associated-booking-id"
                         value={paymentAssociatedBookingId}
                         onChange={(e) => setPaymentAssociatedBookingId(e.target.value)}
                         className="w-full rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -1295,11 +1318,11 @@ export function StudentDetailDrawer() {
                           <label className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider block">
                             Payment Proof *
                           </label>
-                          <span className="text-[11px] text-[#6B6860]">
+                          <span className="text-xs text-[#6B6860]">
                             Attach bank transfer receipt, wire confirmation, or transaction screenshot (JPG, PNG, WEBP, PDF).
                           </span>
                         </div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-[#00319D]/10 text-[#00319D] px-2 py-0.5 rounded">
+                        <span className="text-xs font-bold uppercase tracking-wider bg-[#00319D]/10 text-[#00319D] px-2 py-0.5 rounded">
                           Mandatory
                         </span>
                       </div>
@@ -1333,7 +1356,7 @@ export function StudentDetailDrawer() {
                             Browse Files
                           </button>
                         </p>
-                        <p className="text-[10px] text-[#6B6860] mt-1">
+                        <p className="text-xs text-[#6B6860] mt-1">
                           Supports multiple attachments: JPG, JPEG, PNG, WEBP, and PDF documents.
                         </p>
 
@@ -1350,7 +1373,7 @@ export function StudentDetailDrawer() {
                       {/* Attached Previews before submission */}
                       {filePreviews.length > 0 && (
                         <div className="space-y-2 pt-2">
-                          <span className="text-[11px] font-bold text-[#1A1A1A] block">
+                          <span className="text-xs font-bold text-[#1A1A1A] block">
                             Ready to upload ({filePreviews.length}):
                           </span>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1378,7 +1401,7 @@ export function StudentDetailDrawer() {
                                       <p className="text-xs font-semibold text-[#1A1A1A] truncate" title={preview.name}>
                                         {preview.name}
                                       </p>
-                                      <p className="text-[10px] text-[#6B6860]">
+                                      <p className="text-xs text-[#6B6860]">
                                         {formatFileSize(preview.size)}
                                       </p>
                                     </div>
@@ -1415,10 +1438,11 @@ export function StudentDetailDrawer() {
 
                             {allowBypassProof && (
                               <div className="rounded-lg bg-[#FCC20A]/10 border border-[#FCC20A] p-2.5 space-y-1.5 animate-in fade-in">
-                                <label className="block text-[11px] font-bold text-[#1A1A1A]">
+                                <label htmlFor="studentdetaildrawer-bypass-reason" className="block text-xs font-bold text-[#1A1A1A]">
                                   Reason for Proof Exception (Logged in Audit Trail) *
                                 </label>
                                 <textarea
+                                  id="studentdetaildrawer-bypass-reason"
                                   rows={2}
                                   required={allowBypassProof}
                                   value={bypassReason}
@@ -1430,7 +1454,7 @@ export function StudentDetailDrawer() {
                             )}
                           </div>
                         ) : (
-                          <p className="text-[10px] text-[#6B6860]">
+                          <p className="text-xs text-[#6B6860]">
                             Note: If proof is unavailable, an authorized Management user can record an exception with an audited reason.
                           </p>
                         )}
@@ -1438,10 +1462,11 @@ export function StudentDetailDrawer() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-[#1A1A1A] mb-1">
+                      <label htmlFor="studentdetaildrawer-payment-remarks" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                         Remarks / Transaction Reference
                       </label>
                       <input
+                        id="studentdetaildrawer-payment-remarks"
                         type="text"
                         value={paymentRemarks}
                         onChange={(e) => setPaymentRemarks(e.target.value)}
@@ -1489,12 +1514,12 @@ export function StudentDetailDrawer() {
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-xs font-bold text-[#1A1A1A]">{pmt.paymentId}</span>
                             {pmt.bookingId && (
-                              <span className="font-mono text-[10px] text-[#00319D] bg-[#F7F6F3] px-1.5 py-0.5 rounded border border-[#E8E6E1]">
+                              <span className="font-mono text-xs text-[#00319D] bg-[#F7F6F3] px-1.5 py-0.5 rounded border border-[#E8E6E1]">
                                 Booking: {pmt.bookingId}
                               </span>
                             )}
                             <span
-                              className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${
+                              className={`rounded px-1.5 py-0.5 text-xs font-bold uppercase tracking-wider border ${
                                 pmt.paymentStatus === 'Verified'
                                   ? 'bg-[#00319D]/10 text-[#00319D] border-[#00319D]/30'
                                   : pmt.paymentStatus === 'Rejected'
@@ -1518,7 +1543,7 @@ export function StudentDetailDrawer() {
                       {/* Payment Proof Attachments List */}
                       {pmt.attachments && pmt.attachments.length > 0 && (
                         <div className="rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] p-3 space-y-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#00319D] block">
+                          <span className="text-xs font-bold uppercase tracking-wider text-[#00319D] block">
                             Attached Payment Proofs ({pmt.attachments.length})
                           </span>
 
@@ -1540,7 +1565,7 @@ export function StudentDetailDrawer() {
                                       <p className="text-xs font-semibold text-[#1A1A1A] truncate" title={att.fileName}>
                                         {att.fileName}
                                       </p>
-                                      <p className="text-[10px] text-[#6B6860]">
+                                      <p className="text-xs text-[#6B6860]">
                                         {formatFileSize(att.fileSize)}
                                       </p>
                                     </div>
@@ -1585,7 +1610,7 @@ export function StudentDetailDrawer() {
                               &quot;{pmt.proofBypassReason}&quot;
                             </span>
                             {pmt.proofBypassedBy && (
-                              <span className="text-[10px] text-[#6B6860] block mt-0.5">
+                              <span className="text-xs text-[#6B6860] block mt-0.5">
                                 Authorized by: {pmt.proofBypassedBy}
                               </span>
                             )}
@@ -1593,7 +1618,7 @@ export function StudentDetailDrawer() {
                         </div>
                       )}
 
-                      <div className="pt-2 border-t border-[#E8E6E1] text-[11px] text-[#6B6860] flex flex-wrap justify-between gap-1">
+                      <div className="pt-2 border-t border-[#E8E6E1] text-xs text-[#6B6860] flex flex-wrap justify-between gap-1">
                         <span>Uploaded by: <strong className="text-[#1A1A1A]">{pmt.uploadedBy}</strong> ({pmt.uploadedTimestamp})</span>
                         {pmt.verifiedBy && (
                           <span className="text-[#00319D] font-semibold">
@@ -1630,7 +1655,7 @@ export function StudentDetailDrawer() {
                     <Clock className="h-4 w-4 text-[#00319D]" />
                     Activity Timeline ({studentActivities.length})
                   </h3>
-                  <span className="text-[10px] font-mono text-[#6B6860] bg-[#F7F6F3] px-2 py-0.5 rounded border border-[#E8E6E1]">
+                  <span className="text-xs font-mono text-[#6B6860] bg-[#F7F6F3] px-2 py-0.5 rounded border border-[#E8E6E1]">
                     ABAC Log Guard Active
                   </span>
                 </div>
@@ -1647,11 +1672,11 @@ export function StudentDetailDrawer() {
                       <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3 text-xs shadow-2xs space-y-1">
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-[#1A1A1A]">{act.activityType}</span>
-                          <span className="text-[10px] text-[#6B6860]">{act.timestamp}</span>
+                          <span className="text-xs text-[#6B6860]">{act.timestamp}</span>
                         </div>
                         <p className="text-[#6B6860]">{act.description}</p>
                         {act.oldValue && act.newValue && (
-                          <div className="flex items-center gap-1.5 pt-1 text-[11px]">
+                          <div className="flex items-center gap-1.5 pt-1 text-xs">
                             <span className="rounded bg-[#F7F6F3] border border-[#E8E6E1] px-2 py-0.5 text-[#6B6860]">
                               {act.oldValue}
                             </span>
@@ -1661,7 +1686,7 @@ export function StudentDetailDrawer() {
                             </span>
                           </div>
                         )}
-                        <div className="pt-1 text-[10px] text-[#6B6860] flex items-center gap-1.5">
+                        <div className="pt-1 text-xs text-[#6B6860] flex items-center gap-1.5">
                           <User className="h-3 w-3" />
                           <span>Logged by: <strong className="text-[#1A1A1A]">{act.performedBy.name}</strong> ({act.performedBy.role})</span>
                         </div>
@@ -1707,7 +1732,7 @@ export function StudentDetailDrawer() {
       {/* ATTACHMENT PREVIEW MODAL */}
       {/* ========================================================= */}
       {previewAttachment && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-[#1A1A1A]/70 backdrop-blur-xs p-4 animate-in fade-in">
+        <WorkspaceDialog label="Attachment preview" onDismiss={() => setPreviewAttachment(null)}>
           <div className="relative w-full max-w-3xl rounded-2xl bg-[#FFFFFF] border border-[#E8E6E1] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between border-b border-[#E8E6E1] p-4 bg-[#F7F6F3]">
               <div className="flex items-center gap-2 min-w-0">
@@ -1720,7 +1745,7 @@ export function StudentDetailDrawer() {
                   <h4 className="text-xs font-bold text-[#1A1A1A] truncate" title={previewAttachment.fileName}>
                     {previewAttachment.fileName}
                   </h4>
-                  <p className="text-[10px] text-[#6B6860]">
+                  <p className="text-xs text-[#6B6860]">
                     {formatFileSize(previewAttachment.fileSize)} • Uploaded by {previewAttachment.uploadedBy} on {previewAttachment.uploadedTimestamp}
                   </p>
                 </div>
@@ -1738,6 +1763,7 @@ export function StudentDetailDrawer() {
                   Download
                 </a>
                 <button
+                  aria-label="Close dialog"
                   onClick={() => setPreviewAttachment(null)}
                   className="rounded-lg p-1.5 text-[#6B6860] hover:bg-[#E8E6E1] hover:text-[#1A1A1A] transition-colors"
                 >
@@ -1791,8 +1817,8 @@ export function StudentDetailDrawer() {
               )}
             </div>
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
-    </div>
+    </WorkspaceDialog>
   );
 }

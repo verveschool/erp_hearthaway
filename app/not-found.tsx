@@ -6,7 +6,7 @@ import { BrandLogo } from '@/components/BrandLogo';
 export default function NotFound() {
   return (
     <div className="min-h-[70vh] flex items-center justify-center py-16 px-4 sm:px-6">
-      <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 text-center shadow-xs space-y-6">
+      <div className="ha-auth-card w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 text-center shadow-xs space-y-6">
         <div className="flex justify-center">
           <BrandLogo variant="light" size={40} showWordmark={false} />
         </div>
