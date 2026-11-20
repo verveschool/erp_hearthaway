@@ -2,6 +2,7 @@
 
 @layer base {
   :root {
+    --font-manrope: 'Manrope';
     --ha-blue: #00319D;
     --ha-blue-hover: #00257A;
     --ha-gold: #FCC20A;
