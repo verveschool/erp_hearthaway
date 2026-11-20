@@ -1,5 +1,8 @@
 'use client';
 
+import { WorkspaceMetric } from '@/components/WorkspaceMetric';
+import { WorkspaceDialog } from '@/components/WorkspaceDialog';
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useHearthAway } from '@/lib/context';
 import { AppUser, Student } from '@/lib/types';
@@ -72,7 +75,7 @@ const CustomTrendTooltip = ({ active, payload, label }: CustomTrendTooltipProps)
       <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3.5 shadow-xl text-xs space-y-2 min-w-[210px]">
         <div className="border-b border-[#E8E6E1] pb-1.5 flex items-center justify-between">
           <span className="font-bold text-[#1A1A1A]">{label}</span>
-          <span className="text-[10px] uppercase font-bold text-[#6B6860]">6M Velocity</span>
+          <span className="text-xs uppercase font-bold text-[#6B6860]">6M Velocity</span>
         </div>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-3">
@@ -80,16 +83,16 @@ const CustomTrendTooltip = ({ active, payload, label }: CustomTrendTooltipProps)
               <span className="h-2.5 w-2.5 rounded-full bg-[#00319D]" />
               Lead Generation Volume:
             </span>
-            <span className="font-extrabold text-[#00319D]">{leadVolume}</span>
+            <span className="font-bold text-[#00319D]">{leadVolume}</span>
           </div>
           <div className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-1.5 text-[#6B6860]">
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
               Tenancy Conversions:
             </span>
-            <span className="font-extrabold text-emerald-700">{conversions}</span>
+            <span className="font-bold text-emerald-700">{conversions}</span>
           </div>
-          <div className="pt-1.5 border-t border-[#E8E6E1] flex items-center justify-between text-[11px]">
+          <div className="pt-1.5 border-t border-[#E8E6E1] flex items-center justify-between text-xs">
             <span className="text-[#6B6860]">Conversion Efficiency:</span>
             <span className="font-bold text-[#1A1A1A] bg-amber-50 text-amber-900 border border-amber-200 px-1.5 py-0.5 rounded">
               {rate}%
@@ -588,17 +591,17 @@ export default function PortfolioPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F6F3] pb-16">
+    <div className="ha-workspace">
       {/* Top Header */}
-      <div className="border-b border-[#E8E6E1] bg-[#FFFFFF] px-4 sm:px-6 lg:px-8 py-6">
-        <div className="max-w-7xl mx-auto">
+      <div className="ha-page-header">
+        <div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-extrabold text-[#1A1A1A] mt-1 tracking-tight">
-                Management Dashboard
+              <h1 className="ha-title">
+                Portfolio overview
               </h1>
-              <p className="text-xs text-[#6B6860] mt-0.5 max-w-2xl">
-                Track partner relationships, lead rollups, and system-wide audit activity with live data synchronization and reporting.
+              <p className="ha-summary">
+                Track partner relationships, sourced leads and audit activity.
               </p>
             </div>
 
@@ -609,6 +612,7 @@ export default function PortfolioPage() {
                   Portfolio Scope:
                 </span>
                 <select
+                  aria-label="Portfolio scope"
                   value={selectedOwnerId}
                   onChange={(e) => setSelectedOwnerId(e.target.value)}
                   className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-bold text-[#1A1A1A] focus:outline-none focus:border-[#00319D] cursor-pointer"
@@ -627,11 +631,12 @@ export default function PortfolioPage() {
           {/* DEDICATED GLOBAL LEAD SEARCH INPUT IN HEADER (Cross-Portfolio) */}
           <div className="mt-5 relative z-40" ref={globalSearchRef}>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-[#F7F6F3] p-2 sm:p-2.5 rounded-xl border border-[#E8E6E1] shadow-2xs">
-              <div className="relative flex-1">
+              <div className="relative min-w-0 flex-1">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Globe className="h-4 w-4 text-[#00319D]" />
                 </div>
                 <input
+                  aria-label="Search all portfolios"
                   type="text"
                   value={globalSearchQuery}
                   onChange={(e) => {
@@ -639,7 +644,7 @@ export default function PortfolioPage() {
                     setIsGlobalSearchFocused(true);
                   }}
                   onFocus={() => setIsGlobalSearchFocused(true)}
-                  placeholder="Global Lead Search — Search across all portfolios by student name or student ID (e.g. HA-2026-001245)..."
+                  placeholder="Search all portfolios by student name or ID"
                   className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-9 py-2 text-xs font-medium text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-none transition-all"
                 />
                 {globalSearchQuery && (
@@ -658,14 +663,14 @@ export default function PortfolioPage() {
               </div>
 
               <div className="flex items-center justify-between sm:justify-end gap-2 px-1">
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#FFFFFF] border border-[#E8E6E1] px-2.5 py-1.5 text-[11px] font-bold text-[#6B6860]">
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#FFFFFF] border border-[#E8E6E1] px-2.5 py-1.5 text-xs font-bold text-[#6B6860]">
                   <Users className="h-3.5 w-3.5 text-[#00319D]" />
                   <span>
                     Scope: <strong className="text-[#1A1A1A]">Cross-Portfolio ({students.length} Total Leads)</strong>
                   </span>
                 </span>
                 {globalSearchQuery.trim() !== '' && (
-                  <span className="rounded-lg bg-[#00319D] px-2.5 py-1.5 text-[11px] font-bold text-[#FFFFFF] shadow-2xs whitespace-nowrap">
+                  <span className="rounded-lg bg-[#00319D] px-2.5 py-1.5 text-xs font-bold text-[#FFFFFF] shadow-2xs whitespace-nowrap">
                     {globalMatchingLeads.length} {globalMatchingLeads.length === 1 ? 'Match' : 'Matches'}
                   </span>
                 )}
@@ -680,7 +685,7 @@ export default function PortfolioPage() {
                     <Globe className="h-3.5 w-3.5 text-[#00319D]" />
                     Global Search Results ({globalMatchingLeads.length})
                   </span>
-                  <span className="text-[11px] text-[#6B6860]">
+                  <span className="text-xs text-[#6B6860]">
                     Searching across all portfolios without switching owners
                   </span>
                 </div>
@@ -689,7 +694,7 @@ export default function PortfolioPage() {
                   <div className="p-8 text-center space-y-2">
                     <Search className="h-7 w-7 text-[#6B6860] mx-auto opacity-50" />
                     <p className="text-xs font-bold text-[#1A1A1A]">No leads found across any portfolio</p>
-                    <p className="text-[11px] text-[#6B6860]">
+                    <p className="text-xs text-[#6B6860]">
                       No student matches &ldquo;{globalSearchQuery}&rdquo; by name, ID, or email.
                     </p>
                   </div>
@@ -711,11 +716,11 @@ export default function PortfolioPage() {
                               <span className="font-bold text-xs text-[#1A1A1A] hover:text-[#00319D]">
                                 {lead.fullName}
                               </span>
-                              <span className="font-mono text-[10px] font-bold bg-[#00319D]/10 text-[#00319D] px-1.5 py-0.5 rounded border border-[#00319D]/20">
+                              <span className="font-mono text-xs font-bold bg-[#00319D]/10 text-[#00319D] px-1.5 py-0.5 rounded border border-[#00319D]/20">
                                 {lead.studentId}
                               </span>
                               <span
-                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                className={`text-xs font-bold px-1.5 py-0.5 rounded ${
                                   lead.bookingStatus === 'Booked' || lead.bookingStatus === 'Move-in Confirmed'
                                     ? 'bg-emerald-100 text-emerald-800'
                                     : lead.bookingStatus === 'Payment Pending'
@@ -727,7 +732,7 @@ export default function PortfolioPage() {
                               </span>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#6B6860]">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B6860]">
                               <span>
                                 Portfolio Owner: <strong className="text-[#00319D]">{attr.ownerName}</strong>
                               </span>
@@ -768,7 +773,7 @@ export default function PortfolioPage() {
                       );
                     })}
                     {globalMatchingLeads.length > 10 && (
-                      <div className="bg-[#F7F6F3]/50 px-4 py-2 text-center text-[11px] text-[#6B6860]">
+                      <div className="bg-[#F7F6F3]/50 px-4 py-2 text-center text-xs text-[#6B6860]">
                         Showing top 10 of <strong>{globalMatchingLeads.length}</strong> matches. Filter further in table or scroll table view.
                       </div>
                     )}
@@ -779,7 +784,7 @@ export default function PortfolioPage() {
           </div>
 
           {/* Active Portfolio Owner Banner */}
-          <div className="mt-6 rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="mt-5">
             <div className="flex items-center gap-3">
               <div className="h-11 w-11 rounded-full bg-[#00319D] text-[#FFFFFF] flex items-center justify-center font-bold text-base shadow-xs shrink-0">
                 {activeOwner.displayName.charAt(0)}
@@ -787,7 +792,7 @@ export default function PortfolioPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-sm font-bold text-[#1A1A1A]">{activeOwner.displayName}</h2>
-                  <span className="rounded bg-[#00319D]/10 px-2 py-0.5 text-[10px] font-bold text-[#00319D]">
+                  <span className="rounded bg-[#00319D]/10 px-2 py-0.5 text-xs font-bold text-[#00319D]">
                     {effectiveOwnerId === 'all' ? 'System Scope' : 'Portfolio Owner'}
                   </span>
                 </div>
@@ -796,54 +801,36 @@ export default function PortfolioPage() {
             </div>
 
             {/* Key Metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
-              <div className="bg-[#FFFFFF] px-3 py-2 rounded-lg border border-[#E8E6E1]">
-                <span className="text-[10px] uppercase font-bold text-[#6B6860] block">Onboarded Partners</span>
-                <span className="text-base font-extrabold text-[#1A1A1A]">{metrics.totalPartners}</span>
-              </div>
-              <div className="bg-[#FFFFFF] px-3 py-2 rounded-lg border border-[#E8E6E1]">
-                <span className="text-[10px] uppercase font-bold text-[#6B6860] block">Total Sourced Leads</span>
-                <span className="text-base font-extrabold text-[#00319D]">{metrics.totalLeads}</span>
-              </div>
-              <div className="bg-[#FFFFFF] px-3 py-2 rounded-lg border border-[#E8E6E1]">
-                <span className="text-[10px] uppercase font-bold text-[#6B6860] block">Booked Tenancies</span>
-                <span className="text-base font-extrabold text-emerald-700">{metrics.bookedLeads}</span>
-              </div>
-              <div className="bg-[#FFFFFF] px-3 py-2 rounded-lg border border-[#E8E6E1]">
-                <span className="text-[10px] uppercase font-bold text-[#6B6860] block">Audit Events Logged</span>
-                <span className="text-base font-extrabold text-[#FCC20A] bg-amber-950/80 px-1.5 py-0.5 rounded">
-                  {auditMetrics.total}
-                </span>
-              </div>
-            </div>
+            <dl className="ha-metrics mt-4">
+              <WorkspaceMetric label="Onboarded Partners">{metrics.totalPartners}</WorkspaceMetric>
+              <WorkspaceMetric label="Total Sourced Leads">{metrics.totalLeads}</WorkspaceMetric>
+              <WorkspaceMetric label="Booked Tenancies">{metrics.bookedLeads}</WorkspaceMetric>
+              <WorkspaceMetric label="Audit Events Logged">{auditMetrics.total}</WorkspaceMetric>
+            </dl>
           </div>
 
           {/* Recharts-based 6-Month Growth Trend: Lead Generation Volume vs Tenancy Conversions */}
           <div className="mt-6 rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-5 shadow-2xs space-y-4">
             {/* Header with Title, Stats & View Controls */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#E8E6E1] pb-4">
+            <div className="flex flex-col gap-3 border-b border-[#E8E6E1] pb-4">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#00319D]/10 text-[#00319D]">
                     <TrendingUp className="h-4 w-4" />
                   </span>
-                  <h3 className="text-sm font-extrabold text-[#1A1A1A] tracking-tight">
-                    Portfolio Growth Velocity (Last 6 Months)
+                  <h3 className="text-sm font-bold text-[#1A1A1A] tracking-tight">
+                    Portfolio growth
                   </h3>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Live Metrics
-                  </span>
                 </div>
                 <p className="text-xs text-[#6B6860] mt-1">
-                  Tracking <strong>Lead Generation Volume</strong> vs. <strong>Tenancy Conversions</strong> across the last 6 months to evaluate portfolio velocity.
+                  Lead volume and tenancy conversions over the past six months.
                 </p>
               </div>
 
               {/* Badges & Controls */}
-              <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex max-w-full flex-wrap items-center gap-2.5">
                 {/* 6M Summary Badges */}
-                <div className="hidden sm:flex items-center gap-2 bg-[#F7F6F3] p-1 rounded-xl border border-[#E8E6E1] text-[11px]">
+                <div className="flex flex-wrap items-center gap-2 text-xs tabular-nums sm:mr-auto">
                   <div className="px-2 py-1 flex items-center gap-1.5 font-bold text-[#00319D]">
                     <span className="h-2 w-2 rounded-full bg-[#00319D]" />
                     <span>6M Leads: <strong>{chartAggregates.total6mLeads}</strong></span>
@@ -862,6 +849,7 @@ export default function PortfolioPage() {
                 {/* Benchmark Mode Toggle */}
                 <button
                   type="button"
+                  aria-pressed={useBenchmarkModel}
                   onClick={() => setUseBenchmarkModel(!useBenchmarkModel)}
                   className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
                     useBenchmarkModel
@@ -877,6 +865,7 @@ export default function PortfolioPage() {
                 {/* Chart Type Toggle: Area vs Bar */}
                 <div className="flex items-center rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] p-0.5">
                   <button
+                    aria-pressed={chartType === 'area'}
                     type="button"
                     onClick={() => setChartType('area')}
                     className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
@@ -890,6 +879,7 @@ export default function PortfolioPage() {
                     <span className="hidden sm:inline">Trend</span>
                   </button>
                   <button
+                    aria-pressed={chartType === 'bar'}
                     type="button"
                     onClick={() => setChartType('bar')}
                     className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
@@ -907,6 +897,7 @@ export default function PortfolioPage() {
                 {/* Collapse / Expand Toggle */}
                 <button
                   type="button"
+                  aria-expanded={isChartExpanded}
                   onClick={() => setIsChartExpanded(!isChartExpanded)}
                   className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-1.5 text-[#6B6860] hover:bg-[#F7F6F3] hover:text-[#1A1A1A] cursor-pointer"
                   title={isChartExpanded ? 'Collapse Growth Chart' : 'Expand Growth Chart'}
@@ -967,6 +958,7 @@ export default function PortfolioPage() {
                             )}
                           />
                           <Area
+                            isAnimationActive={false}
                             type="monotone"
                             dataKey="leads"
                             name="leads"
@@ -978,6 +970,7 @@ export default function PortfolioPage() {
                             activeDot={{ r: 6, stroke: '#00319D', strokeWidth: 2, fill: '#FFFFFF' }}
                           />
                           <Area
+                            isAnimationActive={false}
                             type="monotone"
                             dataKey="conversions"
                             name="conversions"
@@ -1019,6 +1012,7 @@ export default function PortfolioPage() {
                             )}
                           />
                           <Bar
+                            isAnimationActive={false}
                             dataKey="leads"
                             name="leads"
                             fill="#00319D"
@@ -1026,6 +1020,7 @@ export default function PortfolioPage() {
                             maxBarSize={40}
                           />
                           <Bar
+                            isAnimationActive={false}
                             dataKey="conversions"
                             name="conversions"
                             fill="#059669"
@@ -1045,19 +1040,19 @@ export default function PortfolioPage() {
                       key={m.key}
                       className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-2.5 text-center transition-all hover:bg-[#FFFFFF] hover:border-[#00319D]/30 shadow-2xs"
                     >
-                      <span className="text-[10px] font-bold text-[#6B6860] uppercase block">
+                      <span className="text-xs font-bold text-[#6B6860] uppercase block">
                         {m.month}
                       </span>
                       <div className="mt-1 flex items-center justify-center gap-1.5 text-xs">
-                        <span className="font-extrabold text-[#00319D]" title="Lead Generation Volume">
-                          {m.leads} <span className="text-[9px] font-normal text-[#6B6860]">vol</span>
+                        <span className="font-bold text-[#00319D]" title="Lead Generation Volume">
+                          {m.leads} <span className="text-xs font-normal text-[#6B6860]">vol</span>
                         </span>
-                        <span className="text-[#6B6860] text-[10px]">→</span>
-                        <span className="font-extrabold text-emerald-700" title="Tenancy Conversions">
-                          {m.conversions} <span className="text-[9px] font-normal text-[#6B6860]">conv</span>
+                        <span className="text-[#6B6860] text-xs">→</span>
+                        <span className="font-bold text-emerald-700" title="Tenancy Conversions">
+                          {m.conversions} <span className="text-xs font-normal text-[#6B6860]">conv</span>
                         </span>
                       </div>
-                      <span className="inline-block mt-1 text-[10px] font-bold text-amber-900 bg-amber-50 border border-amber-200/80 px-1.5 py-0.2 rounded">
+                      <span className="inline-block mt-1 text-xs font-bold text-amber-900 bg-amber-50 border border-amber-200/80 px-1.5 py-0.2 rounded">
                         {m.conversionRate}% conv
                       </span>
                     </div>
@@ -1069,8 +1064,9 @@ export default function PortfolioPage() {
 
           {/* Sub-Tabs: Generated Leads, Onboarded Partners, and Audit Trail */}
           <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#E8E6E1] gap-3">
-            <div className="flex gap-6 text-xs font-bold overflow-x-auto">
+            <div className="ha-tabs text-sm font-semibold">
               <button
+                aria-pressed={activeTab === 'leads'}
                 onClick={() => setActiveTab('leads')}
                 className={`pb-3 transition-colors border-b-2 flex items-center gap-1.5 cursor-pointer shrink-0 ${
                   activeTab === 'leads'
@@ -1082,6 +1078,7 @@ export default function PortfolioPage() {
                 Generated Leads ({metrics.totalLeads})
               </button>
               <button
+                aria-pressed={activeTab === 'partners'}
                 onClick={() => setActiveTab('partners')}
                 className={`pb-3 transition-colors border-b-2 flex items-center gap-1.5 cursor-pointer shrink-0 ${
                   activeTab === 'partners'
@@ -1093,6 +1090,7 @@ export default function PortfolioPage() {
                 Onboarded Partners ({metrics.totalPartners})
               </button>
               <button
+                aria-pressed={activeTab === 'audit'}
                 onClick={() => setActiveTab('audit')}
                 className={`pb-3 transition-colors border-b-2 flex items-center gap-1.5 cursor-pointer shrink-0 ${
                   activeTab === 'audit'
@@ -1108,9 +1106,10 @@ export default function PortfolioPage() {
             {/* Toggle switch between Card View and Table View for lead listings */}
             {activeTab === 'leads' && (
               <div className="flex items-center gap-2 pb-2.5 sm:pb-3 self-end sm:self-auto shrink-0">
-                <span className="text-[11px] font-bold text-[#6B6860] hidden md:inline">Layout:</span>
+                <span className="text-xs font-bold text-[#6B6860] hidden md:inline">Layout:</span>
                 <div className="flex items-center rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] p-0.5 shadow-2xs">
                   <button
+                    aria-pressed={leadViewMode === 'table'}
                     type="button"
                     onClick={() => setLeadViewMode('table')}
                     className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
@@ -1124,6 +1123,7 @@ export default function PortfolioPage() {
                     <span>Table View</span>
                   </button>
                   <button
+                    aria-pressed={leadViewMode === 'cards'}
                     type="button"
                     onClick={() => setLeadViewMode('cards')}
                     className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
@@ -1144,7 +1144,7 @@ export default function PortfolioPage() {
       </div>
 
       {/* Main Content Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <div className="min-w-0 pt-5">
         {/* TAB 1: GENERATED LEADS */}
         {activeTab === 'leads' && (
           <div className="space-y-4">
@@ -1179,10 +1179,11 @@ export default function PortfolioPage() {
 
             {/* Search, Filter & CSV Export Toolbar */}
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
+              <div className="flex flex-col xl:flex-row gap-3">
+                <div className="relative min-w-0 flex-1">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
                   <input
+                    aria-label="Search portfolio leads"
                     type="text"
                     placeholder="Search by student name, ID, university, city, partner, or sales owner..."
                     value={searchQuery}
@@ -1191,9 +1192,10 @@ export default function PortfolioPage() {
                   />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex max-w-full flex-wrap items-center gap-2">
                   {/* Sourcing Partner Filter */}
                   <select
+                    aria-label="Filter by partner"
                     value={filterPartner}
                     onChange={(e) => setFilterPartner(e.target.value)}
                     className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -1208,6 +1210,7 @@ export default function PortfolioPage() {
 
                   {/* Lead Status Filter */}
                   <select
+                    aria-label="Filter by lead status"
                     value={filterLeadStatus}
                     onChange={(e) => setFilterLeadStatus(e.target.value)}
                     className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -1221,6 +1224,7 @@ export default function PortfolioPage() {
 
                   {/* Booking Status Filter */}
                   <select
+                    aria-label="Filter by booking status"
                     value={filterBookingStatus}
                     onChange={(e) => setFilterBookingStatus(e.target.value)}
                     className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -1235,6 +1239,7 @@ export default function PortfolioPage() {
 
                   {/* Sort Order */}
                   <select
+                    aria-label="Sort leads"
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as any)}
                     className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -1259,7 +1264,7 @@ export default function PortfolioPage() {
 
               {/* Horizontal scrollable row of quick filter chips below the main search bar */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1.5 scrollbar-thin border-t border-[#E8E6E1]/70">
-                <span className="text-[11px] font-bold text-[#6B6860] uppercase tracking-wider shrink-0 flex items-center gap-1 pl-0.5">
+                <span className="text-xs font-bold text-[#6B6860] uppercase tracking-wider shrink-0 flex items-center gap-1 pl-0.5">
                   <Filter className="h-3 w-3 text-[#00319D]" />
                   Quick Filters:
                 </span>
@@ -1276,7 +1281,7 @@ export default function PortfolioPage() {
                 >
                   <span>All Leads</span>
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    className={`text-xs px-1.5 py-0.2 rounded-full ${
                       quickFilter === 'all'
                         ? 'bg-[#FFFFFF]/25 text-[#FFFFFF]'
                         : 'bg-[#E8E6E1] text-[#6B6860]'
@@ -1300,7 +1305,7 @@ export default function PortfolioPage() {
                   <Flame className="h-3.5 w-3.5" />
                   <span>High Priority</span>
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    className={`text-xs px-1.5 py-0.2 rounded-full ${
                       quickFilter === 'high_priority'
                         ? 'bg-[#FFFFFF]/25 text-[#FFFFFF]'
                         : 'bg-rose-100 text-rose-800 font-bold'
@@ -1324,7 +1329,7 @@ export default function PortfolioPage() {
                   <Clock className="h-3.5 w-3.5" />
                   <span>Due Today</span>
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    className={`text-xs px-1.5 py-0.2 rounded-full ${
                       quickFilter === 'due_today'
                         ? 'bg-[#FFFFFF]/25 text-[#FFFFFF]'
                         : 'bg-amber-100 text-amber-900 font-bold'
@@ -1350,7 +1355,7 @@ export default function PortfolioPage() {
                   <CreditCard className="h-3.5 w-3.5" />
                   <span>Awaiting Payment</span>
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    className={`text-xs px-1.5 py-0.2 rounded-full ${
                       quickFilter === 'awaiting_payment'
                         ? 'bg-[#FFFFFF]/25 text-[#FFFFFF]'
                         : 'bg-purple-100 text-purple-900 font-bold'
@@ -1374,7 +1379,7 @@ export default function PortfolioPage() {
                   <Sparkles className="h-3.5 w-3.5" />
                   <span>Qualified</span>
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    className={`text-xs px-1.5 py-0.2 rounded-full ${
                       quickFilter === 'qualified'
                         ? 'bg-[#FFFFFF]/25 text-[#FFFFFF]'
                         : 'bg-blue-100 text-blue-900 font-bold'
@@ -1398,7 +1403,7 @@ export default function PortfolioPage() {
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   <span>Booked Tenancies</span>
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    className={`text-xs px-1.5 py-0.2 rounded-full ${
                       quickFilter === 'booked'
                         ? 'bg-[#FFFFFF]/25 text-[#FFFFFF]'
                         : 'bg-emerald-100 text-emerald-900 font-bold'
@@ -1421,7 +1426,7 @@ export default function PortfolioPage() {
                     </>
                   )}
                 </span>
-                <span className="text-[11px] font-medium text-[#00319D]">
+                <span className="text-xs font-medium text-[#00319D]">
                   Attribution updates automatically across live devices
                 </span>
               </div>
@@ -1470,11 +1475,11 @@ export default function PortfolioPage() {
                               {lead.fullName}
                             </h4>
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              <span className="font-mono text-[10px] font-bold text-[#00319D] bg-[#00319D]/10 px-1.5 py-0.2 rounded border border-[#00319D]/20">
+                              <span className="font-mono text-xs font-bold text-[#00319D] bg-[#00319D]/10 px-1.5 py-0.2 rounded border border-[#00319D]/20">
                                 {lead.studentId}
                               </span>
                               {dueToday && (
-                                <span className="inline-flex items-center gap-1 font-bold text-[10px] text-amber-900 bg-amber-50 border border-amber-200/90 px-1.5 py-0.2 rounded">
+                                <span className="inline-flex items-center gap-1 font-bold text-xs text-amber-900 bg-amber-50 border border-amber-200/90 px-1.5 py-0.2 rounded">
                                   <Clock className="h-3 w-3 text-amber-600" />
                                   Due Today
                                 </span>
@@ -1484,7 +1489,7 @@ export default function PortfolioPage() {
 
                           {/* Priority Badge */}
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
+                            className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
                               isUrgent
                                 ? 'bg-rose-100 text-rose-800 border border-rose-200'
                                 : isHigh
@@ -1501,7 +1506,7 @@ export default function PortfolioPage() {
                         {/* Status Badges */}
                         <div className="flex flex-wrap items-center gap-1.5 pt-1">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                            className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
                               lead.leadStatus === 'New'
                                 ? 'bg-blue-100 text-blue-800'
                                 : lead.leadStatus === 'Qualified'
@@ -1514,7 +1519,7 @@ export default function PortfolioPage() {
                             Lead: {lead.leadStatus}
                           </span>
                           <span
-                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                            className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
                               lead.bookingStatus === 'Booked' || lead.bookingStatus === 'Move-in Confirmed'
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : lead.bookingStatus === 'Payment Pending'
@@ -1545,7 +1550,7 @@ export default function PortfolioPage() {
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] pt-1 text-[#6B6860]">
+                        <div className="flex items-center justify-between text-xs pt-1 text-[#6B6860]">
                           <span>
                             Owner: <strong className="text-[#00319D]">{attr.ownerName}</strong>
                           </span>
@@ -1580,7 +1585,7 @@ export default function PortfolioPage() {
                             </a>
                           )}
                           {lead.budget && (
-                            <span className="text-[11px] font-bold text-[#1A1A1A] bg-[#F7F6F3] px-2 py-1 rounded-md border border-[#E8E6E1]">
+                            <span className="text-xs font-bold text-[#1A1A1A] bg-[#F7F6F3] px-2 py-1 rounded-md border border-[#E8E6E1]">
                               £{lead.budget}/wk
                             </span>
                           )}
@@ -1601,18 +1606,18 @@ export default function PortfolioPage() {
             ) : (
               /* TABLE VIEW */
               <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#F7F6F3] text-[#6B6860] uppercase text-[10px] tracking-wider border-b border-[#E8E6E1]">
+                <div className="ha-table-scroll">
+                  <table className="ha-table">
+                    <thead>
                       <tr>
-                        <th className="py-3 px-4 font-bold">Student / Lead</th>
-                        <th className="py-3 px-4 font-bold">Sourcing Partner</th>
-                        <th className="py-3 px-4 font-bold">Assigned Sales Owner</th>
-                        <th className="py-3 px-4 font-bold">University &amp; City</th>
-                        <th className="py-3 px-4 font-bold">Lead Status</th>
-                        <th className="py-3 px-4 font-bold">Booking Status</th>
-                        <th className="py-3 px-4 font-bold">Intake</th>
-                        <th className="py-3 px-4 font-bold text-right">Actions</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Student / Lead</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Sourcing Partner</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Assigned Sales Owner</th>
+                        <th scope="col" className="py-3 px-4 font-bold">University &amp; City</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Lead Status</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Booking Status</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Intake</th>
+                        <th scope="col" className="py-3 px-4 font-bold text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E8E6E1]">
@@ -1624,14 +1629,14 @@ export default function PortfolioPage() {
                         >
                           <td className="py-3.5 px-4">
                             <div className="font-bold text-[#1A1A1A]">{lead.fullName}</div>
-                            <div className="font-mono text-[11px] text-[#00319D]">{lead.studentId}</div>
+                            <div className="font-mono text-xs text-[#00319D]">{lead.studentId}</div>
                           </td>
 
                           <td className="py-3.5 px-4">
                             <div className="font-semibold text-[#1A1A1A]">
                               {lead.partnerName || lead.partnerId}
                             </div>
-                            <div className="text-[10px] text-[#6B6860] font-mono flex items-center gap-1.5 flex-wrap">
+                            <div className="text-xs text-[#6B6860] font-mono flex items-center gap-1.5 flex-wrap">
                               <span>{lead.partnerId}</span>
                               {globalSearchQuery.trim() !== '' && (
                                 <span className="font-sans font-bold text-[#00319D] bg-[#00319D]/10 px-1 py-0.2 rounded border border-[#00319D]/20">
@@ -1648,19 +1653,19 @@ export default function PortfolioPage() {
                                 {lead.assignedSalesExecutiveName}
                               </span>
                             </div>
-                            <span className="text-[10px] text-[#6B6860]">Sales Specialist</span>
+                            <span className="text-xs text-[#6B6860]">Sales Specialist</span>
                           </td>
 
                           <td className="py-3.5 px-4">
                             <div className="font-medium text-[#1A1A1A]">{lead.destinationCity}</div>
-                            <div className="text-[11px] text-[#6B6860] truncate max-w-[140px]">
+                            <div className="text-xs text-[#6B6860] truncate max-w-[140px]">
                               {lead.university}
                             </div>
                           </td>
 
                           <td className="py-3.5 px-4">
                             <span
-                              className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                              className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
                                 lead.leadStatus === 'New'
                                   ? 'bg-blue-100 text-blue-800'
                                   : lead.leadStatus === 'Qualified'
@@ -1676,7 +1681,7 @@ export default function PortfolioPage() {
 
                           <td className="py-3.5 px-4">
                             <span
-                              className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                              className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
                                 lead.bookingStatus === 'Booked' || lead.bookingStatus === 'Move-in Confirmed'
                                   ? 'bg-emerald-100 text-emerald-800'
                                   : lead.bookingStatus === 'Payment Pending'
@@ -1695,7 +1700,7 @@ export default function PortfolioPage() {
                           <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={() => setSelectedStudentId(lead.studentId)}
-                              className="rounded-lg bg-[#F7F6F3] border border-[#E8E6E1] px-2.5 py-1 text-[11px] font-bold text-[#00319D] hover:bg-[#E8E6E1] transition-colors"
+                              className="rounded-lg bg-[#F7F6F3] border border-[#E8E6E1] px-2.5 py-1 text-xs font-bold text-[#00319D] hover:bg-[#E8E6E1] transition-colors"
                             >
                               Inspect →
                             </button>
@@ -1756,14 +1761,14 @@ export default function PortfolioPage() {
                       <div className="flex items-start justify-between">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-[11px] font-bold text-[#00319D] bg-[#F7F6F3] px-2 py-0.5 rounded border border-[#E8E6E1]">
+                            <span className="font-mono text-xs font-bold text-[#00319D] bg-[#F7F6F3] px-2 py-0.5 rounded border border-[#E8E6E1]">
                               {partner.partnerId}
                             </span>
-                            <span className="text-[10px] font-bold uppercase rounded bg-emerald-100 text-emerald-800 px-1.5 py-0.2">
+                            <span className="text-xs font-bold uppercase rounded bg-emerald-100 text-emerald-800 px-1.5 py-0.2">
                               {partner.status}
                             </span>
                           </div>
-                          <h3 className="text-base font-bold text-[#1A1A1A] mt-1.5">{partner.companyName}</h3>
+                          <h3 className="text-base font-semibold text-[#1A1A1A] mt-1.5">{partner.companyName}</h3>
                           <span className="text-xs text-[#6B6860]">{partner.type}</span>
                         </div>
 
@@ -1774,7 +1779,7 @@ export default function PortfolioPage() {
                               setReassignModalPartnerId(partner.partnerId);
                               setNewOwnerTargetId(activeOwner.uid);
                             }}
-                            className="rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] px-2.5 py-1 text-[11px] font-bold text-[#00319D] hover:bg-[#E8E6E1] transition-colors cursor-pointer"
+                            className="rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] px-2.5 py-1 text-xs font-bold text-[#00319D] hover:bg-[#E8E6E1] transition-colors cursor-pointer"
                           >
                             Reassign Owner
                           </button>
@@ -1784,19 +1789,19 @@ export default function PortfolioPage() {
                       {/* Contact Info */}
                       <div className="grid grid-cols-2 gap-2 text-xs border-t border-[#E8E6E1] pt-3 text-[#6B6860]">
                         <div>
-                          <span className="text-[10px] uppercase font-bold block text-[#6B6860]">Contact Person</span>
+                          <span className="text-xs uppercase font-bold block text-[#6B6860]">Contact Person</span>
                           <span className="font-semibold text-[#1A1A1A]">{partner.contactPerson}</span>
                         </div>
                         <div>
-                          <span className="text-[10px] uppercase font-bold block text-[#6B6860]">Commission Rate</span>
+                          <span className="text-xs uppercase font-bold block text-[#6B6860]">Commission Rate</span>
                           <span className="font-bold text-[#00319D]">{partner.commissionRate}%</span>
                         </div>
                         <div>
-                          <span className="text-[10px] uppercase font-bold block text-[#6B6860]">Email</span>
+                          <span className="text-xs uppercase font-bold block text-[#6B6860]">Email</span>
                           <span className="text-[#1A1A1A] truncate block">{partner.email}</span>
                         </div>
                         <div>
-                          <span className="text-[10px] uppercase font-bold block text-[#6B6860]">Onboarded Date</span>
+                          <span className="text-xs uppercase font-bold block text-[#6B6860]">Onboarded Date</span>
                           <span className="text-[#1A1A1A]">{partner.onboardingDate}</span>
                         </div>
                       </div>
@@ -1822,33 +1827,34 @@ export default function PortfolioPage() {
             {/* Audit KPI Overview */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
-                <span className="text-[10px] uppercase font-bold text-[#6B6860] block">Total Audit Entries</span>
-                <span className="text-xl font-extrabold text-[#1A1A1A] mt-0.5 block">{auditMetrics.total}</span>
-                <span className="text-[11px] text-[#6B6860] mt-0.5 block">Synced live from Firestore</span>
+                <span className="text-xs uppercase font-bold text-[#6B6860] block">Total Audit Entries</span>
+                <span className="text-xl font-bold text-[#1A1A1A] mt-0.5 block">{auditMetrics.total}</span>
+                <span className="text-xs text-[#6B6860] mt-0.5 block">Synced live from Firestore</span>
               </div>
               <div className="bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
-                <span className="text-[10px] uppercase font-bold text-[#6B6860] block">Partner Reassignments</span>
-                <span className="text-xl font-extrabold text-[#00319D] mt-0.5 block">{auditMetrics.reassignments}</span>
-                <span className="text-[11px] text-[#6B6860] mt-0.5 block">Portfolio reallocations</span>
+                <span className="text-xs uppercase font-bold text-[#6B6860] block">Partner Reassignments</span>
+                <span className="text-xl font-bold text-[#00319D] mt-0.5 block">{auditMetrics.reassignments}</span>
+                <span className="text-xs text-[#6B6860] mt-0.5 block">Portfolio reallocations</span>
               </div>
               <div className="bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
-                <span className="text-[10px] uppercase font-bold text-[#6B6860] block">Lead Stage Changes</span>
-                <span className="text-xl font-extrabold text-blue-700 mt-0.5 block">{auditMetrics.statusUpdates}</span>
-                <span className="text-[11px] text-[#6B6860] mt-0.5 block">Pipeline transitions</span>
+                <span className="text-xs uppercase font-bold text-[#6B6860] block">Lead Stage Changes</span>
+                <span className="text-xl font-bold text-blue-700 mt-0.5 block">{auditMetrics.statusUpdates}</span>
+                <span className="text-xs text-[#6B6860] mt-0.5 block">Pipeline transitions</span>
               </div>
               <div className="bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
-                <span className="text-[10px] uppercase font-bold text-[#6B6860] block">Payment Verifications</span>
-                <span className="text-xl font-extrabold text-emerald-700 mt-0.5 block">{auditMetrics.paymentVerifications}</span>
-                <span className="text-[11px] text-[#6B6860] mt-0.5 block">Verified finance receipts</span>
+                <span className="text-xs uppercase font-bold text-[#6B6860] block">Payment Verifications</span>
+                <span className="text-xl font-bold text-emerald-700 mt-0.5 block">{auditMetrics.paymentVerifications}</span>
+                <span className="text-xs text-[#6B6860] mt-0.5 block">Verified finance receipts</span>
               </div>
             </div>
 
             {/* Audit Search, Filter & CSV Export Toolbar */}
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
+              <div className="flex flex-col xl:flex-row gap-3">
+                <div className="relative min-w-0 flex-1">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
                   <input
+                    aria-label="Search audit trail"
                     type="text"
                     placeholder="Search audit trail by description, action, actor, target ID..."
                     value={auditSearchQuery}
@@ -1857,9 +1863,10 @@ export default function PortfolioPage() {
                   />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex max-w-full flex-wrap items-center gap-2">
                   {/* Category Filter */}
                   <select
+                    aria-label="Filter audit event type"
                     value={auditFilterType}
                     onChange={(e) => setAuditFilterType(e.target.value)}
                     className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -1873,6 +1880,7 @@ export default function PortfolioPage() {
 
                   {/* Actor Role Filter */}
                   <select
+                    aria-label="Filter audit role"
                     value={auditFilterRole}
                     onChange={(e) => setAuditFilterRole(e.target.value)}
                     className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -1888,6 +1896,7 @@ export default function PortfolioPage() {
 
                   {/* Sort Order */}
                   <select
+                    aria-label="Sort audit events"
                     value={auditSortBy}
                     onChange={(e) => setAuditSortBy(e.target.value as any)}
                     className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -1913,7 +1922,7 @@ export default function PortfolioPage() {
                 <span>
                   Showing <strong>{filteredActivities.length}</strong> of <strong>{activities.length}</strong> logged platform events
                 </span>
-                <span className="text-[11px] font-medium text-[#00319D] flex items-center gap-1">
+                <span className="text-xs font-medium text-[#00319D] flex items-center gap-1">
                   <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
                   Tamper-evident audit log synced via Firebase Firestore
                 </span>
@@ -1933,16 +1942,16 @@ export default function PortfolioPage() {
               </div>
             ) : (
               <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#F7F6F3] text-[#6B6860] uppercase text-[10px] tracking-wider border-b border-[#E8E6E1]">
+                <div className="ha-table-scroll">
+                  <table className="ha-table">
+                    <thead>
                       <tr>
-                        <th className="py-3 px-4 font-bold">Timestamp &amp; Event ID</th>
-                        <th className="py-3 px-4 font-bold">Action Category</th>
-                        <th className="py-3 px-4 font-bold">Performed By</th>
-                        <th className="py-3 px-4 font-bold">Target Entity</th>
-                        <th className="py-3 px-4 font-bold">Audit Description</th>
-                        <th className="py-3 px-4 font-bold">State Transition</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Timestamp &amp; Event ID</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Action Category</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Performed By</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Target Entity</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Audit Description</th>
+                        <th scope="col" className="py-3 px-4 font-bold">State Transition</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E8E6E1]">
@@ -1963,12 +1972,12 @@ export default function PortfolioPage() {
                                 <Clock className="h-3.5 w-3.5 text-[#6B6860]" />
                                 <span>{act.timestamp}</span>
                               </div>
-                              <span className="font-mono text-[10px] text-[#6B6860]">{act.activityId}</span>
+                              <span className="font-mono text-xs text-[#6B6860]">{act.activityId}</span>
                             </td>
 
                             <td className="py-3.5 px-4 whitespace-nowrap">
                               <span
-                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold ${
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold ${
                                   isReassignment
                                     ? 'bg-purple-100 text-purple-900 border border-purple-200'
                                     : isPayment
@@ -1993,13 +2002,13 @@ export default function PortfolioPage() {
                                 <User className="h-3.5 w-3.5 text-[#00319D]" />
                                 <span>{act.performedBy?.name || 'System Operator'}</span>
                               </div>
-                              <span className="text-[10px] uppercase font-bold text-[#6B6860] bg-[#F7F6F3] px-1.5 py-0.5 rounded border border-[#E8E6E1]">
+                              <span className="text-xs uppercase font-bold text-[#6B6860] bg-[#F7F6F3] px-1.5 py-0.5 rounded border border-[#E8E6E1]">
                                 {act.performedBy?.role || 'Staff'}
                               </span>
                             </td>
 
                             <td className="py-3.5 px-4 whitespace-nowrap">
-                              <span className="font-mono font-bold text-[11px] text-[#00319D] bg-[#00319D]/5 px-2 py-1 rounded border border-[#00319D]/20">
+                              <span className="font-mono font-bold text-xs text-[#00319D] bg-[#00319D]/5 px-2 py-1 rounded border border-[#00319D]/20">
                                 {act.studentId || 'N/A'}
                               </span>
                             </td>
@@ -2012,7 +2021,7 @@ export default function PortfolioPage() {
 
                             <td className="py-3.5 px-4 whitespace-nowrap">
                               {act.oldValue || act.newValue ? (
-                                <div className="inline-flex items-center gap-1 text-[11px] bg-[#F7F6F3] p-1.5 rounded-lg border border-[#E8E6E1]">
+                                <div className="inline-flex items-center gap-1 text-xs bg-[#F7F6F3] p-1.5 rounded-lg border border-[#E8E6E1]">
                                   {act.oldValue && (
                                     <span className="text-[#6B6860] line-through px-1">
                                       {act.oldValue}
@@ -2024,7 +2033,7 @@ export default function PortfolioPage() {
                                   </span>
                                 </div>
                               ) : (
-                                <span className="text-[11px] text-[#6B6860] italic">Recorded event</span>
+                                <span className="text-xs text-[#6B6860] italic">Recorded event</span>
                               )}
                             </td>
                           </tr>
@@ -2041,18 +2050,19 @@ export default function PortfolioPage() {
 
       {/* REASSIGN PORTFOLIO OWNER MODAL (Management Only) */}
       {reassignModalPartnerId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-xs p-4">
+        <WorkspaceDialog label="Reassign partner portfolio owner" onDismiss={() => setReassignModalPartnerId(null)}>
           <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-[#1A1A1A]">Reassign Partner Portfolio Owner</h3>
+            <h3 className="text-base font-semibold text-[#1A1A1A]">Reassign Partner Portfolio Owner</h3>
             <p className="text-xs text-[#6B6860] leading-relaxed">
               When this partner is reassigned, portfolio attribution will automatically update across all leads sourced by this partner, while retaining each lead&apos;s original sales Owner.
             </p>
 
             <div>
-              <label className="block text-xs font-bold text-[#1A1A1A] mb-1">
+              <label htmlFor="portfolio-new-owner-target-id" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                 Select New Portfolio Owner:
               </label>
               <select
+                id="portfolio-new-owner-target-id"
                 value={newOwnerTargetId}
                 onChange={(e) => setNewOwnerTargetId(e.target.value)}
                 className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -2080,7 +2090,7 @@ export default function PortfolioPage() {
               </button>
             </div>
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
     </div>
   );

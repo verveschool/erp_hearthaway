@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
@@ -45,6 +45,34 @@ export function Navbar() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isArchivalModalOpen, setIsArchivalModalOpen] = useState(false);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+
+  const accountRef = useRef<HTMLDivElement>(null);
+  const navToggle = useRef<HTMLButtonElement>(null);
+  const accountToggle = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!dropdownOpen && !mobileNavOpen) return;
+    function dismiss(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || document.querySelector('dialog[open]')) return;
+      if (dropdownOpen) accountToggle.current?.focus();
+      else navToggle.current?.focus();
+      setDropdownOpen(false);
+      setMobileNavOpen(false);
+    }
+    function outside(event: PointerEvent) {
+      if (!(event.target instanceof Element)) return;
+      if (!accountRef.current?.contains(event.target)) setDropdownOpen(false);
+      if (!navToggle.current?.contains(event.target) && !event.target.closest('#mobile-module-navigation')) {
+        setMobileNavOpen(false);
+      }
+    }
+    document.addEventListener('keydown', dismiss);
+    document.addEventListener('pointerdown', outside);
+    return () => {
+      document.removeEventListener('keydown', dismiss);
+      document.removeEventListener('pointerdown', outside);
+    };
+  }, [dropdownOpen, mobileNavOpen]);
 
   const flaggedStudents = students.filter((s) => s.isTestRecord || s.archivalStatus === 'Flagged For Archival').length;
   const flaggedPayments = payments.filter((p) => p.isTestRecord || p.archivalStatus === 'Flagged For Archival').length;
@@ -121,9 +149,9 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-[100] w-full border-b border-[#E8E6E1] bg-[#FFFFFF]/95 backdrop-blur-md">
-      <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <div className="ha-frame flex h-16 items-center justify-between gap-3">
         {/* Brand Anchor: Official Attached Transparent Icon */}
-        <div className="flex items-center gap-6 lg:gap-8">
+        <div className="flex min-w-0 items-center gap-3 lg:gap-6">
           <Link href="/" className="flex items-center focus:outline-none group" title="HearthAway Workspace">
             <div className="relative h-9 w-9 flex items-center justify-center transition-transform group-hover:scale-105">
               <Image
@@ -139,14 +167,15 @@ export function Navbar() {
 
           {/* Role-Based Module Navigation: Portfolio | Partners | Sales | Finance */}
           {isAuthenticated && navItems.length > 0 && (
-            <nav className="hidden md:flex items-center gap-1 border-l border-[#E8E6E1] pl-6">
+            <nav aria-label="Workspaces" className="hidden md:flex items-center gap-1 border-l border-ha-line pl-3 lg:pl-6">
               {navItems.map((item) => {
                 const IconComponent = item.icon;
                 return (
                   <Link
                     key={item.name}
                     href={item.href}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    aria-current={item.active ? 'page' : undefined}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
                       item.active
                         ? 'bg-[#00319D] text-[#FFFFFF]'
                         : 'text-[#6B6860] hover:text-[#1A1A1A] hover:bg-[#F7F6F3]'
@@ -164,13 +193,15 @@ export function Navbar() {
             <div className="md:hidden">
               <button
                 type="button"
-                onClick={() => setMobileNavOpen((open) => !open)}
+                ref={navToggle}
+                onClick={() => { setDropdownOpen(false); setMobileNavOpen((open) => !open); }}
                 aria-expanded={mobileNavOpen}
                 aria-controls="mobile-module-navigation"
                 aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E8E6E1] text-[#1A1A1A] hover:bg-[#F7F6F3] focus:outline-none focus:ring-2 focus:ring-[#00319D]/30"
+                className="flex min-h-11 items-center gap-2 px-2.5 justify-center rounded-lg border border-[#E8E6E1] text-[#1A1A1A] hover:bg-[#F7F6F3] focus:outline-none focus:ring-2 focus:ring-[#00319D]/30"
               >
                 {mobileNavOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+                <span className="text-sm font-semibold">{navItems.find((item) => item.active)?.name || 'Workspaces'}</span>
               </button>
             </div>
           )}
@@ -179,17 +210,21 @@ export function Navbar() {
         {/* Right Section: Clean Account Controls & Photo */}
         <div className="flex items-center gap-2.5">
           {isAuthenticated ? (
-            <div className="relative">
+            <div className="relative" ref={accountRef}>
               <div className="flex items-center gap-1.5">
                 <button
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  ref={accountToggle}
+                  aria-expanded={dropdownOpen}
+                  aria-label={`Account menu for ${currentUser.displayName || 'current user'}`}
+                  aria-controls={dropdownOpen ? 'account-panel' : undefined}
+                  onClick={() => { setMobileNavOpen(false); setDropdownOpen(!dropdownOpen); }}
                   className="group flex items-center gap-2 rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] pl-1.5 pr-2.5 py-1 hover:bg-[#E8E6E1]/60 transition-all text-left focus:outline-none cursor-pointer"
                 >
                   <div className="relative h-8 w-8 rounded-full overflow-hidden ring-1 ring-[#E8E6E1] shrink-0 bg-[#00319D] text-[#FFFFFF] flex items-center justify-center">
                     {currentUser.avatarUrl ? (
                       <Image
                         src={currentUser.avatarUrl}
-                        alt={currentUser.displayName || 'User'}
+                        alt=""
                         width={32}
                         height={32}
                         className="h-full w-full object-cover"
@@ -220,7 +255,7 @@ export function Navbar() {
                     </div>
                   </div>
 
-                  <div className="hidden sm:block">
+                  <div className="hidden sm:block max-w-32 truncate">
                     <span className="text-xs font-semibold text-[#1A1A1A] leading-tight block">
                       {currentUser.displayName || 'My Account'}
                     </span>
@@ -230,7 +265,7 @@ export function Navbar() {
               </div>
 
               {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-80 rounded-xl bg-[#FFFFFF] p-2 shadow-lg ring-1 ring-[#1A1A1A]/5 z-50 border border-[#E8E6E1] animate-in fade-in slide-in-from-top-1 duration-150">
+                <div id="account-panel" className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-1.75rem)] max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-xl bg-[#FFFFFF] p-2 shadow-lg ring-1 ring-[#1A1A1A]/5 z-50 border border-[#E8E6E1] animate-in fade-in slide-in-from-top-1 duration-150">
                   {/* User Profile Header with Photo Upload & Camera Action */}
                   <div className="px-3 py-3 border-b border-[#E8E6E1] mb-1">
                     <div className="flex items-center gap-3">
@@ -239,7 +274,7 @@ export function Navbar() {
                           {currentUser.avatarUrl ? (
                             <Image
                               src={currentUser.avatarUrl}
-                              alt={currentUser.displayName || 'User'}
+                              alt=""
                               width={48}
                               height={48}
                               className="h-full w-full object-cover"
@@ -351,6 +386,7 @@ export function Navbar() {
       {isAuthenticated && mobileNavOpen && navItems.length > 0 && (
         <nav
           id="mobile-module-navigation"
+          aria-label="Workspaces"
           className="md:hidden border-t border-[#E8E6E1] bg-[#FFFFFF] px-4 py-3 shadow-sm"
         >
           <div className="grid grid-cols-2 gap-2">
@@ -360,6 +396,7 @@ export function Navbar() {
                 <Link
                   key={item.name}
                   href={item.href}
+                    aria-current={item.active ? 'page' : undefined}
                   onClick={() => setMobileNavOpen(false)}
                   className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition-colors ${
                     item.active

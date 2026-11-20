@@ -109,7 +109,7 @@ export default function HomePage() {
     const targetRoute = getDashboardForRole(currentUser.role);
     return (
       <div className="min-h-[75vh] flex items-center justify-center px-4">
-        <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 text-center space-y-4 shadow-xs">
+        <div className="ha-auth-card w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 text-center space-y-4 shadow-xs">
           <div className="h-10 w-10 mx-auto rounded-full border-2 border-[#00319D] border-t-transparent animate-spin" />
           <h2 className="text-base font-bold text-[#1A1A1A]">Redirecting to Workspace</h2>
           <p className="text-xs text-[#6B6860]">
@@ -135,11 +135,11 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-[75vh] flex flex-col items-center justify-center py-6 px-4 sm:px-6">
-      <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 sm:p-9 shadow-xs space-y-6">
+    <div className="min-h-[75vh] flex flex-col items-center justify-center py-6">
+      <div className="ha-auth-card w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 sm:p-9 shadow-xs space-y-6">
         {/* Header - Clean Sign In without Logo */}
         <div className="text-center space-y-1.5">
-          <h1 className="text-2xl font-extrabold text-[#1A1A1A] tracking-tight">
+          <h1 className="ha-title">
             {isForgotPassword ? 'Reset Password' : 'Sign In'}
           </h1>
           <p className="text-xs text-[#6B6860]">
@@ -153,19 +153,20 @@ export default function HomePage() {
           /* Unified Sign In Form */
           <form onSubmit={handleSignIn} className="space-y-4">
             {errorMessage && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 p-2.5 flex items-center gap-2 text-xs text-rose-700">
+              <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-2.5 flex items-center gap-2 text-xs text-rose-700">
                 <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
                 <span>{errorMessage}</span>
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-[#1A1A1A] mb-1.5">
+              <label htmlFor="app-email" className="block text-xs font-semibold text-[#1A1A1A] mb-1.5">
                 Email Address
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
                 <input
+                  id="app-email" autoComplete="email"
                   type="email"
                   required
                   value={email}
@@ -180,7 +181,7 @@ export default function HomePage() {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-[#1A1A1A]">
+                <label htmlFor="app-password" className="block text-xs font-semibold text-[#1A1A1A]">
                   Password
                 </label>
                 <button
@@ -198,6 +199,7 @@ export default function HomePage() {
               <div className="relative">
                 <Key className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
                 <input
+                  id="app-password" autoComplete="current-password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -212,14 +214,14 @@ export default function HomePage() {
               className="w-full rounded-lg bg-[#00319D] py-2.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <LogIn className="h-4 w-4" />
-              <span>{isLoading ? 'Signing In...' : 'Sign In to System'}</span>
+              <span>{isLoading ? 'Signing In...' : 'Sign In'}</span>
             </button>
           </form>
         ) : (
           /* Password Recovery Form */
           <form onSubmit={handleResetPassword} className="space-y-4">
             {resetSuccess && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 flex items-start gap-2 text-xs text-emerald-800">
+              <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 flex items-start gap-2 text-xs text-emerald-800">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
                 <div>
                   <p className="font-bold">Reset Email Sent!</p>
@@ -231,19 +233,20 @@ export default function HomePage() {
             )}
 
             {errorMessage && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 p-2.5 flex items-center gap-2 text-xs text-rose-700">
+              <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-2.5 flex items-center gap-2 text-xs text-rose-700">
                 <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
                 <span>{errorMessage}</span>
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-[#1A1A1A] mb-1.5">
+              <label htmlFor="app-email" className="block text-xs font-semibold text-[#1A1A1A] mb-1.5">
                 Registered Work Email
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
                 <input
+                  id="app-email" autoComplete="email"
                   type="email"
                   required
                   value={email}

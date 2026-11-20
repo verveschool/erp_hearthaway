@@ -107,15 +107,15 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center py-6 px-4 sm:px-6">
-      <div className="w-full max-w-lg rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 sm:p-9 shadow-xs space-y-6">
+    <div className="min-h-[80vh] flex flex-col items-center justify-center py-6">
+      <div className="ha-auth-card w-full max-w-lg rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-8 sm:p-9 shadow-xs space-y-6">
         {/* Header */}
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="inline-flex items-center gap-1.5 rounded-full bg-[#00319D]/10 px-3 py-1 text-[11px] font-bold text-[#00319D] mb-1">
             <Lock className="h-3 w-3" />
             Restricted Registration • Passcode Required
           </div>
-          <h1 className="text-xl font-extrabold text-[#1A1A1A] tracking-tight">
+          <h1 className="ha-title">
             Create Authorized Account
           </h1>
           <p className="text-xs text-[#6B6860]">
@@ -138,7 +138,7 @@ export default function SignUpPage() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {errorMessage && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 flex items-start gap-2 text-xs text-rose-700">
+              <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 flex items-start gap-2 text-xs text-rose-700">
                 <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
                 <span>{errorMessage}</span>
               </div>
@@ -146,11 +146,12 @@ export default function SignUpPage() {
 
             {/* Passcode Field */}
             <div className="rounded-xl border border-[#00319D]/20 bg-[#00319D]/5 p-3.5 space-y-1.5">
-              <label className="flex items-center gap-1.5 text-xs font-bold text-[#00319D]">
+              <label htmlFor="sign-up-passcode" className="flex items-center gap-1.5 text-xs font-bold text-[#00319D]">
                 <Lock className="h-3.5 w-3.5 text-[#00319D]" />
                 Authorization Passcode (Required)
               </label>
               <input
+                id="sign-up-passcode"
                 type="password"
                 required
                 value={passcode}
@@ -246,12 +247,13 @@ export default function SignUpPage() {
             {/* User Details */}
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
+                <label htmlFor="sign-up-full-name" className="block text-xs font-semibold text-[#1A1A1A] mb-1">
                   Full Name
                 </label>
                 <div className="relative">
                   <User className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
                   <input
+                    id="sign-up-full-name"
                     type="text"
                     required
                     value={fullName}
@@ -262,12 +264,13 @@ export default function SignUpPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
+                <label htmlFor="sign-up-email" className="block text-xs font-semibold text-[#1A1A1A] mb-1">
                   Work Email Address
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
                   <input
+                    id="sign-up-email"
                     type="email"
                     required
                     value={email}
@@ -279,12 +282,13 @@ export default function SignUpPage() {
 
               {selectedRole === 'partner' && (
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
+                  <label htmlFor="sign-up-partner-org" className="block text-xs font-semibold text-[#1A1A1A] mb-1">
                     Partner Agency / Company Name
                   </label>
                   <div className="relative">
                     <Building className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
                     <input
+                      id="sign-up-partner-org"
                       type="text"
                       value={partnerOrg}
                       onChange={(e) => setPartnerOrg(e.target.value)}
@@ -295,12 +299,13 @@ export default function SignUpPage() {
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">
+                <label htmlFor="sign-up-password" className="block text-xs font-semibold text-[#1A1A1A] mb-1">
                   Password
                 </label>
                 <div className="relative">
                   <Key className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
                   <input
+                    id="sign-up-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}

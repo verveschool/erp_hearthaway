@@ -1,5 +1,7 @@
 'use client';
 
+import { WorkspaceDialog } from '@/components/WorkspaceDialog';
+
 import React, { useState } from 'react';
 import { useHearthAway } from '@/lib/context';
 import {
@@ -60,7 +62,7 @@ export function ArchivalControlModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+    <WorkspaceDialog label="Archival controls" onDismiss={onClose}>
       <div className="relative w-full max-w-3xl rounded-2xl bg-[#FFFFFF] border border-[#E8E6E1] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#E8E6E1] px-6 py-4 bg-[#F7F6F3]">
@@ -76,6 +78,7 @@ export function ArchivalControlModal({
             </div>
           </div>
           <button
+            aria-label="Close dialog"
             onClick={onClose}
             className="rounded-lg p-1.5 text-[#6B6860] hover:bg-[#E8E6E1] hover:text-[#1A1A1A] transition-colors"
           >
@@ -122,6 +125,7 @@ export function ArchivalControlModal({
         {/* Tabs */}
         <div className="flex border-b border-[#E8E6E1] px-6 bg-[#FFFFFF] gap-4">
           <button
+            aria-pressed={activeTab === 'overview'}
             onClick={() => setActiveTab('overview')}
             className={`py-2.5 text-xs font-semibold border-b-2 transition-colors ${
               activeTab === 'overview'
@@ -132,6 +136,7 @@ export function ArchivalControlModal({
             Overview
           </button>
           <button
+            aria-pressed={activeTab === 'students'}
             onClick={() => setActiveTab('students')}
             className={`py-2.5 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
               activeTab === 'students'
@@ -142,6 +147,7 @@ export function ArchivalControlModal({
             <span>Leads ({flaggedStudents.length})</span>
           </button>
           <button
+            aria-pressed={activeTab === 'payments'}
             onClick={() => setActiveTab('payments')}
             className={`py-2.5 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
               activeTab === 'payments'
@@ -152,6 +158,7 @@ export function ArchivalControlModal({
             <span>Payments ({flaggedPayments.length})</span>
           </button>
           <button
+            aria-pressed={activeTab === 'bookings'}
             onClick={() => setActiveTab('bookings')}
             className={`py-2.5 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
               activeTab === 'bookings'
@@ -350,6 +357,6 @@ export function ArchivalControlModal({
           </button>
         </div>
       </div>
-    </div>
+    </WorkspaceDialog>
   );
 }

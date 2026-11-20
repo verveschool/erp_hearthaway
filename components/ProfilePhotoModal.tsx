@@ -1,5 +1,7 @@
 'use client';
 
+import { WorkspaceDialog } from '@/components/WorkspaceDialog';
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import {
@@ -232,10 +234,11 @@ export function ProfilePhotoModal({
     .toUpperCase();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+    <WorkspaceDialog label="Profile photo" onDismiss={() => { stopCamera(); onClose(); }}>
       <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl relative animate-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
         {/* Close Button */}
         <button
+          aria-label="Close dialog"
           onClick={() => {
             stopCamera();
             onClose();
@@ -515,6 +518,6 @@ export function ProfilePhotoModal({
           </div>
         </div>
       </div>
-    </div>
+    </WorkspaceDialog>
   );
 }

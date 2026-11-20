@@ -1,5 +1,7 @@
 'use client';
 
+import { WorkspaceDialog } from '@/components/WorkspaceDialog';
+
 import React, { useState, useMemo } from 'react';
 import { useHearthAway } from '@/lib/context';
 import {
@@ -209,24 +211,24 @@ export default function SalesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFFFF] pb-16">
+    <div className="ha-workspace">
       {/* Top Header */}
-      <div className="border-b border-[#E8E6E1] bg-[#FFFFFF] px-4 sm:px-6 lg:px-8 py-6">
-        <div className="max-w-7xl mx-auto">
+      <div className="ha-page-header">
+        <div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
 
-              <h1 className="text-2xl font-extrabold text-[#1A1A1A] mt-1 tracking-tight">
+              <h1 className="ha-title">
                 Sales
               </h1>
-              <p className="text-xs text-[#6B6860] mt-0.5 max-w-2xl">
+              <p className="ha-summary">
                 Manage student leads, assign internal sales owners, coordinate booking progression, and record payments.
               </p>
             </div>
 
             <button
               onClick={() => setShowAddLeadModal(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-[#00319D] px-3.5 py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs"
+              className="ha-primary-action"
             >
               <Plus className="h-3.5 w-3.5" />
               Add Sales Lead
@@ -236,10 +238,10 @@ export default function SalesPage() {
           <div className="mt-5 rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B6860]">Lead-to-booking pipeline</p>
-                <p className="mt-0.5 text-[11px] text-[#6B6860]">Click a stage to focus the lead queue.</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-[#6B6860]">Lead-to-booking pipeline</p>
+                <p className="mt-0.5 text-xs text-[#6B6860]">Click a stage to focus the lead queue.</p>
               </div>
-              <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-[#6B6860] border border-[#E8E6E1]">{students.length} total leads</span>
+              <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-[#6B6860] border border-[#E8E6E1]">{students.length} total leads</span>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
               {PIPELINE_STAGES.map((stage) => {
@@ -253,9 +255,9 @@ export default function SalesPage() {
                     className={`rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-[#00319D] bg-[#00319D] text-white' : 'border-[#E8E6E1] bg-white text-[#1A1A1A] hover:border-[#00319D]/40'}`}
                     aria-pressed={isActive}
                   >
-                    <span className={`block text-lg font-extrabold ${isActive ? 'text-white' : 'text-[#00319D]'}`}>{count}</span>
-                    <span className="block truncate text-[10px] font-bold uppercase tracking-wide">{stage.label}</span>
-                    <span className={`mt-0.5 block truncate text-[10px] ${isActive ? 'text-white/75' : 'text-[#6B6860]'}`}>{stage.hint}</span>
+                    <span className={`block text-lg font-semibold tabular-nums ${isActive ? 'text-white' : 'text-[#00319D]'}`}>{count}</span>
+                    <span className="block text-xs font-semibold">{stage.label}</span>
+                    <span className={`mt-0.5 block text-xs ${isActive ? 'text-white/75' : 'text-[#6B6860]'}`}>{stage.hint}</span>
                   </button>
                 );
               })}
@@ -264,13 +266,14 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-4">
+      <div className="min-w-0 pt-5 space-y-4">
         {/* Search & Filter Toolbar */}
         <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
+          <div className="flex flex-col xl:flex-row gap-3">
+            <div className="relative min-w-0 flex-1">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
               <input
+                aria-label="Search sales leads"
                 type="text"
                 placeholder="Search leads by student name, ID, university, partner, or sales owner..."
                 value={searchQuery}
@@ -279,9 +282,10 @@ export default function SalesPage() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex max-w-full flex-wrap items-center gap-2">
               {/* Sales Owner Filter */}
               <select
+                aria-label="Filter by sales owner"
                 value={effectiveSalesOwnerFilter}
                 onChange={(e) => setFilterSalesOwner(e.target.value)}
                 className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -296,6 +300,7 @@ export default function SalesPage() {
 
               {/* Lead Stage Filter */}
               <select
+                aria-label="Filter by pipeline stage"
                 value={filterStage}
                 onChange={(e) => setFilterStage(e.target.value as PipelineFilter)}
                 className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -310,6 +315,7 @@ export default function SalesPage() {
 
               {/* Priority Filter */}
               <select
+                aria-label="Filter by priority"
                 value={filterPriority}
                 onChange={(e) => setFilterPriority(e.target.value)}
                 className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -333,32 +339,32 @@ export default function SalesPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-xs text-[#6B6860] pt-1 border-t border-[#E8E6E1]">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#6B6860] pt-1 border-t border-[#E8E6E1]">
             <span>Showing <strong>{filteredStudents.length}</strong> of <strong>{students.length}</strong> active sales leads</span>
-            <span className="text-[11px] text-[#00319D] font-medium">Click any row to open lead inspection drawer</span>
+            <span className="text-xs text-[#00319D] font-medium">Select a student to view their record.</span>
           </div>
         </div>
 
         {/* Leads Table */}
         <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#F7F6F3] text-[#6B6860] uppercase text-[10px] tracking-wider border-b border-[#E8E6E1]">
+          <div className="ha-table-scroll">
+            <table className="ha-table">
+              <thead>
                 <tr>
-                  <th className="py-3 px-4 font-bold">Student Name & ID</th>
-                  <th className="py-3 px-4 font-bold">Sourcing Partner</th>
-                  <th className="py-3 px-4 font-bold">Sales Owner</th>
-                  <th className="py-3 px-4 font-bold">University & City</th>
-                  <th className="py-3 px-4 font-bold">Pipeline</th>
-                  <th className="py-3 px-4 font-bold">Priority</th>
-                  <th className="py-3 px-4 font-bold">
+                  <th scope="col" className="py-3 px-4 font-bold">Student Name & ID</th>
+                  <th scope="col" className="py-3 px-4 font-bold">Sourcing Partner</th>
+                  <th scope="col" className="py-3 px-4 font-bold">Sales Owner</th>
+                  <th scope="col" className="py-3 px-4 font-bold">University & City</th>
+                  <th scope="col" className="py-3 px-4 font-bold">Pipeline</th>
+                  <th scope="col" className="py-3 px-4 font-bold">Priority</th>
+                  <th scope="col" className="py-3 px-4 font-bold">
                     <button type="button" onClick={() => toggleSort('createdAt')} className="inline-flex items-center gap-1 hover:text-[#00319D]">
                       Created On
                       <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
                       <span className="sr-only">{sortColumn === 'createdAt' ? `sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}` : 'sort'}</span>
                     </button>
                   </th>
-                  <th className="py-3 px-4 font-bold">
+                  <th scope="col" className="py-3 px-4 font-bold">
                     <button type="button" onClick={() => toggleSort('lastActivity')} className="inline-flex items-center gap-1 hover:text-[#00319D]">
                       Last Activity
                       <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
@@ -368,6 +374,7 @@ export default function SalesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8E6E1]">
+                {filteredStudents.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-ha-secondary">No leads match this view.</td></tr>}
                 {filteredStudents.map((student) => {
                   const leadActivities = activities
                     .filter((activity) => activity.studentId === student.studentId && !NON_QUALIFYING_ACTIVITY.test(activity.activityType))
@@ -381,20 +388,21 @@ export default function SalesPage() {
                       onClick={() => setSelectedStudentId(student.studentId)}
                     >
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-[#1A1A1A]">{student.fullName}</div>
-                        <div className="font-mono text-[11px] text-[#00319D]">{student.studentId}</div>
+                        <button type="button" className="text-left font-semibold text-ha-blue hover:underline" onClick={(event) => { event.stopPropagation(); setSelectedStudentId(student.studentId); }}>{student.fullName}</button>
+                        <div className="font-mono text-xs text-[#00319D]">{student.studentId}</div>
                       </td>
 
                       <td className="py-3.5 px-4">
                         <div className="font-semibold text-[#1A1A1A]">
                           {student.partnerName || student.partnerId}
                         </div>
-                        <div className="font-mono text-[10px] text-[#6B6860]">{student.partnerId}</div>
+                        <div className="font-mono text-xs text-[#6B6860]">{student.partnerId}</div>
                       </td>
 
                       {/* Sales Owner with inline reassignment */}
                       <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
                         <select
+                          aria-label={`Sales owner for ${student.fullName}`}
                           value={student.assignedSalesExecutiveId}
                           onChange={(e) => {
                             const newRep = salesUsers.find((su) => su.uid === e.target.value);
@@ -415,14 +423,15 @@ export default function SalesPage() {
 
                       <td className="py-3.5 px-4 align-top">
                         <div className="text-[#1A1A1A] font-medium whitespace-normal break-words">{student.destinationCity}</div>
-                        <div className="text-[11px] text-[#6B6860] whitespace-normal break-words">{student.university}</div>
+                        <div className="text-xs text-[#6B6860] whitespace-normal break-words">{student.university}</div>
                       </td>
 
                       <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
                         <select
+                          aria-label={`Pipeline stage for ${student.fullName}`}
                           value={student.pipelineStage || 'New'}
                           onChange={(e) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: e.target.value as PipelineStage })}
-                          className="rounded-md border border-[#E8E6E1] bg-white px-2 py-1 text-[10px] font-bold text-[#00319D] focus:border-[#00319D] focus:outline-none"
+                          className="rounded-md border border-[#E8E6E1] bg-white px-2 py-1 text-xs font-bold text-[#00319D] focus:border-[#00319D] focus:outline-none"
                         >
                           {PIPELINE_STAGES.map((stage) => <option key={stage.key} value={stage.key}>{stage.label}</option>)}
                           <option value="Disqualified">Disqualified</option>
@@ -432,9 +441,10 @@ export default function SalesPage() {
 
                       <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
                         <select
+                          aria-label={`Priority for ${student.fullName}`}
                           value={student.priority || 'Medium'}
                           onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as 'Low' | 'Medium' | 'High' | 'Urgent' })}
-                          className="rounded-md border border-[#E8E6E1] bg-white px-2 py-1 text-[10px] font-bold text-[#1A1A1A] focus:border-[#00319D] focus:outline-none"
+                          className="rounded-md border border-[#E8E6E1] bg-white px-2 py-1 text-xs font-bold text-[#1A1A1A] focus:border-[#00319D] focus:outline-none"
                         >
                           <option>Urgent</option><option>High</option><option>Medium</option><option>Low</option>
                         </select>
@@ -458,13 +468,14 @@ export default function SalesPage() {
 
       {/* ADD LEAD MODAL */}
       {showAddLeadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/40 backdrop-blur-xs p-4">
+        <WorkspaceDialog label="Add sales lead" onDismiss={() => setShowAddLeadModal(false)}>
           <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-[#1A1A1A]">Add New Sales Lead</h3>
+            <h3 className="text-base font-semibold text-[#1A1A1A]">Add New Sales Lead</h3>
             <form onSubmit={handleCreateLead} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Student Full Name</label>
+                <label htmlFor="sales-new-lead-name" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Student Full Name</label>
                 <input
+                  id="sales-new-lead-name"
                   type="text"
                   required
                   placeholder="e.g. Liam Taylor"
@@ -476,8 +487,9 @@ export default function SalesPage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Email</label>
+                  <label htmlFor="sales-new-lead-email" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Email</label>
                   <input
+                    id="sales-new-lead-email"
                     type="email"
                     required
                     placeholder="liam@example.com"
@@ -487,8 +499,9 @@ export default function SalesPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Phone</label>
+                  <label htmlFor="sales-new-lead-phone" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Phone</label>
                   <input
+                    id="sales-new-lead-phone"
                     type="text"
                     placeholder="+44 7700 900123"
                     value={newLeadPhone}
@@ -499,8 +512,9 @@ export default function SalesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Sourcing Partner</label>
+                <label htmlFor="sales-new-lead-partner-id" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Sourcing Partner</label>
                 <select
+                  id="sales-new-lead-partner-id"
                   value={newLeadPartnerId}
                   onChange={(e) => setNewLeadPartnerId(e.target.value)}
                   className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
@@ -514,8 +528,9 @@ export default function SalesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1A1A1A] mb-1">Target University</label>
+                <label htmlFor="sales-new-lead-uni" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Target University</label>
                 <input
+                  id="sales-new-lead-uni"
                   type="text"
                   required
                   placeholder="e.g. King’s College London"
@@ -542,7 +557,7 @@ export default function SalesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </WorkspaceDialog>
       )}
     </div>
   );
