@@ -68,20 +68,19 @@ export default function SalesPage() {
     reassignLeadOwner,
     submitPartnerLead,
     updateStudentDecoupledStatus,
-    currentUser,
     hideTestRecords,
   } = useHearthAway();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStage, setFilterStage] = useState<PipelineFilter>('All');
-  const [filterSalesOwner, setFilterSalesOwner] = useState<string | null>(null);
+  const [filterLeadOwner, setFilterLeadOwner] = useState('All');
+  const [filterSalesOwner, setFilterSalesOwner] = useState('All');
   const [filterPriority, setFilterPriority] = useState<string>('All');
   const [filterDestination, setFilterDestination] = useState<string>('All');
   const [sortColumn, setSortColumn] = useState<'createdAt' | 'lastActivity'>('lastActivity');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [ownerError, setOwnerError] = useState('');
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
-  const effectiveSalesOwnerFilter = filterSalesOwner ?? (currentUser?.role === 'sales' ? currentUser.uid : 'All');
 
   const salesUsers = useMemo(() => {
     return leadOwnerOptions.length ? leadOwnerOptions : availableUsers.filter((u) => u.role === 'sales');
@@ -112,13 +111,14 @@ export default function SalesPage() {
         (student.salesOwnerName || '').toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchStage = filterStage === 'All' || (student.pipelineStage || 'New') === filterStage;
-      const matchOwner = effectiveSalesOwnerFilter === 'All' ||
-        (effectiveSalesOwnerFilter === 'Unassigned' && !getLeadOwner(student).id) ||
-        getLeadOwner(student).id === effectiveSalesOwnerFilter || student.salesOwnerId === effectiveSalesOwnerFilter;
+      const leadOwnerId = getLeadOwner(student).id;
+      const salesOwnerId = student.salesOwnerId || '';
+      const matchLeadOwner = filterLeadOwner === 'All' || leadOwnerId === filterLeadOwner;
+      const matchSalesOwner = filterSalesOwner === 'All' || salesOwnerId === filterSalesOwner;
       const matchPriority = filterPriority === 'All' || student.priority === filterPriority;
       const matchDest = filterDestination === 'All' || student.destinationCity === filterDestination;
 
-      return matchArchived && matchSearch && matchStage && matchOwner && matchPriority && matchDest;
+      return matchArchived && matchSearch && matchStage && matchLeadOwner && matchSalesOwner && matchPriority && matchDest;
     });
 
     return matchingStudents.sort((a, b) => {
@@ -147,7 +147,7 @@ export default function SalesPage() {
 
       return createdB - createdA;
     });
-  }, [students, activities, searchQuery, filterStage, effectiveSalesOwnerFilter, filterPriority, filterDestination, hideTestRecords, sortColumn, sortDirection]);
+  }, [students, activities, searchQuery, filterStage, filterLeadOwner, filterSalesOwner, filterPriority, filterDestination, hideTestRecords, sortColumn, sortDirection]);
 
   const toggleSort = (column: 'createdAt' | 'lastActivity') => {
     if (sortColumn === column) {
@@ -258,21 +258,24 @@ export default function SalesPage() {
             </div>
 
             <div className="flex max-w-full flex-wrap items-center gap-2">
-              {/* Lead Owner Filter */}
-              <select
-                aria-label="Filter by owner"
-                value={effectiveSalesOwnerFilter}
-                onChange={(e) => setFilterSalesOwner(e.target.value)}
-                className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-              >
-                <option value="All">All owners</option>
-                <option value="Unassigned">Unassigned leads</option>
-                {salesUsers.map((su) => (
-                  <option key={su.uid} value={su.uid}>
-                    {su.displayName}
-                  </option>
-                ))}
-              </select>
+              {[
+                { label: 'Lead owner', value: filterLeadOwner, setValue: setFilterLeadOwner },
+                { label: 'Sales owner', value: filterSalesOwner, setValue: setFilterSalesOwner },
+              ].map(({ label, value, setValue }) => (
+                <label key={label} className="flex items-center gap-1.5 text-xs font-medium text-ha-secondary">
+                  {label}
+                  <select
+                    aria-label={`Filter by ${label.toLowerCase()}`}
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    className="max-w-36 rounded-lg border border-ha-line bg-white px-2 py-2 text-xs text-ha-ink focus:border-ha-blue"
+                  >
+                    <option value="All">Any</option>
+                    <option value="">Unassigned</option>
+                    {salesUsers.map((user) => <option key={user.uid} value={user.uid}>{user.displayName}</option>)}
+                  </select>
+                </label>
+              ))}
 
               {/* Lead Stage Filter */}
               <select
@@ -324,7 +327,7 @@ export default function SalesPage() {
         {/* Leads Table */}
         <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
           <div className="ha-table-scroll">
-            <table className="ha-table">
+            <table className="ha-table sales-leads-table">
               <thead>
                 <tr>
                   <th scope="col" className="py-3 px-4 font-bold">Student Name & ID</th>
@@ -365,7 +368,7 @@ export default function SalesPage() {
                       onClick={() => setSelectedStudentId(student.studentId)}
                     >
                       <td className="py-3.5 px-4">
-                        <button type="button" className="text-left font-semibold text-ha-blue hover:underline" onClick={(event) => { event.stopPropagation(); setSelectedStudentId(student.studentId); }}>{student.fullName}</button>
+                        <button type="button" className="text-left font-semibold text-ha-blue hover:underline [overflow-wrap:anywhere]" onClick={(event) => { event.stopPropagation(); setSelectedStudentId(student.studentId); }}>{student.fullName}</button>
                         <div className="font-mono text-xs text-[#00319D]">{student.studentId}</div>
                       </td>
 

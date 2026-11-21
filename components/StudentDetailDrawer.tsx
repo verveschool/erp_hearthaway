@@ -1,7 +1,7 @@
 'use client';
 
 import { LeadDetailsDialog } from '@/components/LeadDetailsDialog';
-import { canAssignSalesOwner, getLeadOwner } from '@/lib/lead-details';
+import { getLeadOwner } from '@/lib/lead-details';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
@@ -157,7 +157,6 @@ export function StudentDetailDrawer() {
     (currentUser.role === 'partner' && student.partnerId === currentUser.partnerId) ||
     (currentUser.role === 'portfolio_owner' && studentPartner?.portfolioOwnerId === currentUser.uid);
   const canEditOwners = isManagementUser || currentUser.role === 'sales';
-  const canAssignNewSalesOwner = !!getLeadOwner(student).id && canAssignSalesOwner(student.pipelineStage);
 
   // Security check: If current user is a Partner, verify data isolation
   const isPartner = currentUser.role === 'partner';
@@ -500,21 +499,21 @@ export function StudentDetailDrawer() {
             </div>
 
             {/* Quick Action Ribbon */}
-            <div className="mt-4 grid w-full grid-cols-1 gap-x-2 gap-y-2 text-xs sm:grid-cols-2">
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
               {/* Call */}
               <a
                 href={`tel:${student.phone}`}
                 onClick={() =>
                   logStudentActivity(student.studentId, 'Phone Call', `Outbound call initiated to ${student.phone}`)
                 }
-                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
               >
                 <Phone className="h-3.5 w-3.5 text-[#00319D]" />
                 Call ({student.phone})
               </a>
 
               {/* WhatsApp + Email */}
-              <div className="flex w-full min-w-0 items-center gap-2 sm:w-max">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <a
                   href={`https://wa.me/${student.whatsApp.replace(/[^0-9]/g, '')}?text=Hi%20${encodeURIComponent(student.firstName)},%20this%20is%20${encodeURIComponent(currentUser.displayName)}%20from%20HearthAway.`}
                   target="_blank"
@@ -540,6 +539,9 @@ export function StudentDetailDrawer() {
                 </a>
               </div>
 
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-6">
               {(() => {
                 const partner = partners.find((p) => p.partnerId === student.partnerId);
                 const portfolioOwner = partner?.portfolioOwnerName || 'Unassigned';
@@ -547,21 +549,14 @@ export function StudentDetailDrawer() {
 
                 return (
                   <>
-                    {/* Portfolio Owner */}
-                    <div className="flex w-full min-w-0 items-center gap-1 overflow-hidden rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-xs text-[#6B6860]">
-                      <span className="shrink-0">Portfolio Owner:</span>
-                      <strong className="min-w-0 truncate text-[#1A1A1A]">{portfolioOwner}</strong>
-                    </div>
-
                     {(['lead', 'sales'] as const).map((kind) => {
                       const isSales = kind === 'sales';
                       const label = isSales ? 'Sales owner' : 'Lead owner';
                       const owner = isSales ? { id: student.salesOwnerId || '', name: student.salesOwnerName || 'Unassigned' } : getLeadOwner(student);
-                      const canAssign = canEditOwners && (!isSales || canAssignNewSalesOwner || !!owner.id);
                       return (
-                        <label key={kind} className="flex w-full min-w-0 items-center gap-2 rounded-lg border border-ha-line px-2 py-1 text-xs">
+                        <label key={kind} className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary sm:col-span-2">
                           <span className="shrink-0">{label}</span>
-                          {canAssign ? <select aria-label={label} value={owner.id} className="min-w-0 flex-1 bg-transparent font-semibold text-ha-blue"
+                          {canEditOwners && (!isSales || leadOperationsRole === "management" || leadOperationsRole === "sales") ? <select aria-label={label} value={owner.id} className="w-full min-w-0 bg-transparent text-sm font-semibold text-ha-blue"
                             onChange={(event) => {
                               const id = event.target.value;
                               const name = salesUsers.find((user) => user.uid === id)?.displayName || '';
@@ -571,37 +566,27 @@ export function StudentDetailDrawer() {
                             }}>
                             <option value="">Unassigned</option>
                             {!!owner.id && !salesUsers.some((user) => user.uid === owner.id) && <option value={owner.id}>{owner.name}</option>}
-                            {salesUsers.map((user) => <option key={user.uid} value={user.uid} disabled={isSales && !canAssignNewSalesOwner}>{user.displayName}</option>)}
-                          </select> : <strong>{owner.name}{isSales && canEditOwners && !canAssignNewSalesOwner && ' · Assign a lead owner and qualify first'}</strong>}
+                            {salesUsers.map((user) => <option key={user.uid} value={user.uid}>{user.displayName}</option>)}
+                          </select> : <strong className="break-words text-sm text-ha-ink">{owner.name}</strong>}
                         </label>
                       );
                     })}
-                    {ownershipError && <p role="alert" className="text-xs text-rose-700">{ownershipError}</p>}
 
-                    {/* Priority */}
-                    <label className="flex w-full min-w-0 items-center gap-1 rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-xs text-[#6B6860]">
-                      <span className="shrink-0">Priority:</span>
-                      <select
-                        aria-label="Priority"
-                        value={student.priority || 'Medium'}
-                        onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as any })}
-                        className="min-w-0 flex-1 bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-xs"
-                      >
-                        <option>Urgent</option>
-                        <option>High</option>
-                        <option>Medium</option>
-                        <option>Low</option>
-                      </select>
-                    </label>
+
+                    {/* Portfolio Owner */}
+                    <div className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary col-span-2 sm:col-span-2">
+                      <span className="shrink-0">Portfolio Owner:</span>
+                      <strong className="min-w-0 break-words text-sm text-[#1A1A1A]">{portfolioOwner}</strong>
+                    </div>
 
                     {/* Pipeline Stage */}
-                    <label className="flex w-full min-w-0 items-center gap-1 rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-xs text-[#6B6860]">
+                    <label className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary sm:col-span-3">
                       <span className="shrink-0">Pipeline Stage:</span>
                       <select
                         aria-label="Pipeline Stage"
                         value={student.pipelineStage || 'New'}
                         onChange={(e) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: e.target.value as any })}
-                        className="min-w-0 flex-1 bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-xs"
+                        className="w-full min-w-0 bg-transparent text-sm font-semibold text-[#00319D] focus-visible:outline-ha-blue cursor-pointer"
                       >
                         <option>New</option>
                         <option>Active</option>
@@ -614,6 +599,23 @@ export function StudentDetailDrawer() {
                         <option>Cancelled</option>
                       </select>
                     </label>
+                    {/* Priority */}
+                    <label className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary sm:col-span-3">
+                      <span className="shrink-0">Priority:</span>
+                      <select
+                        aria-label="Priority"
+                        value={student.priority || 'Medium'}
+                        onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as any })}
+                        className="w-full min-w-0 bg-transparent text-sm font-semibold text-[#00319D] focus-visible:outline-ha-blue cursor-pointer"
+                      >
+                        <option>Urgent</option>
+                        <option>High</option>
+                        <option>Medium</option>
+                        <option>Low</option>
+                      </select>
+                    </label>
+
+                    {ownershipError && <p role="alert" className="col-span-full text-xs text-rose-700">{ownershipError}</p>}
                   </>
                 );
               })()}

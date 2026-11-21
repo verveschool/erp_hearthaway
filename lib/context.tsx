@@ -27,7 +27,7 @@ import {
   INITIAL_PAYMENTS,
   INITIAL_ACTIVITIES,
 } from './mock-data';
-import { canAssignSalesOwner, getLeadOwner, intakeKey, leadConflictMessage, leadContactConflicts, leadDetailsSchema, leadEditSchema, type LeadDetails } from './lead-details';
+import { getLeadOwner, intakeKey, leadConflictMessage, leadContactConflicts, leadDetailsSchema, leadEditSchema, type LeadDetails } from './lead-details';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import {
   GoogleAuthProvider,
@@ -924,9 +924,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       const snapshot = await transaction.get(reference);
       if (!snapshot.exists()) throw new Error('This lead is no longer active.');
       const current = snapshot.data() as Student;
-      if (kind === 'sales' && ownerId && (!getLeadOwner(current).id || !canAssignSalesOwner(getInitialPipelineStage(current)))) {
-        throw new Error('Assign a lead owner and qualify this lead before assigning a sales owner.');
-      }
       const previous = kind === 'sales' ? { id: current.salesOwnerId, name: current.salesOwnerName } : getLeadOwner(current);
       if ((previous.id || '') === ownerId) return;
       const activity = buildActivity(studentId, `${label} Changed`, `${label} changed.`, previous.name || 'Unassigned', nextName);

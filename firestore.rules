@@ -82,13 +82,9 @@ service cloud.firestore {
     // Students master collection
     function canChangeSalesOwner() {
       let nextOwnerId = request.resource.data.get('salesOwnerId', '');
-      let stage = request.resource.data.get('pipelineStage', 'New');
-      let leadOwnerId = request.resource.data.get('leadOwnerId', resource.data.get('assignedSalesExecutiveId', ''));
       let managesOwners = isLeadManagement() || request.auth.token.get('leadOperationsRole', '') == 'sales';
       return managesOwners && (nextOwnerId == ''
-        || (leadOwnerId != ''
-          && stage in ['Qualified', 'Option Shared', 'Payment', 'Fulfilment', 'Closed Won']
-          && exists(/databases/$(database)/documents/leadOwnerDirectory/$(nextOwnerId))));
+        || exists(/databases/$(database)/documents/leadOwnerDirectory/$(nextOwnerId)));
     }
 
     match /students/{studentId} {

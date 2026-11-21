@@ -61,9 +61,6 @@ export function getLeadOwner(student: Pick<Student, 'leadOwnerId' | 'leadOwnerNa
   };
 }
 
-export const canAssignSalesOwner = (stage?: Student['pipelineStage']) =>
-  stage !== undefined && ['Qualified', 'Option Shared', 'Payment', 'Fulfilment', 'Closed Won'].includes(stage);
-
 export const leadEditSchema = leadDetailsSchema.extend({
   email: z.string().trim(),
   phone: z.string().trim(),
