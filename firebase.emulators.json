@@ -1,0 +1,10 @@
+{
+  "firestore": { "rules": "firestore.rules" },
+  "emulators": {
+    "auth": { "host": "127.0.0.1", "port": 49199 },
+    "firestore": { "host": "127.0.0.1", "port": 48081, "websocketPort": 49150 },
+    "hub": { "host": "127.0.0.1", "port": 44400 },
+    "logging": { "host": "127.0.0.1", "port": 44500 },
+    "ui": { "enabled": false }
+  }
+}
