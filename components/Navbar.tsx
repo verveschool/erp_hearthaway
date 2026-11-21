@@ -149,7 +149,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-[100] w-full border-b border-[#E8E6E1] bg-[#FFFFFF]/95 backdrop-blur-md">
-      <div className="ha-frame flex h-16 items-center justify-between gap-3">
+      <div className="ha-frame flex h-[3.75rem] items-center justify-between gap-3">
         {/* Brand Anchor: Official Attached Transparent Icon */}
         <div className="flex min-w-0 items-center gap-3 lg:gap-6">
           <Link href="/" className="flex items-center focus:outline-none group" title="HearthAway Workspace">
@@ -177,7 +177,7 @@ export function Navbar() {
                     aria-current={item.active ? 'page' : undefined}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
                       item.active
-                        ? 'bg-[#00319D] text-[#FFFFFF]'
+                        ? 'bg-[#EEF2FC] text-[#00319D]'
                         : 'text-[#6B6860] hover:text-[#1A1A1A] hover:bg-[#F7F6F3]'
                     }`}
                   >
@@ -400,7 +400,7 @@ export function Navbar() {
                   onClick={() => setMobileNavOpen(false)}
                   className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition-colors ${
                     item.active
-                      ? 'bg-[#00319D] text-[#FFFFFF]'
+                      ? 'bg-[#EEF2FC] text-[#00319D]'
                       : 'text-[#6B6860] hover:bg-[#F7F6F3] hover:text-[#1A1A1A]'
                   }`}
                 >

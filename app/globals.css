@@ -72,10 +72,30 @@
 :root {
   --ha-content-width: 104rem;
   --ha-gutter: clamp(.875rem, 2.6vw, 3rem);
-  --ha-radius-panel: 1rem;
-  --ha-shadow-panel: 0 1px 3px rgb(31 32 38 / 5%);
+  --ha-radius-panel: .75rem;
+  --ha-shadow-panel: 0 1px 2px rgb(31 32 38 / 4%);
   --ha-focus: var(--ha-blue);
   --ha-selected: #eef2fc;
+  --ha-line-subtle: #eeece7;
+  --ha-blue-wash: #f1f4fb;
+}
+
+::selection {
+  background: #dce5fa;
+  color: var(--ha-charcoal);
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(input, select, textarea) {
+  accent-color: var(--ha-blue);
+}
+
+:where(input, select, textarea):disabled {
+  cursor: not-allowed;
+  opacity: .62;
 }
 
 .ha-shell {
@@ -114,29 +134,83 @@
 .ha-workspace {
   min-width: 0;
   padding-bottom: 2.5rem;
+  font-size: .875rem;
+}
+
+.ha-workspace :is(h2, h3, h4) {
+  letter-spacing: -.025em;
+}
+
+.ha-workspace :is(button, a, input, select, textarea) {
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-duration: 140ms;
+  transition-timing-function: ease-out;
+}
+
+.ha-auth-card {
+  border-radius: .875rem;
+  box-shadow: 0 1px 2px rgb(31 32 38 / 4%);
+}
+
+.ha-auth-card h1 {
+  font-weight: 650;
+  letter-spacing: -.035em;
 }
 
 .ha-page-header {
-  padding: clamp(1.125rem, 2vw, 2rem);
-  border: 1px solid var(--ha-mid-gray);
-  border-radius: var(--ha-radius-panel);
-  background: var(--ha-white);
-  box-shadow: var(--ha-shadow-panel);
+  padding: .25rem 0 1.25rem;
+  border: 0;
+  border-bottom: 1px solid var(--ha-mid-gray);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .ha-title {
-  font-size: clamp(1.5rem, 2.5vw, 1.875rem);
-  line-height: 1.2;
-  font-weight: 700;
-  letter-spacing: -.035em;
+  font-size: clamp(1.375rem, 2vw, 1.75rem);
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: -.04em;
 }
 
 .ha-summary {
   max-width: 66ch;
-  margin-top: .375rem;
+  margin-top: .35rem;
   color: var(--ha-muted);
+  font-size: .8125rem;
+  line-height: 1.6;
+}
+
+.ha-workspace {
   font-size: .875rem;
-  line-height: 1.55;
+}
+
+.ha-workspace :is(h2, h3, h4) {
+  letter-spacing: -.025em;
+}
+
+.ha-workspace :is(button, a, input, select, textarea) {
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-duration: 140ms;
+  transition-timing-function: ease-out;
+}
+
+.ha-workspace :is(input, select, textarea):not([type=checkbox], [type=radio], [type=file]),
+.ha-dialog :is(input, select, textarea):not([type=checkbox], [type=radio], [type=file]) {
+  border-color: #dedbd4;
+  border-radius: .5rem;
+  background-color: #fff;
+  color: var(--ha-charcoal);
+}
+
+.ha-workspace :is(input, select, textarea):not([type=checkbox], [type=radio], [type=file]):hover,
+.ha-dialog :is(input, select, textarea):not([type=checkbox], [type=radio], [type=file]):hover {
+  border-color: #c9c6bf;
+}
+
+.ha-workspace :is(input, select, textarea):not([type=checkbox], [type=radio], [type=file])::placeholder,
+.ha-dialog :is(input, select, textarea):not([type=checkbox], [type=radio], [type=file])::placeholder {
+  color: #99958c;
 }
 
 .ha-table-scroll {
@@ -154,14 +228,28 @@
 }
 
 .ha-table thead {
-  color: var(--ha-muted);
-  background: var(--ha-warm-gray);
-  font-size: .75rem;
+  color: #77736b;
+  background: #f8f7f4;
+  font-size: .6875rem;
+  letter-spacing: .025em;
   border-bottom: 1px solid var(--ha-mid-gray);
 }
 
-.ha-table th { font-weight: 600; }
+.ha-table th {
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.ha-table tbody tr {
+  border-bottom: 1px solid var(--ha-line-subtle);
+  transition: background-color 120ms ease-out;
+}
+
+.ha-table tbody tr:last-child { border-bottom: 0; }
+.ha-table tbody tr:hover { background: #faf9f7; }
 .ha-table tbody tr:focus-within { background: var(--ha-selected); }
+.ha-table :is(td, th) { vertical-align: middle; }
+.ha-table td { font-variant-numeric: tabular-nums; }
 .ha-workspace select, .ha-dialog select { max-width: 100%; }
 .ha-workspace :is(input, select, textarea):not([type=checkbox], [type=radio], [type=file]),
 .ha-dialog :is(input, select, textarea):not([type=checkbox], [type=radio], [type=file]) {
@@ -186,7 +274,7 @@
   border-radius: var(--ha-radius-panel);
   background: var(--ha-white);
   color: var(--ha-charcoal);
-  box-shadow: 0 16px 60px rgb(20 26 44 / 18%);
+  box-shadow: 0 12px 36px rgb(20 26 44 / 14%);
 }
 
 .ha-dialog:not(.ha-drawer) { width: min(100% - 1.5rem, 48rem); }
@@ -226,11 +314,11 @@ html:has(.ha-dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
 .ha-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1px;
+  gap: 0;
   overflow: hidden;
   border: 1px solid var(--ha-mid-gray);
-  border-radius: .75rem;
-  background: var(--ha-mid-gray);
+  border-radius: .625rem;
+  background: var(--ha-white);
 }
 
 .ha-metric {
@@ -238,6 +326,8 @@ html:has(.ha-dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
   background: var(--ha-white);
   padding: .875rem 1rem;
 }
+
+.ha-metric + .ha-metric { border-left: 1px solid var(--ha-line-subtle); }
 
 .ha-metric dt { font-size: .8125rem; color: var(--ha-muted); }
 .ha-metric dd {
@@ -267,6 +357,8 @@ html:has(.ha-dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
 @media (max-width: 42rem) {
   .ha-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ha-metric { padding: .75rem; }
+  .ha-metric:nth-child(odd) { border-left: 0; }
+  .ha-metric:nth-child(n + 3) { border-top: 1px solid var(--ha-line-subtle); }
   .ha-primary-action { min-height: 2.75rem; }
 }
 @media (max-width: 40rem), (max-height: 38rem) {
