@@ -33,6 +33,7 @@ export function Navbar() {
   const router = useRouter();
   const {
     currentUser,
+    leadOperationsRole,
     isAuthenticated,
     logout,
     openAuthModal,
@@ -128,6 +129,13 @@ export function Navbar() {
     });
   }
 
+  if (currentUser.role === 'portfolio_owner') {
+    navItems.push({ name: 'Partners', href: '/partners', icon: Users, active: pathname === '/partners' });
+  }
+  if (leadOperationsRole === 'management') {
+    navItems.push({ name: 'Data archive', href: '/archive', icon: Archive, active: pathname === '/archive' });
+  }
+
   const formatRoleLabel = (role: string) => {
     switch (role) {
       case 'management':
@@ -167,7 +175,7 @@ export function Navbar() {
 
           {/* Role-Based Module Navigation: Portfolio | Partners | Sales | Finance */}
           {isAuthenticated && navItems.length > 0 && (
-            <nav aria-label="Workspaces" className="hidden md:flex items-center gap-1 border-l border-ha-line pl-3 lg:pl-6">
+            <nav aria-label="Workspaces" className="hidden lg:flex items-center gap-1 border-l border-ha-line pl-3 lg:pl-6">
               {navItems.map((item) => {
                 const IconComponent = item.icon;
                 return (
@@ -190,7 +198,7 @@ export function Navbar() {
           )}
 
           {isAuthenticated && navItems.length > 0 && (
-            <div className="md:hidden">
+            <div className="lg:hidden">
               <button
                 type="button"
                 ref={navToggle}
@@ -387,7 +395,7 @@ export function Navbar() {
         <nav
           id="mobile-module-navigation"
           aria-label="Workspaces"
-          className="md:hidden border-t border-[#E8E6E1] bg-[#FFFFFF] px-4 py-3 shadow-sm"
+          className="lg:hidden border-t border-[#E8E6E1] bg-[#FFFFFF] px-4 py-3 shadow-sm"
         >
           <div className="grid grid-cols-2 gap-2">
             {navItems.map((item) => {

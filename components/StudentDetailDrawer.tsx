@@ -1,5 +1,7 @@
 'use client';
 
+import { LeadDetailsDialog } from '@/components/LeadDetailsDialog';
+import { canAssignSalesOwner, getLeadOwner } from '@/lib/lead-details';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
@@ -58,16 +60,25 @@ export function StudentDetailDrawer() {
     bookings,
     currentUser,
     availableUsers,
+    leadOwnerOptions,
     updateStudentDecoupledStatus,
     uploadPaymentTransaction,
     recordPropertyBooking,
     updatePropertyBooking,
-    reassignLeadSalesOwner,
+    reassignLeadOwner,
+    assignSalesOwner,
+    editLeadDetails,
+    archiveLead,
+    leadOperationsRole,
     logStudentActivity,
-    flagRecordForArchival,
-    unflagRecordForArchival,
   } = useHearthAway();
 
+  const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
+  const [archivingLeadId, setArchivingLeadId] = useState<string | null>(null);
+  const [archiveReason, setArchiveReason] = useState('');
+  const [archiveSaving, setArchiveSaving] = useState(false);
+  const [archiveError, setArchiveError] = useState('');
+  const [ownershipError, setOwnershipError] = useState('');
   const [activeTab, setActiveTab] = useState<'timeline' | 'bookings' | 'payments'>('timeline');
 
   // ==========================================
@@ -142,6 +153,11 @@ export function StudentDetailDrawer() {
   const studentPayments = payments.filter((p) => p.studentId === student.studentId);
   const studentBookings = bookings.filter((b) => b.studentId === student.studentId);
   const studentPartner = partners.find((p) => p.partnerId === student.partnerId);
+  const canEditDetails = isManagementUser || currentUser.role === 'sales' ||
+    (currentUser.role === 'partner' && student.partnerId === currentUser.partnerId) ||
+    (currentUser.role === 'portfolio_owner' && studentPartner?.portfolioOwnerId === currentUser.uid);
+  const canEditOwners = isManagementUser || currentUser.role === 'sales';
+  const canAssignNewSalesOwner = !!getLeadOwner(student).id && canAssignSalesOwner(student.pipelineStage);
 
   // Security check: If current user is a Partner, verify data isolation
   const isPartner = currentUser.role === 'partner';
@@ -456,34 +472,14 @@ export function StudentDetailDrawer() {
                   <span className="text-xs font-medium text-[#6B6860]">
                     Partner: <strong className="text-[#1A1A1A]">{student.partnerName || student.partnerId}</strong>
                   </span>
-                  {student.isTestRecord || student.archivalStatus === 'Flagged For Archival' ? (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded flex items-center gap-1">
-                        <Tag className="h-3 w-3" />
-                        FLAGGED FOR ARCHIVAL
-                      </span>
-                      <button
-                        onClick={() => unflagRecordForArchival('student', student.id)}
-                        className="text-xs text-[#00319D] hover:underline font-semibold"
-                      >
-                        Unflag
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() =>
-                        flagRecordForArchival(
-                          'student',
-                          student.id,
-                          'Manual Flag',
-                          'Flagged for archival from student detail panel'
-                        )
-                      }
-                      className="text-xs text-[#6B6860] hover:text-[#00319D] transition-colors flex items-center gap-1"
-                      title="Flag lead for archival"
-                    >
-                      <Archive className="h-3 w-3" />
-                      <span>Flag for Archival</span>
+                  {canEditDetails && (
+                    <button type="button" className="rounded-lg border border-ha-line px-2.5 py-1.5 text-xs font-semibold text-ha-blue"
+                      onClick={() => setEditingLeadId(student.studentId)}>Edit lead</button>
+                  )}
+                  {leadOperationsRole === 'management' && (
+                    <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-ha-line px-2.5 py-1.5 text-xs"
+                      onClick={() => { setArchiveReason(''); setArchiveError(''); setArchivingLeadId(student.studentId); }}>
+                      <Archive className="h-3.5 w-3.5" aria-hidden="true" /> Archive lead
                     </button>
                   )}
                 </div>
@@ -546,8 +542,8 @@ export function StudentDetailDrawer() {
 
               {(() => {
                 const partner = partners.find((p) => p.partnerId === student.partnerId);
-                const portfolioOwner = partner?.portfolioOwnerName || 'Beatrice Vance';
-                const salesUsers = availableUsers.filter((u) => u.role === 'sales');
+                const portfolioOwner = partner?.portfolioOwnerName || 'Unassigned';
+                const salesUsers = leadOwnerOptions.length ? leadOwnerOptions : availableUsers.filter((u) => u.role === 'sales');
 
                 return (
                   <>
@@ -557,28 +553,30 @@ export function StudentDetailDrawer() {
                       <strong className="min-w-0 truncate text-[#1A1A1A]">{portfolioOwner}</strong>
                     </div>
 
-                    {/* Sales Owner */}
-                    <div className="flex w-full min-w-0 items-center gap-1 rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-xs text-[#6B6860]">
-                      <span className="shrink-0">Sales Owner:</span>
-                      <select
-                        aria-label="Assigned sales owner"
-                        value={student.assignedSalesExecutiveId}
-                        onChange={(e) => {
-                          const selectedUser = availableUsers.find((u) => u.uid === e.target.value);
-                          if (selectedUser) {
-                            reassignLeadSalesOwner(student.studentId, selectedUser.uid, selectedUser.displayName);
-                          }
-                        }}
-                        className="min-w-0 flex-1 bg-transparent font-semibold text-[#00319D] focus:outline-none cursor-pointer text-xs"
-                      >
-                        <option value="">Unassigned</option>
-                        {salesUsers.map((su) => (
-                          <option key={su.uid} value={su.uid}>
-                            {su.displayName}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    {(['lead', 'sales'] as const).map((kind) => {
+                      const isSales = kind === 'sales';
+                      const label = isSales ? 'Sales owner' : 'Lead owner';
+                      const owner = isSales ? { id: student.salesOwnerId || '', name: student.salesOwnerName || 'Unassigned' } : getLeadOwner(student);
+                      const canAssign = canEditOwners && (!isSales || canAssignNewSalesOwner || !!owner.id);
+                      return (
+                        <label key={kind} className="flex w-full min-w-0 items-center gap-2 rounded-lg border border-ha-line px-2 py-1 text-xs">
+                          <span className="shrink-0">{label}</span>
+                          {canAssign ? <select aria-label={label} value={owner.id} className="min-w-0 flex-1 bg-transparent font-semibold text-ha-blue"
+                            onChange={(event) => {
+                              const id = event.target.value;
+                              const name = salesUsers.find((user) => user.uid === id)?.displayName || '';
+                              setOwnershipError('');
+                              const save = isSales ? assignSalesOwner : reassignLeadOwner;
+                              void save(student.studentId, id, name).catch((cause) => setOwnershipError(cause instanceof Error ? cause.message : 'Could not update ownership.'));
+                            }}>
+                            <option value="">Unassigned</option>
+                            {!!owner.id && !salesUsers.some((user) => user.uid === owner.id) && <option value={owner.id}>{owner.name}</option>}
+                            {salesUsers.map((user) => <option key={user.uid} value={user.uid} disabled={isSales && !canAssignNewSalesOwner}>{user.displayName}</option>)}
+                          </select> : <strong>{owner.name}{isSales && canEditOwners && !canAssignNewSalesOwner && ' · Assign a lead owner and qualify first'}</strong>}
+                        </label>
+                      );
+                    })}
+                    {ownershipError && <p role="alert" className="text-xs text-rose-700">{ownershipError}</p>}
 
                     {/* Priority */}
                     <label className="flex w-full min-w-0 items-center gap-1 rounded border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-xs text-[#6B6860]">
@@ -1729,6 +1727,42 @@ export function StudentDetailDrawer() {
       </div>
 
       {/* ========================================================= */}
+      {editingLeadId === student.studentId && (
+        <LeadDetailsDialog title="Edit lead details" lead={student} onClose={() => setEditingLeadId(null)}
+          onSave={(details) => editLeadDetails(student.studentId, details)} />
+      )}
+
+      {archivingLeadId === student.studentId && (
+        <WorkspaceDialog label="Archive lead" onDismiss={() => { if (!archiveSaving) setArchivingLeadId(null); }}>
+          <form className="w-full max-w-md space-y-4 p-5" onSubmit={async (event) => {
+            event.preventDefault();
+            if (archiveSaving || !archiveReason.trim()) return;
+            setArchiveSaving(true);
+            setArchiveError('');
+            try {
+              await archiveLead(student.studentId, archiveReason);
+              setArchivingLeadId(null);
+            } catch (cause) {
+              setArchiveError(cause instanceof Error ? cause.message : 'Could not archive this lead.');
+            } finally {
+              setArchiveSaving(false);
+            }
+          }}>
+            <h2 className="text-lg font-semibold">Archive {student.fullName}</h2>
+            <p className="text-sm text-ha-secondary">This lead becomes inactive and moves to the management data archive.</p>
+            <label className="block text-sm font-medium">Reason for archival
+              <textarea value={archiveReason} onChange={(event) => setArchiveReason(event.target.value)}
+                maxLength={500} rows={4} required className="mt-1 w-full rounded-lg border border-ha-line p-2" />
+            </label>
+            {archiveError && <p role="alert" className="text-sm text-rose-700">{archiveError}</p>}
+            <div className="flex justify-end gap-3">
+              <button type="button" disabled={archiveSaving} onClick={() => setArchivingLeadId(null)}>Cancel</button>
+              <button type="submit" className="ha-primary-action" disabled={archiveSaving}>{archiveSaving ? 'Archiving…' : 'Archive lead'}</button>
+            </div>
+          </form>
+        </WorkspaceDialog>
+      )}
+
       {/* ATTACHMENT PREVIEW MODAL */}
       {/* ========================================================= */}
       {previewAttachment && (

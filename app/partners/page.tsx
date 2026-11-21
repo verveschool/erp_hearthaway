@@ -1,10 +1,14 @@
 'use client';
 
+import { LeadDetailsDialog } from '@/components/LeadDetailsDialog';
+import { PartnerOwnerDialog } from '@/components/PartnerOwnerDialog';
+import { PartnerLeadTargets } from '@/components/PartnerLeadTargets';
+import { getLeadOwner, leadContactConflicts, leadConflictMessage, leadDetailsSchema, parseLeadCsv } from '@/lib/lead-details';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
 import React, { useState, useMemo, useRef } from 'react';
 import { useHearthAway } from '@/lib/context';
-import { Partner, Student } from '@/lib/types';
+import { AgreementStatusSchema, type Partner, type Student, type AgreementStatus } from '@/lib/types';
 import { exportToCSV } from '@/lib/export-csv';
 import {
   Users,
@@ -38,17 +42,23 @@ import {
   Trash2,
 } from 'lucide-react';
 
+const MAX_AGREEMENT_BYTES = 768 * 1024;
+
 export default function PartnersPage() {
   const {
     currentUser,
+    leadOperationsRole,
+    setPartnerLeadTarget,
     partners,
     students,
     availableUsers,
+    portfolioOwnerOptions,
     reassignPartnerPortfolioOwner,
     bulkImportPartnerLeads,
     submitPartnerLead,
     onboardNewPartner,
     updatePartner,
+    getPartnerAgreement,
     deletePartner,
     setSelectedStudentId,
   } = useHearthAway();
@@ -58,16 +68,16 @@ export default function PartnersPage() {
 
   // Portfolio Owners list for assignments
   const portfolioOwners = useMemo(() => {
-    const uniqueUsers = new Map<string, (typeof availableUsers)[number]>();
-    availableUsers
-      .filter((u) => u.uid && u.displayName?.trim() && u.role !== 'partner' && u.status !== 'rejected' && u.status !== 'pending' && u.isApproved !== false)
-      .forEach((u) => uniqueUsers.set(u.uid, u));
-    return Array.from(uniqueUsers.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [availableUsers]);
+    if (portfolioOwnerOptions.length) return portfolioOwnerOptions;
+    return availableUsers.filter((user) => user.uid && user.displayName?.trim() && user.role === 'portfolio_owner' &&
+      user.status !== 'rejected' && user.status !== 'pending' && user.isApproved !== false)
+      .map(({ uid, displayName }) => ({ uid, displayName }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [availableUsers, portfolioOwnerOptions]);
 
   // Active Partner context for Partner role
-  const activePartnerId = isPartner && currentUser.partnerId ? currentUser.partnerId : 'PART-00482';
-  const currentPartnerRecord = partners.find((p) => p.partnerId === activePartnerId) || partners[0];
+  const activePartnerId = isPartner ? currentUser.partnerId : undefined;
+  const currentPartnerRecord = partners.find((p) => p.partnerId === activePartnerId);
 
   // Search, Filter & View state for Partners
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,16 +100,15 @@ export default function PartnersPage() {
   const [onboardingError, setOnboardingError] = useState('');
   const [showSingleLeadModal, setShowSingleLeadModal] = useState(false);
   const [reassignPartnerTarget, setReassignPartnerTarget] = useState<Partner | null>(null);
-  const [selectedNewOwnerId, setSelectedNewOwnerId] = useState<string>('');
 
   // Agreement Modal state
   const [selectedAgreementPartner, setSelectedAgreementPartner] = useState<Partner | null>(null);
-  const [agreementStatus, setAgreementStatus] = useState<string>('Active');
+  const [agreementStatus, setAgreementStatus] = useState<AgreementStatus>('Active');
   const [agreementType, setAgreementType] = useState<string>('Master Services Agreement (MSA)');
   const [agreementSignedDate, setAgreementSignedDate] = useState<string>('');
   const [agreementExpiryDate, setAgreementExpiryDate] = useState<string>('');
   const [agreementTerms, setAgreementTerms] = useState<string>('');
-  const [agreementDocName, setAgreementDocName] = useState<string>('');
+  const [agreementFile, setAgreementFile] = useState<File | null>(null);
   const [agreementLogoUrl, setAgreementLogoUrl] = useState<string>('');
   const [agreementSaved, setAgreementSaved] = useState<boolean>(false);
   const [agreementSaving, setAgreementSaving] = useState<boolean>(false);
@@ -130,6 +139,8 @@ export default function PartnersPage() {
 
   // Bulk Upload Workflow State
   // Steps: 1 (Select), 2 (Download template), 3 (Validate), 4 (Preview), 5 (Errors), 6 (Duplicates), 7 (Confirm), 8 (Results)
+  const [bulkPartnerId, setBulkPartnerId] = useState('');
+  const [importing, setImporting] = useState(false);
   const [bulkStep, setBulkStep] = useState<number>(1);
   const [csvFileName, setCsvFileName] = useState<string>('');
   const [csvRawText, setCsvRawText] = useState<string>('');
@@ -144,6 +155,7 @@ export default function PartnersPage() {
   // Filtered partners list
   const filteredPartners = useMemo(() => {
     return partners.filter((p) => {
+      if (currentUser.role === 'portfolio_owner' && p.portfolioOwnerId !== currentUser.uid) return false;
       const matchSearch =
         searchQuery === '' ||
         p.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -162,7 +174,7 @@ export default function PartnersPage() {
 
       return matchSearch && matchType && matchPO && matchStatus && matchState && matchCity && matchAgreement;
     });
-  }, [partners, searchQuery, filterType, filterPortfolioOwner, filterStatus, filterState, filterCity, filterAgreement]);
+  }, [partners, searchQuery, filterType, filterPortfolioOwner, filterStatus, filterState, filterCity, filterAgreement, currentUser.role, currentUser.uid]);
 
   // Partners grouped by State and City for Bifurcation View
   const partnersByStateAndCity = useMemo(() => {
@@ -232,7 +244,8 @@ export default function PartnersPage() {
         { header: 'Intake', accessor: (s) => s.intake },
         { header: 'Lead Status', accessor: (s) => s.leadStatus },
         { header: 'Booking Status', accessor: (s) => s.bookingStatus },
-        { header: 'Sales Owner', accessor: (s) => s.assignedSalesExecutiveName },
+        { header: 'Lead Owner', accessor: (s) => getLeadOwner(s).name },
+        { header: 'Sales Owner', accessor: (s) => s.salesOwnerName || 'Unassigned' },
         { header: 'Budget', accessor: (s) => `${s.currency || 'GBP'} ${s.budget}` },
         { header: 'Created Date', accessor: (s) => s.createdAt },
       ],
@@ -249,11 +262,30 @@ export default function PartnersPage() {
   const [newCity, setNewCity] = useState('Mumbai');
   const [newState, setNewState] = useState('Maharashtra');
   const [newCountry, setNewCountry] = useState('India');
-  const [newAgreementStatus, setNewAgreementStatus] = useState<any>('Active');
+  const [newAgreementStatus, setNewAgreementStatus] = useState<AgreementStatus>('Active');
   const [newAgreementType, setNewAgreementType] = useState('Master Services Agreement (MSA)');
   const [newAgreementTerms, setNewAgreementTerms] = useState('40% Commission, 120-day payment window');
-  const [newPortfolioOwnerId, setNewPortfolioOwnerId] = useState(portfolioOwners[0]?.uid || 'user-po-001');
+  const [newPortfolioOwnerId, setNewPortfolioOwnerId] = useState('');
   const [newCommissionRate, setNewCommissionRate] = useState('40');
+
+  const openNewPartner = () => {
+    setOnboardingPartner(null);
+    setOnboardingError('');
+    setNewCompanyName('');
+    setNewPartnerType('Study Abroad Consultant');
+    setNewContactPerson('');
+    setNewEmail('');
+    setNewPhone('');
+    setNewCity('Mumbai');
+    setNewState('Maharashtra');
+    setNewCountry('India');
+    setNewAgreementStatus('Active');
+    setNewAgreementType('Master Services Agreement (MSA)');
+    setNewAgreementTerms('40% Commission, 120-day payment window');
+    setNewPortfolioOwnerId('');
+    setNewCommissionRate('40');
+    setShowOnboardModal(true);
+  };
 
   const handleOpenAgreementModal = (partner: Partner) => {
     setSelectedAgreementPartner(partner);
@@ -264,7 +296,7 @@ export default function PartnersPage() {
       partner.agreementExpiryDate || '2027-10-15'
     );
     setAgreementTerms(partner.agreementTerms || `${partner.commissionRate}% Commission, 120-day payment window`);
-    setAgreementDocName(partner.agreementDocumentUrl || '');
+    setAgreementFile(null);
     setAgreementLogoUrl(partner.logoUrl || '');
     setAgreementSaved(false);
     setAgreementError('');
@@ -278,15 +310,13 @@ export default function PartnersPage() {
     setAgreementError('');
     try {
       await updatePartner(selectedAgreementPartner.partnerId, {
-        agreementStatus: 'Active',
+        agreementStatus,
         agreementType,
         agreementSignedDate,
         agreementExpiryDate,
         agreementTerms,
-        agreementDocumentUrl: agreementDocName.trim() || selectedAgreementPartner.agreementDocumentUrl || '',
         logoUrl: agreementLogoUrl || '',
-        status: 'Active',
-      });
+      }, agreementFile ?? undefined);
 
       setAgreementSaved(true);
       setTimeout(() => {
@@ -304,13 +334,38 @@ export default function PartnersPage() {
     const file = e.target.files?.[0];
     if (!file || !selectedAgreementPartner) return;
 
-    setAgreementDocName(file.name);
-    // Keep the selected file in the form until Save is pressed so all agreement fields persist together.
+    e.target.value = '';
     setAgreementSaved(false);
+    if (file.size === 0 || file.size > MAX_AGREEMENT_BYTES) {
+      setAgreementError('Choose a nonempty agreement file up to 768 KB.');
+      return;
+    }
+    setAgreementFile(file);
+    setAgreementError('');
+  };
+
+  const handleDownloadAgreement = async (partner: Partner) => {
+    setAgreementError('');
+    try {
+      const attachment = await getPartnerAgreement(partner.partnerId);
+      if (!attachment) {
+        setAgreementError('Only the original filename was saved. Attach the original again to enable download.');
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([attachment.bytes], { type: 'application/octet-stream' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = attachment.name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      setAgreementError(error instanceof Error ? error.message : 'Unable to download the agreement.');
+    }
   };
 
   const openPartnerOnboarding = (partner: Partner) => {
     setOnboardingPartner(partner);
+    setOnboardingError('');
     setNewCompanyName(partner.companyName);
     setNewPartnerType(partner.type);
     setNewContactPerson(partner.contactPerson);
@@ -319,11 +374,11 @@ export default function PartnersPage() {
     setNewCity(partner.city || 'Mumbai');
     setNewState(partner.state || 'Maharashtra');
     setNewCountry(partner.country || 'India');
-    setNewAgreementStatus(partner.agreementStatus || 'Pending Internal Review');
+    setNewAgreementStatus(partner.agreementStatus || 'Pending Review');
     setNewAgreementType(partner.agreementType || 'Master Services Agreement (MSA)');
     setNewAgreementTerms(partner.agreementTerms || '40% Commission, 120-day payment window');
-    setNewCommissionRate(String(partner.commissionRate || 40));
-    setNewPortfolioOwnerId(partner.portfolioOwnerId || portfolioOwners[0]?.uid || '');
+    setNewCommissionRate(String(partner.commissionRate ?? 40));
+    setNewPortfolioOwnerId(partner.portfolioOwnerId || '');
     setShowOnboardModal(true);
   };
 
@@ -333,6 +388,13 @@ export default function PartnersPage() {
     setIsOnboarding(true);
 
     const chosenPO = portfolioOwners.find((u) => u.uid === newPortfolioOwnerId);
+    if (!chosenPO && (!onboardingPartner || newPortfolioOwnerId !== onboardingPartner.portfolioOwnerId)) {
+      setOnboardingError('Choose an available portfolio owner.');
+      setIsOnboarding(false);
+      return;
+    }
+    const assignedId = chosenPO?.uid ?? onboardingPartner?.portfolioOwnerId ?? '';
+    const assignedName = chosenPO?.displayName ?? onboardingPartner?.portfolioOwnerName ?? '';
     const randomSeq = String(Math.floor(10000 + Math.random() * 90000));
     const generatedPartnerId = `PART-${randomSeq}`;
 
@@ -348,18 +410,15 @@ export default function PartnersPage() {
       country: newCountry.trim(),
       countries: [newCountry.trim() || 'India'],
       cities: [newCity.trim() || 'Mumbai'],
-      portfolioOwnerId: chosenPO?.uid || 'user-po-001',
-      portfolioOwnerName: chosenPO?.displayName || 'Primary Portfolio Manager',
-      assignedManagerId: chosenPO?.uid || 'user-po-001',
-      assignedManagerName: chosenPO?.displayName || 'Primary Portfolio Manager',
+      portfolioOwnerId: assignedId,
+      portfolioOwnerName: assignedName,
+      assignedManagerId: assignedId,
+      assignedManagerName: assignedName,
       agreementStatus: newAgreementStatus,
       agreementType: newAgreementType,
       agreementTerms: newAgreementTerms,
-      agreementSignedDate: new Date().toISOString().split('T')[0],
-      agreementExpiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'Active' as const,
-      onboardingDate: new Date().toISOString().split('T')[0],
-      commissionRate: Number(newCommissionRate) || 40,
+      ...(onboardingPartner ? {} : { status: 'Active' as const, onboardingDate: new Date().toISOString().split('T')[0] }),
+      commissionRate: newCommissionRate === '' ? 40 : Number(newCommissionRate),
     };
 
     try {
@@ -393,27 +452,13 @@ export default function PartnersPage() {
     }
   };
 
-  // Reassign Partner Portfolio Owner Handler
-  const handleConfirmReassign = () => {
-    if (!reassignPartnerTarget || !selectedNewOwnerId) return;
-    const targetOwner = portfolioOwners.find((u) => u.uid === selectedNewOwnerId);
-    if (!targetOwner) return;
-
-    reassignPartnerPortfolioOwner(
-      reassignPartnerTarget.partnerId,
-      targetOwner.uid,
-      targetOwner.displayName
-    );
-    setReassignPartnerTarget(null);
-  };
-
   // CSV Template Downloader
   const handleDownloadTemplate = () => {
     const csvContent =
-      'Full Name,Email,Phone,University,Destination City,Country,Intake,Budget,Move In Date,Notes\n' +
-      'Ananya Sharma,ananya.s@example.com,+91 98200 11223,University College London,London,United Kingdom,Sep 2026,380,2026-09-15,Prefers walking distance to Bloomsbury campus\n' +
-      'Zubair Khan,zubair.khan@example.com,+971 50 123 4567,University of Manchester,Manchester,United Kingdom,Sep 2026,320,2026-09-12,En-suite room requirement with student visa\n' +
-      'Mei Lin,mei.lin@example.com,+852 9123 4567,University of Edinburgh,Edinburgh,United Kingdom,Jan 2027,350,2027-01-08,Postgraduate student looking for quiet residence\n';
+      'Full Name,Email,Phone,University,Destination City,Country,Intake,Budget,Move In Date,Notes,Currency\n' +
+      'Ananya Sharma,ananya.s@example.com,+91 98200 11223,University College London,London,United Kingdom,Sep 2026,380,2026-09-15,Prefers walking distance to Bloomsbury campus,GBP\n' +
+      'Zubair Khan,zubair.khan@example.com,+971 50 123 4567,University of Manchester,Manchester,United Kingdom,Sep 2026,320,2026-09-12,En-suite room requirement with student visa,GBP\n' +
+      'Mei Lin,mei.lin@example.com,+852 9123 4567,University of Edinburgh,Edinburgh,United Kingdom,Jan 2027,350,2027-01-08,Postgraduate student looking for quiet residence,GBP\n';
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -431,13 +476,19 @@ export default function PartnersPage() {
     setCsvRawText(text);
     setCsvFileName(fileName);
 
-    const lines = text.trim().split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+    let lines: string[][];
+    try {
+      lines = parseLeadCsv(text.replace(/^\uFEFF/, ''));
+    } catch (cause) {
+      setCsvParseError(cause instanceof Error ? cause.message : 'Could not read that file.');
+      return;
+    }
     if (lines.length < 2) {
       setCsvParseError('CSV file must include a header line and at least one lead row.');
       return;
     }
 
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const headers = lines[0].map((h) => h.trim().toLowerCase());
 
     const findHeaderIdx = (...possibleNames: string[]) => {
       return headers.findIndex((h) =>
@@ -453,6 +504,7 @@ export default function PartnersPage() {
     const countryIdx = findHeaderIdx('country', 'destination country');
     const intakeIdx = findHeaderIdx('intake', 'session', 'term');
     const budgetIdx = findHeaderIdx('budget', 'weekly budget', 'rent');
+    const currencyIdx = findHeaderIdx('currency', 'budget currency');
     const moveInIdx = findHeaderIdx('move in date', 'movein', 'arrival');
     const notesIdx = findHeaderIdx('notes', 'preferences', 'remarks', 'comments');
 
@@ -468,26 +520,22 @@ export default function PartnersPage() {
     const duplicates: Array<{ row: number; email: string; phone: string; reason: string }> = [];
     const valid: Array<any> = [];
 
-    const existingEmails = new Set(students.map((s) => s.email.toLowerCase().trim()));
-    const existingPhones = new Set(students.map((s) => s.phone.replace(/\D/g, '')));
-    const seenBatchEmails = new Set<string>();
+    const seen = [...students];
 
     for (let i = 1; i < lines.length; i++) {
-      const rowLine = lines[i];
-      if (!rowLine.trim()) continue;
-
-      const rawCols = rowLine.split(',');
+      const rawCols = lines[i];
       const getVal = (idx: number) => (idx >= 0 && rawCols[idx] ? rawCols[idx].trim() : '');
 
       const fullName = getVal(nameIdx);
       const email = getVal(emailIdx).toLowerCase();
-      const phone = getVal(phoneIdx) || '+44 7700 900000';
-      const university = getVal(uniIdx) || 'University of London';
-      const destinationCity = getVal(cityIdx) || 'London';
-      const destinationCountry = getVal(countryIdx) || 'United Kingdom';
-      const intake = getVal(intakeIdx) || 'Sep 2026';
-      const budget = Number(getVal(budgetIdx)) || 350;
-      const moveInDate = getVal(moveInIdx) || '2026-09-15';
+      const phone = getVal(phoneIdx);
+      const university = getVal(uniIdx);
+      const destinationCity = getVal(cityIdx);
+      const destinationCountry = getVal(countryIdx);
+      const intake = getVal(intakeIdx);
+      const budget = getVal(budgetIdx) ? Number(getVal(budgetIdx)) : NaN;
+      const moveInDate = getVal(moveInIdx);
+      const currency = getVal(currencyIdx).toUpperCase() || 'GBP';
       const notes = getVal(notesIdx) || 'CSV Batch Import';
 
       const rowObj = {
@@ -501,6 +549,7 @@ export default function PartnersPage() {
         intake,
         budget,
         moveInDate,
+        currency,
         notes,
       };
 
@@ -520,23 +569,16 @@ export default function PartnersPage() {
         isRowValid = false;
       }
 
-      // Duplicate Checks
-      const cleanPhone = phone.replace(/\D/g, '');
-      if (existingEmails.has(email)) {
-        duplicates.push({ row: i, email, phone, reason: 'Email already exists in master students database' });
-        isRowValid = false;
-      } else if (cleanPhone && cleanPhone.length > 5 && existingPhones.has(cleanPhone)) {
-        duplicates.push({ row: i, email, phone, reason: 'Phone number already exists in master database' });
-        isRowValid = false;
-      } else if (seenBatchEmails.has(email)) {
-        duplicates.push({ row: i, email, phone, reason: 'Duplicate email repeated within this CSV file' });
+      const conflict = leadConflictMessage(leadContactConflicts(rowObj, [...seen, ...valid]));
+      if (conflict) {
+        duplicates.push({ row: i, email, phone, reason: conflict });
         isRowValid = false;
       }
-
-      if (isRowValid) {
-        seenBatchEmails.add(email);
-        valid.push(rowObj);
+      if (isRowValid && !leadDetailsSchema.safeParse(rowObj).success) {
+        errors.push({ row: i, field: 'Lead details', message: 'Complete the fields in the CSV template.' });
+        isRowValid = false;
       }
+      if (isRowValid) valid.push(rowObj);
     }
 
     setParsedRows(parsed);
@@ -559,20 +601,27 @@ export default function PartnersPage() {
   };
 
   // Step 7: Confirm & Execute CSV Batch Import
-  const handleExecuteImport = () => {
-    if (validRows.length === 0) return;
+  const handleExecuteImport = async () => {
+    if (importing || validRows.length === 0) return;
 
-    const targetPartnerId = isPartner ? activePartnerId : (activeInspectedPartner?.partnerId || 'PART-00482');
-    const targetPartnerName = isPartner
-      ? (currentPartnerRecord?.companyName || currentUser.partnerName || 'Education Partner')
-      : (activeInspectedPartner?.companyName || 'Education Partner');
-
-    const result = bulkImportPartnerLeads(validRows, targetPartnerId, targetPartnerName);
-    setImportResults(result);
-    setBulkStep(8); // Advance to results
+    const targetPartnerId = isPartner ? activePartnerId : bulkPartnerId;
+    if (!targetPartnerId) return;
+    setImporting(true);
+    setCsvParseError(null);
+    try {
+      const result = await bulkImportPartnerLeads(validRows, targetPartnerId);
+      setImportResults(result);
+      setBulkStep(8);
+    } catch {
+      setCsvParseError('The import could not start. Check your access and try again.');
+    } finally {
+      setImporting(false);
+    }
   };
 
   const handleResetBulkModal = () => {
+    if (importing) return;
+    setBulkPartnerId('');
     setShowBulkUploadModal(false);
     setBulkStep(1);
     setCsvFileName('');
@@ -586,39 +635,11 @@ export default function PartnersPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Single Lead Form State (for Partner)
-  const [singleName, setSingleName] = useState('');
-  const [singleEmail, setSingleEmail] = useState('');
-  const [singlePhone, setSinglePhone] = useState('');
-  const [singleUni, setSingleUni] = useState('');
-  const [singleCity, setSingleCity] = useState('London');
-  const [singleBudget, setSingleBudget] = useState('350');
-  const [singleNotes, setSingleNotes] = useState('');
-
-  const handleSingleLeadSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!singleName || !singleEmail || !singleUni) return;
-
-    submitPartnerLead({
-      fullName: singleName,
-      email: singleEmail,
-      phone: singlePhone || '+44 7700 900123',
-      university: singleUni,
-      destinationCity: singleCity || 'London',
-      destinationCountry: 'United Kingdom',
-      intake: 'Sep 2026',
-      moveInDate: '2026-09-15',
-      budget: Number(singleBudget) || 350,
-      notes: singleNotes,
-    });
-
-    setShowSingleLeadModal(false);
-    setSingleName('');
-    setSingleEmail('');
-    setSinglePhone('');
-    setSingleUni('');
-    setSingleNotes('');
-  };
+  const seasonalTargets = (partner: Partner) => (
+    <PartnerLeadTargets partner={partner} leads={students.filter((student) => student.partnerId === partner.partnerId)}
+      canEdit={leadOperationsRole === 'management' || (leadOperationsRole === 'portfolio_owner' && partner.portfolioOwnerId === currentUser.uid)}
+      onSave={(season, promised) => setPartnerLeadTarget(partner.partnerId, season, promised)} />
+  );
 
   const formatAgreementBadge = (status?: string) => {
     switch (status) {
@@ -685,7 +706,7 @@ export default function PartnersPage() {
 
               {isManagement && (
                 <button
-                  onClick={() => { setOnboardingPartner(null); setOnboardingError(''); setShowOnboardModal(true); }}
+                  onClick={openNewPartner}
                   className="ha-primary-action"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -776,6 +797,13 @@ export default function PartnersPage() {
                 </div>
               </div>
 
+              {currentPartnerRecord && (
+                <div className="mt-4 rounded-lg border border-ha-line p-3">
+                  <h3 className="mb-2 text-xs font-semibold">Seasonal leads received / promised</h3>
+                  {seasonalTargets(currentPartnerRecord)}
+                </div>
+              )}
+
               {/* Agency Quick Stats */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-[#E8E6E1]">
                 <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
@@ -841,7 +869,7 @@ export default function PartnersPage() {
                       <tr>
                         <th scope="col" className="py-3 px-4 font-bold">Student Name</th>
                         <th scope="col" className="py-3 px-4 font-bold">University &amp; City</th>
-                        <th scope="col" className="py-3 px-4 font-bold">Assigned Sales Owner</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Lead Owner</th>
                         <th scope="col" className="py-3 px-4 font-bold">Lead Status</th>
                         <th scope="col" className="py-3 px-4 font-bold">Booking Status</th>
                         <th scope="col" className="py-3 px-4 font-bold">Intake</th>
@@ -864,7 +892,7 @@ export default function PartnersPage() {
                             <div className="text-xs text-[#6B6860]">{lead.university}</div>
                           </td>
                           <td className="py-3.5 px-4 font-bold text-[#1A1A1A]">
-                            {lead.assignedSalesExecutiveName}
+                            {getLeadOwner(lead).name}
                           </td>
                           <td className="py-3.5 px-4">
                             <span className="inline-block px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800">
@@ -960,9 +988,12 @@ export default function PartnersPage() {
                     <option value="All">All Agreements</option>
                     <option value="Active">Agreement: Active</option>
                     <option value="Signed">Agreement: Signed</option>
+                    <option value="Pending Review">Pending Review</option>
                     <option value="Pending Signature">Pending Signature</option>
                     <option value="Under Review">Under Review</option>
+                    <option value="Draft">Draft</option>
                     <option value="Expired">Expired</option>
+                    <option value="Terminated">Terminated</option>
                   </select>
 
                   {/* Filter by Partner Type */}
@@ -1096,22 +1127,21 @@ export default function PartnersPage() {
                                     >
                                       <div>
                                         <div className="flex items-start justify-between gap-2">
-                                          <div>
-                                            <h5 className="text-xs font-bold text-[#1A1A1A] leading-snug">
-                                              {partner.companyName}
-                                            </h5>
-                                            <span className="font-mono text-xs font-bold text-[#00319D]">
-                                              {partner.partnerId}
-                                            </span>
+                                          <div className="min-w-0">
+                                            <h5 className="break-words text-sm font-semibold leading-snug">{partner.companyName}</h5>
+                                            <span className="font-mono text-xs text-ha-blue">{partner.partnerId}</span>
                                           </div>
-                                          <button
-                                            onClick={() => handleOpenAgreementModal(partner)}
-                                            className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold border cursor-pointer ${formatAgreementBadge(partner.agreementStatus)}`}
-                                            title="View / Edit Agreement"
-                                          >
-                                            <FileCheck className="h-3 w-3" />
-                                            {partner.agreementStatus || 'Active'}
-                                          </button>
+                                          <div className="flex shrink-0 flex-col items-end gap-1">
+                                            {isManagement && <button type="button" onClick={() => openPartnerOnboarding(partner)}
+                                              className="rounded-md p-2 text-ha-blue hover:bg-ha-canvas" title="Edit partner" aria-label={`Edit ${partner.companyName}`}>
+                                              <Pencil className="h-4 w-4" aria-hidden="true" />
+                                            </button>}
+                                            <button type="button" onClick={() => handleOpenAgreementModal(partner)} disabled={!isManagement}
+                                              className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs ${formatAgreementBadge(partner.agreementStatus)}`}
+                                              aria-label={`Agreement for ${partner.companyName}`}>
+                                              <FileCheck className="h-3 w-3" aria-hidden="true" />{partner.agreementStatus || 'Active'}
+                                            </button>
+                                          </div>
                                         </div>
 
                                         <p className="text-xs text-[#6B6860] mt-1.5 line-clamp-1">
@@ -1126,48 +1156,13 @@ export default function PartnersPage() {
                                         </div>
                                       </div>
 
-                                      <div className="pt-2 border-t border-[#E8E6E1] flex items-center justify-between">
-                                        <div className="text-xs text-[#6B6860]">
-                                          Leads: <strong className="text-[#00319D]">{leadsCount}</strong> • Bookings: <strong className="text-emerald-700">{bookingsCount}</strong>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                          {isManagement && (
-                                            <button
-                                              onClick={() => openPartnerOnboarding(partner)}
-                                              className="rounded-md border border-[#00319D] bg-[#00319D]/5 px-2 py-1 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/10 cursor-pointer"
-                                            >
-                                              <Pencil className="mr-1 inline h-3 w-3" />
-                                              Edit
-                                            </button>
-                                          )}
-                                          {isManagement && partner.status !== 'Active' && (
-                                            <button
-                                              onClick={() => openPartnerOnboarding(partner)}
-                                              className="rounded-md border border-[#00319D] bg-[#00319D]/5 px-2 py-1 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/10 cursor-pointer"
-                                            >
-                                              Onboard
-                                            </button>
-                                          )}
-                                          <button
-                                            onClick={() => handleOpenAgreementModal(partner)}
-                                            className="rounded-md border border-[#E8E6E1] bg-[#F7F6F3] px-2 py-1 text-xs font-bold text-[#1A1A1A] hover:bg-[#E8E6E1] cursor-pointer"
-                                          >
-                                            Agreement
-                                          </button>
-                                          {isManagement && (
-                                            <button
-                                              onClick={() => handleDeletePartner(partner)}
-                                              className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100 cursor-pointer"
-                                              title="Delete partner"
-                                            >
-                                              <Trash2 className="h-3 w-3" />
-                                            </button>
-                                          )}
-                                          <button
-                                            onClick={() => setInspectPartnerId(partner.partnerId)}
-                                            className="rounded-md bg-[#00319D] px-2.5 py-1 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] cursor-pointer"
-                                          >
-                                            Leads →
+                                      <div className="space-y-2 border-t border-ha-line pt-2">
+                                        {seasonalTargets(partner)}
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                          <span className="text-xs text-ha-secondary">Bookings <strong className="text-ha-ink">{bookingsCount}</strong></span>
+                                          <button type="button" onClick={() => setInspectPartnerId(partner.partnerId)}
+                                            className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md bg-ha-blue px-3 py-1.5 text-xs font-semibold text-white">
+                                            Leads ({leadsCount})
                                           </button>
                                         </div>
                                       </div>
@@ -1198,7 +1193,7 @@ export default function PartnersPage() {
                         <th scope="col" className="py-3 px-4 font-bold">Type</th>
                         <th scope="col" className="py-3 px-4 font-bold">Contact Person</th>
                         <th scope="col" className="py-3 px-4 font-bold">Portfolio Owner</th>
-                        <th scope="col" className="py-3 px-4 font-bold">Leads</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Leads / target</th>
                         <th scope="col" className="py-3 px-4 font-bold">Bookings</th>
                         <th scope="col" className="py-3 px-4 font-bold text-right">Actions</th>
                       </tr>
@@ -1241,7 +1236,7 @@ export default function PartnersPage() {
                               {/* Agreement Status & Modal Action */}
                               <td className="py-3.5 px-4">
                                 <button
-                                  onClick={() => handleOpenAgreementModal(partner)}
+                                  onClick={() => handleOpenAgreementModal(partner)} disabled={!isManagement}
                                   className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold border cursor-pointer ${formatAgreementBadge(partner.agreementStatus)}`}
                                   title="View / Manage Contract Terms"
                                 >
@@ -1265,19 +1260,21 @@ export default function PartnersPage() {
                                     {partner.portfolioOwnerName || 'Beatrice Vance'}
                                   </strong>
                                 </div>
+                                {isManagement && (
                                 <button
                                   onClick={() => {
                                     setReassignPartnerTarget(partner);
-                                    setSelectedNewOwnerId(partner.portfolioOwnerId || portfolioOwners[0]?.uid || '');
                                   }}
                                   className="text-xs text-[#00319D] hover:underline mt-0.5 block cursor-pointer"
                                 >
-                                  Reassign Owner
+                                  Reassign owner
                                 </button>
+                                )}
                               </td>
 
                               <td className="py-3.5 px-4">
                                 <span className="font-bold text-[#00319D]">{leadsCount}</span>
+                                {seasonalTargets(partner)}
                               </td>
 
                               <td className="py-3.5 px-4">
@@ -1303,7 +1300,7 @@ export default function PartnersPage() {
                                     </>
                                   )}
                                   <button
-                                    onClick={() => handleOpenAgreementModal(partner)}
+                                    onClick={() => handleOpenAgreementModal(partner)} disabled={!isManagement}
                                     className="rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-1 text-xs font-bold text-[#1A1A1A] hover:bg-[#F7F6F3] transition-colors cursor-pointer"
                                   >
                                     Agreement
@@ -1368,7 +1365,7 @@ export default function PartnersPage() {
                   <select
                     id="partners-agreement-status"
                     value={agreementStatus}
-                    onChange={(e) => setAgreementStatus(e.target.value)}
+                    onChange={(e) => setAgreementStatus(AgreementStatusSchema.parse(e.target.value))}
                     className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs font-semibold text-[#1A1A1A] focus:border-[#00319D] focus:outline-none"
                   >
                     <option value="Active">Active / In Force</option>
@@ -1460,12 +1457,9 @@ export default function PartnersPage() {
                     <FileText className="h-3.5 w-3.5 text-[#00319D]" />
                     Contract Document File
                   </span>
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    Audit Verified
-                  </span>
                 </div>
                 <p className="text-xs text-[#6B6860]">
-                  Attach or download the signed MSA document or authorization letter for this partner.
+                  Attach or download the signed MSA or authorization letter. The file limit is 768 KB.
                 </p>
 
                 <div className="flex items-center gap-2 pt-1">
@@ -1475,7 +1469,7 @@ export default function PartnersPage() {
                     className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#FFFFFF] px-3 py-1.5 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/5 cursor-pointer"
                   >
                     <Upload className="h-3.5 w-3.5" />
-                    Upload Executed Agreement (PDF)
+                    Choose agreement file
                   </button>
                   <input
                     ref={agreementFileRef}
@@ -1485,25 +1479,18 @@ export default function PartnersPage() {
                     onChange={handleAgreementFileUpload}
                   />
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const docContent = `HEARTHAWAY MASTER SERVICES AGREEMENT (MSA)\nPartner: ${selectedAgreementPartner.companyName} (${selectedAgreementPartner.partnerId})\nTerritory: ${selectedAgreementPartner.city || 'Mumbai'}, ${selectedAgreementPartner.state || 'Maharashtra'}\nStatus: ${agreementStatus}\nAgreement Type: ${agreementType}\nSigned Date: ${agreementSignedDate}\nExpiry Date: ${agreementExpiryDate}\nTerms: ${agreementTerms}\nAuthorized Counterparty: ${selectedAgreementPartner.contactPerson} (${selectedAgreementPartner.email})\n\nExecuted under HearthAway Global Accommodation Partner Framework.`;
-                      const blob = new Blob([docContent], { type: 'text/plain;charset=utf-8' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `${selectedAgreementPartner.partnerId}_Agreement_Executed.txt`;
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                    }}
-                    className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 cursor-pointer"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    {agreementDocName || `${selectedAgreementPartner.partnerId}_MSA.pdf`}
-                  </button>
+                  {selectedAgreementPartner.agreementDocumentUrl && (
+                    <button
+                      type="button"
+                      onClick={() => void handleDownloadAgreement(selectedAgreementPartner)}
+                      className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 cursor-pointer"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download saved agreement
+                    </button>
+                  )}
                 </div>
+                {agreementFile && <p className="text-xs text-[#6B6860]" role="status">Selected: {agreementFile.name}</p>}
               </div>
 
               {agreementSaved && (
@@ -1561,6 +1548,18 @@ export default function PartnersPage() {
                 Upload multiple student leads at once. Leads automatically inherit the submitting Partner relationship and roll up into their Portfolio Owner.
               </p>
             </div>
+
+            {!isPartner && bulkStep !== 8 && (
+              <label className="mb-4 block text-sm font-medium">Sourcing partner
+                <select className="mt-1 block w-full rounded-lg border border-ha-line p-2"
+                  value={bulkPartnerId} onChange={(event) => setBulkPartnerId(event.target.value)} disabled={importing}>
+                  <option value="">Choose a partner</option>
+                  <option value="direct">Direct lead</option>
+                  {filteredPartners.map((partner) => <option key={partner.id} value={partner.partnerId}>{partner.companyName}</option>)}
+                </select>
+              </label>
+            )}
+            {bulkStep !== 1 && csvParseError && <p role="alert" className="mb-3 text-sm text-rose-700">{csvParseError}</p>}
 
             {/* Step Progress Indicators */}
             <div className="grid grid-cols-4 gap-2 mb-6 text-center text-xs font-bold">
@@ -1732,7 +1731,7 @@ export default function PartnersPage() {
                             <td className="py-2 px-3 text-[#6B6860]">{r.email}</td>
                             <td className="py-2 px-3 text-[#6B6860]">{r.university}</td>
                             <td className="py-2 px-3 text-[#6B6860]">{r.destinationCity}</td>
-                            <td className="py-2 px-3 font-mono font-bold text-[#00319D]">£{r.budget}</td>
+                            <td className="py-2 px-3 font-mono font-bold text-[#00319D]">{r.currency} {r.budget}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1751,7 +1750,7 @@ export default function PartnersPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={validRows.length === 0}
+                    disabled={importing || validRows.length === 0 || (!isPartner && !bulkPartnerId)}
                     onClick={handleExecuteImport}
                     className="rounded-lg bg-[#00319D] px-5 py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
                   >
@@ -1804,10 +1803,10 @@ export default function PartnersPage() {
 
       {/* MODAL 2: ONBOARD NEW PARTNER (with State, City, Agreement) */}
       {showOnboardModal && (
-        <WorkspaceDialog label="Onboard education consultant" onDismiss={() => setShowOnboardModal(false)}>
+        <WorkspaceDialog label={onboardingPartner ? 'Edit partner' : 'Onboard education consultant'} onDismiss={() => setShowOnboardModal(false)}>
           <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-[#1A1A1A]">Onboard Education Consultant</h3>
+              <h3 className="text-base font-semibold text-[#1A1A1A]">{onboardingPartner ? 'Edit partner' : 'Onboard Education Consultant'}</h3>
               <button
                 aria-label="Close dialog"
                 onClick={() => setShowOnboardModal(false)}
@@ -1881,13 +1880,17 @@ export default function PartnersPage() {
                   <select
                     id="partners-new-agreement-status"
                     value={newAgreementStatus}
-                    onChange={(e) => setNewAgreementStatus(e.target.value)}
+                    onChange={(e) => setNewAgreementStatus(AgreementStatusSchema.parse(e.target.value))}
                     className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
                   >
                     <option value="Active">Active</option>
                     <option value="Signed">Signed</option>
                     <option value="Pending Signature">Pending Signature</option>
                     <option value="Under Review">Under Review</option>
+                    <option value="Pending Review">Pending Review</option>
+                    <option value="Draft">Draft</option>
+                    <option value="Expired">Expired</option>
+                    <option value="Terminated">Terminated</option>
                   </select>
                 </div>
                 <div>
@@ -1916,9 +1919,13 @@ export default function PartnersPage() {
                   onChange={(e) => setNewPortfolioOwnerId(e.target.value)}
                   className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs font-semibold text-[#1A1A1A] focus:border-[#00319D] focus:outline-none"
                 >
+                  <option value="">Choose a portfolio owner</option>
+                  {onboardingPartner?.portfolioOwnerId && !portfolioOwners.some((owner) => owner.uid === onboardingPartner.portfolioOwnerId) && (
+                    <option value={onboardingPartner.portfolioOwnerId}>{onboardingPartner.portfolioOwnerName || 'Current portfolio owner'}</option>
+                  )}
                   {portfolioOwners.map((po) => (
                     <option key={po.uid} value={po.uid}>
-                      {po.displayName} ({po.email})
+                      {po.displayName}
                     </option>
                   ))}
                 </select>
@@ -1979,188 +1986,27 @@ export default function PartnersPage() {
                 >
                   Cancel
                 </button>
-  <button
-  type="submit"
-  disabled={isOnboarding}
-  className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-  >
-  {isOnboarding ? 'Saving…' : 'Onboard Partner'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </WorkspaceDialog>
-      )}
-
-      {/* MODAL 3: REASSIGN PORTFOLIO OWNER */}
-      {reassignPartnerTarget && (
-        <WorkspaceDialog label="Reassign portfolio owner" onDismiss={() => setReassignPartnerTarget(null)}>
-          <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-semibold text-[#1A1A1A]">
-              Reassign {reassignPartnerTarget.companyName}
-            </h3>
-            <p className="text-xs text-[#6B6860] leading-relaxed">
-              Updating the Portfolio Owner will immediately and consistently roll up all leads sourced by this partner into the new Portfolio Owner&apos;s Portfolio, while preserving each lead&apos;s assigned sales Owner.
-            </p>
-
-            <div>
-              <label htmlFor="partners-selected-new-owner-id" className="block text-xs font-bold text-[#1A1A1A] mb-1">
-                New Portfolio Owner:
-              </label>
-              <select
-                id="partners-selected-new-owner-id"
-                value={selectedNewOwnerId}
-                onChange={(e) => setSelectedNewOwnerId(e.target.value)}
-                className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-              >
-                {portfolioOwners.map((owner) => (
-                  <option key={owner.uid} value={owner.uid}>
-                    {owner.displayName} ({owner.email})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setReassignPartnerTarget(null)}
-                className="rounded-lg border border-[#E8E6E1] px-3 py-1.5 text-xs font-semibold text-[#6B6860] hover:bg-[#F7F6F3] cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmReassign}
-                className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] cursor-pointer"
-              >
-                Confirm Reassignment
-              </button>
-            </div>
-          </div>
-        </WorkspaceDialog>
-      )}
-
-      {/* MODAL 4: SUBMIT SINGLE LEAD (For Partner) */}
-      {showSingleLeadModal && (
-        <WorkspaceDialog label="Submit student lead" onDismiss={() => setShowSingleLeadModal(false)}>
-          <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-[#1A1A1A]">Submit Student Lead</h3>
-              <button
-                aria-label="Close dialog"
-                onClick={() => setShowSingleLeadModal(false)}
-                className="text-[#6B6860] hover:text-[#1A1A1A] cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSingleLeadSubmit} className="space-y-3">
-              <div>
-                <label htmlFor="partners-single-name" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Student Full Name</label>
-                <input
-                  id="partners-single-name"
-                  type="text"
-                  required
-                  placeholder="e.g. Maya Patel"
-                  value={singleName}
-                  onChange={(e) => setSingleName(e.target.value)}
-                  className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label htmlFor="partners-single-email" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Email</label>
-                  <input
-                    id="partners-single-email"
-                    type="email"
-                    required
-                    placeholder="maya@example.com"
-                    value={singleEmail}
-                    onChange={(e) => setSingleEmail(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="partners-single-phone" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Phone</label>
-                  <input
-                    id="partners-single-phone"
-                    type="text"
-                    required
-                    placeholder="+44 7700 900123"
-                    value={singlePhone}
-                    onChange={(e) => setSinglePhone(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="partners-single-uni" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Target University</label>
-                <input
-                  id="partners-single-uni"
-                  type="text"
-                  required
-                  placeholder="e.g. University of Manchester"
-                  value={singleUni}
-                  onChange={(e) => setSingleUni(e.target.value)}
-                  className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label htmlFor="partners-single-city" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Destination City</label>
-                  <input
-                    id="partners-single-city"
-                    type="text"
-                    value={singleCity}
-                    onChange={(e) => setSingleCity(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="partners-single-budget" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Budget (£/week)</label>
-                  <input
-                    id="partners-single-budget"
-                    type="number"
-                    value={singleBudget}
-                    onChange={(e) => setSingleBudget(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="partners-single-notes" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Notes / Preferences</label>
-                <textarea
-                  id="partners-single-notes"
-                  rows={2}
-                  value={singleNotes}
-                  onChange={(e) => setSingleNotes(e.target.value)}
-                  placeholder="Accommodation requirements, move-in preferences..."
-                  className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowSingleLeadModal(false)}
-                  className="rounded-lg border border-[#E8E6E1] px-3.5 py-1.5 text-xs font-semibold text-[#6B6860] hover:bg-[#F7F6F3] cursor-pointer"
-                >
-                  Cancel
-                </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] cursor-pointer"
+                  disabled={isOnboarding}
+                  className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                 >
-                  Submit Lead
+                  {isOnboarding ? 'Saving…' : onboardingPartner ? 'Save changes' : 'Onboard Partner'}
                 </button>
               </div>
             </form>
           </div>
         </WorkspaceDialog>
+      )}
+
+      {reassignPartnerTarget && (
+        <PartnerOwnerDialog partner={reassignPartnerTarget} options={portfolioOwners}
+          onClose={() => setReassignPartnerTarget(null)} onSave={reassignPartnerPortfolioOwner} />
+      )}
+
+      {showSingleLeadModal && (
+        <LeadDetailsDialog title="Submit student lead" onClose={() => setShowSingleLeadModal(false)}
+          onSave={async (lead) => { await submitPartnerLead(lead); }} />
       )}
 
       {inspectPartnerId && !isPartner && (
@@ -2189,6 +2035,8 @@ export default function PartnersPage() {
                       <p className="text-sm font-bold text-[#1A1A1A]">{lead.fullName}</p>
                       <p className="mt-1 text-xs text-[#6B6860]">{lead.email}</p>
                       <p className="mt-2 text-xs font-semibold text-[#00319D]">{lead.leadStatus || 'New'}</p>
+                      <button type="button" className="mt-2 text-xs font-semibold text-ha-blue hover:underline"
+                        onClick={() => { setInspectPartnerId(null); setSelectedStudentId(lead.studentId); }}>Open lead</button>
                     </div>
                   ))}
                 </div>

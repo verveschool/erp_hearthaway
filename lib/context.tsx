@@ -27,6 +27,7 @@ import {
   INITIAL_PAYMENTS,
   INITIAL_ACTIVITIES,
 } from './mock-data';
+import { canAssignSalesOwner, getLeadOwner, intakeKey, leadConflictMessage, leadContactConflicts, leadDetailsSchema, leadEditSchema, type LeadDetails } from './lead-details';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import {
   GoogleAuthProvider,
@@ -37,8 +38,11 @@ import {
   browserLocalPersistence,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  getIdTokenResult,
+  onIdTokenChanged,
 } from 'firebase/auth';
 import {
+  Bytes,
   collection,
   doc,
   setDoc,
@@ -47,6 +51,9 @@ import {
   deleteDoc,
   updateDoc,
   onSnapshot,
+  getDocsFromServer,
+  runTransaction,
+  serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
 
@@ -111,31 +118,23 @@ interface HearthAwayContextType {
   activities: Activity[];
 
   // Workflows & Mutations with Audit Logs
-  reassignPartnerPortfolioOwner: (partnerId: string, newOwnerId: string, newOwnerName: string) => void;
-  reassignLeadSalesOwner: (studentId: string, newSalesOwnerId: string, newSalesOwnerName: string) => Promise<void>;
-  bulkImportPartnerLeads: (
-    leads: Array<any>,
-    explicitPartnerId?: string,
-    explicitPartnerName?: string
-  ) => { importedCount: number; duplicatesCount: number; errorsCount: number; importedLeads: Student[] };
+  reassignPartnerPortfolioOwner: (partnerId: string, newOwnerId: string, newOwnerName: string) => Promise<void>;
+  reassignLeadOwner: (studentId: string, ownerId: string, ownerName: string) => Promise<void>;
+  assignSalesOwner: (studentId: string, ownerId: string, ownerName: string) => Promise<void>;
+  editLeadDetails: (studentId: string, details: LeadDetails) => Promise<void>;
+  archiveLead: (studentId: string, reason: string) => Promise<void>;
+  leadOperationsRole: string;
+  leadOwnerOptions: Array<{ uid: string; displayName: string }>;
+  portfolioOwnerOptions: Array<{ uid: string; displayName: string }>;
+  setPartnerLeadTarget: (partnerId: string, season: string, promised: number) => Promise<void>;
+  bulkImportPartnerLeads: (leads: LeadDetails[], partnerId?: string) => Promise<{
+    importedCount: number; duplicatesCount: number; errorsCount: number; importedLeads: Student[];
+  }>;
   onboardNewPartner: (partnerData: any) => Promise<Partner>;
-  updatePartner: (partnerId: string, updates: Partial<Partner>) => Promise<void>;
+  updatePartner: (partnerId: string, updates: Partial<Partner>, agreementFile?: File) => Promise<void>;
+  getPartnerAgreement: (partnerId: string) => Promise<{ name: string; bytes: ArrayBuffer } | null>;
   deletePartner: (partnerId: string) => Promise<void>;
-  submitPartnerLead: (lead: {
-    fullName: string;
-    phone: string;
-    email: string;
-    university: string;
-    destinationCountry: string;
-    destinationCity: string;
-    intake: string;
-    moveInDate: string;
-    budget: number;
-    currency?: string;
-    preferredRoom?: string;
-    accommodationPreference?: string;
-    notes?: string;
-  }) => Student;
+  submitPartnerLead: (lead: LeadDetails, partnerId?: string) => Promise<Student>;
 
   updateStudentDecoupledStatus: (
     studentId: string,
@@ -257,6 +256,43 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [hideTestRecords, setHideTestRecords] = useState<boolean>(false);
+  const [operationsIdentity, setOperationsIdentity] = useState<{ uid: string; role: string } | null>(null);
+  const leadOperationsRole = operationsIdentity?.uid === currentUser.uid ? operationsIdentity?.role || '' : '';
+  const [leadOwnerOptions, setLeadOwnerOptions] = useState<Array<{ uid: string; displayName: string }>>([]);
+  const [portfolioOwnerOptions, setPortfolioOwnerOptions] = useState<Array<{ uid: string; displayName: string }>>([]);
+
+  useEffect(() => {
+    let revision = 0;
+    const unsubscribe = onIdTokenChanged(auth, (user) => {
+      const currentRevision = ++revision;
+      if (!user) {
+        setOperationsIdentity(null);
+        return;
+      }
+      void getIdTokenResult(user).then(({ claims }) => {
+        if (revision === currentRevision && auth.currentUser?.uid === user.uid) {
+          setOperationsIdentity({ uid: user.uid, role: typeof claims.leadOperationsRole === 'string' ? claims.leadOperationsRole : '' });
+        }
+      }).catch(() => {});
+    });
+    return () => { revision++; unsubscribe(); };
+  }, []);
+
+  useEffect(() => {
+    if (leadOperationsRole !== 'management' && leadOperationsRole !== 'sales') return;
+    const watch = (directory: string, setOptions: typeof setLeadOwnerOptions) =>
+      onSnapshot(collection(db, directory), (snapshot) => {
+        if (auth.currentUser?.uid !== currentUser.uid) return;
+        setOptions(snapshot.docs.flatMap((entry) => {
+          const name = entry.data().displayName;
+          return typeof name === 'string' && name.trim() ? [{ uid: entry.id, displayName: name }] : [];
+        }).sort((a, b) => a.displayName.localeCompare(b.displayName)));
+      }, () => setOptions([]));
+    const stopLeadOwners = watch('leadOwnerDirectory', setLeadOwnerOptions);
+    const stopPortfolioOwners = leadOperationsRole === 'management'
+      ? watch('portfolioOwnerDirectory', setPortfolioOwnerOptions) : null;
+    return () => { stopLeadOwners(); stopPortfolioOwners?.(); };
+  }, [leadOperationsRole, currentUser.uid]);
 
   // Resolve the Firebase identity before subscribing to workspace data.
   useEffect(() => {
@@ -286,6 +322,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         setActivities([]);
         setAvailableUsers([]);
         setSelectedStudentId(null);
+        setLeadOwnerOptions([]);
+        setPortfolioOwnerOptions([]);
       }
 
       if (fbUser) {
@@ -368,15 +406,16 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       collection(db, 'students'),
       (snapshot) => {
         if (!isCurrent()) return;
-        const list = snapshot.docs.map((docSnap) => {
+        const list = snapshot.docs.flatMap((docSnap) => {
           const student = { ...docSnap.data(), id: docSnap.id } as Student;
+          if (student.archivalStatus === 'Archived') return [];
           const pipelineStage = getInitialPipelineStage(student);
           if (student.pipelineStage !== pipelineStage) {
             setDoc(docSnap.ref, { pipelineStage }, { merge: true }).catch((err) => {
               handleFirestoreError(err, OperationType.WRITE, `students/${docSnap.id}`);
             });
           }
-          return { ...student, pipelineStage };
+          return [{ ...student, pipelineStage }];
         });
         setStudents(list);
       },
@@ -758,6 +797,11 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
     const role = currentUser.role;
 
+    if (path === '/archive') {
+      const allowed = leadOperationsRole === 'management';
+      return { allowed, requiredRoles: ['management'], reason: allowed ? undefined : 'insufficient_role' };
+    }
+
     if (role === 'admin' || role === 'management') {
       return { allowed: true, requiredRoles: [] };
     }
@@ -769,7 +813,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     }
 
     if (path.startsWith('/partners') || path.startsWith('/partner')) {
-      const requiredRoles: UserRole[] = ['admin', 'management', 'partner'];
+      const requiredRoles: UserRole[] = ['admin', 'management', 'portfolio_owner', 'partner'];
       const allowed = requiredRoles.includes(role);
       return { allowed, requiredRoles, reason: allowed ? undefined : 'insufficient_role' };
     }
@@ -789,13 +833,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     return { allowed: true, requiredRoles: [] };
   };
 
-  const logStudentActivity = async (
+  const buildActivity = (
     studentId: string,
     activityType: string,
     description: string,
     oldValue?: string,
     newValue?: string
-  ): Promise<void> => {
+  ): Activity => {
     const now = new Date();
     const formattedTimestamp = now.toLocaleString('en-GB', {
       day: '2-digit',
@@ -806,7 +850,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     });
 
     const actId = `act-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    const newActivity: Activity = {
+    return {
       id: actId,
       activityId: `ACT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
       studentId,
@@ -822,6 +866,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       ...(typeof newValue === 'string' ? { newValue } : {}),
     };
 
+  };
+
+  const logStudentActivity = async (
+    studentId: string, activityType: string, description: string, oldValue?: string, newValue?: string
+  ): Promise<void> => {
+    const newActivity = buildActivity(studentId, activityType, description, oldValue, newValue);
+    const { id: actId, timestamp: formattedTimestamp } = newActivity;
     await setDoc(doc(db, 'activities', actId), newActivity).catch((err) => {
       handleFirestoreError(err, OperationType.WRITE, `activities/${actId}`);
       throw err;
@@ -840,59 +891,57 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const reassignPartnerPortfolioOwner = (partnerId: string, newOwnerId: string, newOwnerName: string) => {
+  const reassignPartnerPortfolioOwner = async (partnerId: string, newOwnerId: string, newOwnerName: string) => {
     const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
-    if (partner) {
-      const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
-      logStudentActivity(
-        partner.partnerId,
-        'Partner Portfolio Owner Reassigned',
-        `Partner "${partner.companyName}" (${partner.partnerId}) reassigned from ${partner.portfolioOwnerName || 'Unassigned'} to ${newOwnerName} by ${currentUser.displayName}.`,
-        partner.portfolioOwnerName || 'Unassigned',
-        newOwnerName
+    if (!partner) throw new Error('This partner is no longer available.');
+    const reference = doc(db, 'partners', partner.id || `part-${partner.partnerId.toLowerCase()}`);
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error('This partner is no longer available.');
+      const current = snapshot.data() as Partner;
+      if (current.portfolioOwnerId === newOwnerId) return;
+      const previousName = current.portfolioOwnerName || 'Unassigned';
+      const activity = buildActivity(
+        current.partnerId, 'Partner Portfolio Owner Reassigned',
+        `Partner "${current.companyName}" reassigned from ${previousName} to ${newOwnerName}.`,
+        previousName, newOwnerName
       );
-      updateDoc(doc(db, 'partners', docId), {
-        portfolioOwnerId: newOwnerId,
-        portfolioOwnerName: newOwnerName,
-        assignedManagerId: newOwnerId,
-        assignedManagerName: newOwnerName,
-      }).catch((err) => handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`));
-    }
-  };
-
-  const reassignLeadSalesOwner = async (studentId: string, newSalesOwnerId: string, newSalesOwnerName: string): Promise<void> => {
-    const student = students.find((s) => s.studentId === studentId || s.id === studentId);
-    if (!student) return;
-
-    const docId = student.id || `std-${student.studentId.toLowerCase()}`;
-    const previousOwnerName = student.assignedSalesExecutiveName || 'Unassigned';
-    const nextOwnerName = newSalesOwnerName || 'Unassigned';
-    if (previousOwnerName === nextOwnerName) return;
-
-    const activityType = previousOwnerName === 'Unassigned' ? 'Sales Owner Assigned' : 'Sales Owner Reassigned';
-    await logStudentActivity(
-      student.studentId,
-      activityType,
-      `Sales owner changed from ${previousOwnerName} to ${nextOwnerName}`,
-      previousOwnerName,
-      nextOwnerName
-    );
-
-    await updateDoc(doc(db, 'students', docId), {
-      assignedSalesExecutiveId: newSalesOwnerId || '',
-      assignedSalesExecutiveName: nextOwnerName,
-      updatedAt: new Date().toLocaleString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    }).catch((err) => {
-      handleFirestoreError(err, OperationType.WRITE, `students/${docId}`);
-      throw err;
+      transaction.update(reference, {
+        portfolioOwnerId: newOwnerId, portfolioOwnerName: newOwnerName,
+        assignedManagerId: newOwnerId, assignedManagerName: newOwnerName,
+      });
+      transaction.set(doc(db, 'activities', activity.id), activity);
     });
   };
+
+  const updateLeadOwner = async (studentId: string, kind: 'lead' | 'sales', ownerId: string, ownerName: string) => {
+    const student = students.find((entry) => entry.studentId === studentId);
+    if (!student || !['admin', 'management', 'sales'].includes(currentUser.role)) throw new Error('You cannot assign this lead.');
+    const nextName = ownerId ? ownerName : 'Unassigned';
+    const label = kind === 'sales' ? 'Sales Owner' : 'Lead Owner';
+    await runTransaction(db, async (transaction) => {
+      const reference = doc(db, 'students', student.id);
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error('This lead is no longer active.');
+      const current = snapshot.data() as Student;
+      if (kind === 'sales' && ownerId && (!getLeadOwner(current).id || !canAssignSalesOwner(getInitialPipelineStage(current)))) {
+        throw new Error('Assign a lead owner and qualify this lead before assigning a sales owner.');
+      }
+      const previous = kind === 'sales' ? { id: current.salesOwnerId, name: current.salesOwnerName } : getLeadOwner(current);
+      if ((previous.id || '') === ownerId) return;
+      const activity = buildActivity(studentId, `${label} Changed`, `${label} changed.`, previous.name || 'Unassigned', nextName);
+      const changes = kind === 'sales' ? { salesOwnerId: ownerId, salesOwnerName: nextName } : {
+        leadOwnerId: ownerId, leadOwnerName: nextName,
+        // Keep compatibility with clients still reading the old field during rollout.
+        assignedSalesExecutiveId: ownerId, assignedSalesExecutiveName: nextName,
+      };
+      transaction.update(reference, { ...changes, updatedAt: activity.timestamp });
+      transaction.set(doc(db, 'activities', activity.id), activity);
+    });
+  };
+
+  const reassignLeadOwner = (studentId: string, id: string, name: string) => updateLeadOwner(studentId, 'lead', id, name);
+  const assignSalesOwner = (studentId: string, id: string, name: string) => updateLeadOwner(studentId, 'sales', id, name);
 
   const onboardNewPartner = async (partnerData: any): Promise<Partner> => {
     const normalizedEmail = String(partnerData.email || '').toLowerCase().trim();
@@ -900,7 +949,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       (normalizedEmail && partner.email.toLowerCase().trim() === normalizedEmail) ||
       (partnerData.companyName && partner.companyName.toLowerCase().trim() === String(partnerData.companyName).toLowerCase().trim())
     );
-    if (existingPartner) return existingPartner;
+    if (existingPartner) throw new Error('A partner with this name or email already exists.');
 
     const partnerIdStr = partnerData.partnerId || `PART-${Math.floor(10000 + Math.random() * 90000)}`;
     const docId = `part-${partnerIdStr.toLowerCase()}`;
@@ -945,7 +994,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     return newPartner;
   };
 
-  const updatePartner = async (partnerId: string, updates: Partial<Partner>): Promise<void> => {
+  const updatePartner = async (partnerId: string, updates: Partial<Partner>, agreementFile?: File): Promise<void> => {
     const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
     if (!partner) {
       throw new Error(`Partner ${partnerId} was not found. Refresh the partners page and try again.`);
@@ -953,8 +1002,20 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
     const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
     try {
-      await setDoc(doc(db, 'partners', docId), updates, { merge: true });
-      setPartners((previous) => previous.map((item) => item.partnerId === partner.partnerId ? { ...item, ...updates } : item));
+      const partnerRef = doc(db, 'partners', docId);
+      const fields = agreementFile ? { ...updates, agreementDocumentUrl: agreementFile.name } : updates;
+      if (agreementFile) {
+        const batch = writeBatch(db);
+        batch.set(partnerRef, fields, { merge: true });
+        batch.set(doc(db, 'partnerAgreements', docId), {
+          name: agreementFile.name,
+          bytes: Bytes.fromUint8Array(new Uint8Array(await agreementFile.arrayBuffer())),
+        });
+        await batch.commit();
+      } else {
+        await setDoc(partnerRef, fields, { merge: true });
+      }
+      setPartners((previous) => previous.map((item) => item.partnerId === partner.partnerId ? { ...item, ...fields } : item));
       logStudentActivity(
         partner.partnerId,
         'Partner Updated',
@@ -963,6 +1024,17 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
     }
+  };
+
+  const getPartnerAgreement = async (partnerId: string) => {
+    const partner = partners.find((item) => item.partnerId === partnerId);
+    if (!partner) return null;
+    const snapshot = await getDoc(doc(db, 'partnerAgreements', partner.id || `part-${partner.partnerId.toLowerCase()}`));
+    const file = snapshot.data();
+    if (!file || !(file.bytes instanceof Bytes) || typeof file.name !== 'string') return null;
+
+    const bytes = Uint8Array.from(file.bytes.toUint8Array()).buffer;
+    return { name: file.name, bytes };
   };
 
   const deletePartner = async (partnerId: string): Promise<void> => {
@@ -974,212 +1046,193 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     setPartners((previous) => previous.filter((p) => p.id !== docId && p.partnerId !== partner.partnerId));
   };
 
-  const bulkImportPartnerLeads = (
-    incomingLeads: Array<any>,
-    explicitPartnerId?: string,
-    explicitPartnerName?: string
-  ) => {
-    const partnerId =
-      explicitPartnerId ||
-      (currentUser.role === 'partner' && currentUser.partnerId ? currentUser.partnerId : 'PART-00482');
-    const matchedPartner = partners.find((p) => p.partnerId === partnerId);
-    const partnerName =
-      explicitPartnerName ||
-      matchedPartner?.companyName ||
-      currentUser.partnerName ||
-      'Education Partner';
+  const intakeLock = doc(db, 'leadOperations', 'intake');
 
-    const now = new Date();
-    const formattedTimestamp = now.toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+  function resolveLeadPartner(partnerId?: string) {
+    if (currentUser.role === 'partner') {
+      if (!currentUser.partnerId) throw new Error('Your account has no linked partner.');
+      return partners.find((partner) => partner.partnerId === currentUser.partnerId) ??
+        { partnerId: currentUser.partnerId, companyName: currentUser.partnerName || 'Partner agency' };
+    }
+    if (!['management', 'admin', 'sales'].includes(currentUser.role)) throw new Error('You cannot submit new leads.');
+    if (!partnerId || partnerId === 'direct') return { partnerId: 'direct', companyName: 'Direct lead' };
+    const partner = partners.find((entry) => entry.partnerId === partnerId);
+    if (!partner) throw new Error('The selected partner is no longer available.');
+    return partner;
+  }
+
+  async function getActiveLeads() {
+    const snapshot = await getDocsFromServer(collection(db, 'students'));
+    return snapshot.docs.flatMap((entry) => {
+      const lead = entry.data() as Student;
+      return lead.archivalStatus === 'Archived' ? [] : [{ ...lead, id: entry.id }];
     });
+  }
 
-    const newRecords: Student[] = [];
+  function makeLead(details: LeadDetails, partner: { partnerId: string; companyName: string }, existing: Student[], bulk: boolean) {
+    const id = doc(collection(db, 'students')).id;
+    const usedIds = new Set(existing.map((lead) => lead.studentId));
+    const year = new Date().getFullYear();
+    let studentId: string;
+    do {
+      studentId = `HA-${year}-${Math.floor(100000 + Math.random() * 900000)}`;
+    } while (usedIds.has(studentId));
+    const [firstName, ...names] = details.fullName.split(/\s+/);
+    const activity = buildActivity(studentId, 'Lead Submitted', bulk ? 'Lead imported from CSV.' : 'Lead created individually.');
+    const record: Student = {
+      id, studentId, firstName, lastName: names.join(' '), fullName: details.fullName,
+      email: details.email, phone: details.phone, whatsApp: details.whatsApp || details.phone,
+      nationality: details.nationality || '', currentCountry: details.currentCountry || '',
+      university: details.university, course: details.course || '', intake: details.intake,
+      destinationCountry: details.destinationCountry, destinationCity: details.destinationCity,
+      moveInDate: details.moveInDate, moveOutDate: details.moveOutDate || '',
+      budget: details.budget, currency: details.currency || 'GBP',
+      preferredRoom: details.preferredRoom || '', accommodationPreference: details.accommodationPreference || '',
+      occupants: details.occupants ?? 1, passportStatus: details.passportStatus || 'Pending Verification',
+      leadSource: details.leadSource || (partner.partnerId === 'direct' ? 'Direct' : 'Study Abroad Consultants'),
+      partnerId: partner.partnerId, partnerName: partner.companyName,
+      assignedSalesExecutiveId: '', assignedSalesExecutiveName: 'Unassigned',
+      leadOwnerId: '', leadOwnerName: 'Unassigned', salesOwnerId: '', salesOwnerName: 'Unassigned',
+      pipelineStage: 'New', leadStatus: 'New', accommodationStatus: 'Requirement Pending',
+      bookingStatus: 'Not Started', moveInStatus: 'Upcoming', commissionStatus: 'Pending',
+      priority: bulk ? 'Medium' : 'High', nextFollowUpAt: details.nextFollowUpAt || 'Within 2 hours',
+      lastContactAt: 'Never', createdAt: activity.timestamp, updatedAt: activity.timestamp,
+      notes: details.notes || '', isTestRecord: false, archivalStatus: 'Active',
+    };
+    return { record, activity };
+  }
+
+  const bulkImportPartnerLeads = async (incoming: LeadDetails[], partnerId?: string) => {
+    const partner = resolveLeadPartner(partnerId);
+    const importedLeads: Student[] = [];
     let duplicatesCount = 0;
     let errorsCount = 0;
-
-    const existingEmails = new Set(students.map((s) => s.email.toLowerCase().trim()));
-    const existingPhones = new Set(students.map((s) => s.phone.replace(/\D/g, '')));
-
-    incomingLeads.forEach((lead, index) => {
-      const cleanEmail = (lead.email || '').toLowerCase().trim();
-      const cleanPhone = (lead.phone || '').replace(/\D/g, '');
-
-      if (!lead.fullName || !cleanEmail || !lead.university) {
-        errorsCount++;
-        return;
+    for (let offset = 0; offset < incoming.length; offset += 100) {
+      const chunk = incoming.slice(offset, offset + 100);
+      try {
+        const result = await runTransaction(db, async (transaction) => {
+          await transaction.get(intakeLock);
+          const existing = await getActiveLeads();
+          const saved: Student[] = [];
+          let duplicates = 0;
+          let invalid = 0;
+          for (const item of chunk) {
+            const parsed = leadDetailsSchema.safeParse(item);
+            if (!parsed.success) { invalid++; continue; }
+            if (leadConflictMessage(leadContactConflicts(parsed.data, existing))) { duplicates++; continue; }
+            const { record, activity } = makeLead(parsed.data, partner, existing, true);
+            transaction.set(doc(db, 'students', record.id), record);
+            transaction.set(doc(db, 'activities', activity.id), activity);
+            existing.push(record);
+            saved.push(record);
+          }
+          if (saved.length) transaction.set(intakeLock, { updatedAt: serverTimestamp() });
+          return { saved, duplicates, invalid };
+        });
+        importedLeads.push(...result.saved);
+        duplicatesCount += result.duplicates;
+        errorsCount += result.invalid;
+      } catch {
+        errorsCount += chunk.length;
       }
-
-      if (existingEmails.has(cleanEmail) || (cleanPhone && existingPhones.has(cleanPhone))) {
-        duplicatesCount++;
-        return;
-      }
-
-      existingEmails.add(cleanEmail);
-      if (cleanPhone) existingPhones.add(cleanPhone);
-
-      const year = new Date().getFullYear();
-      const randomSeq = String(Math.floor(100000 + Math.random() * 900000));
-      const generatedId = `HA-${year}-${randomSeq}`;
-      const [firstName, ...rest] = lead.fullName.trim().split(' ');
-      const lastName = rest.join(' ') || 'Lead';
-
-      const docId = `std-${generatedId.toLowerCase()}`;
-      const record: Student = {
-        id: docId,
-        studentId: generatedId,
-        firstName,
-        lastName,
-        fullName: lead.fullName.trim(),
-        email: cleanEmail,
-        phone: lead.phone || '+44 7700 900000',
-        whatsApp: lead.phone || '+44 7700 900000',
-        nationality: lead.nationality || 'International',
-        currentCountry: lead.currentCountry || 'International',
-        university: lead.university.trim(),
-        course: lead.course || 'Degree Program',
-        intake: lead.intake || 'Sep 2026',
-        destinationCountry: lead.destinationCountry || 'United Kingdom',
-        destinationCity: lead.destinationCity || 'London',
-        moveInDate: lead.moveInDate || '2026-09-15',
-        moveOutDate: '2027-08-31',
-        budget: Number(lead.budget) || 350,
-        currency: lead.currency || 'GBP',
-        preferredRoom: lead.preferredRoom || 'En-suite',
-        accommodationPreference: lead.accommodationPreference || 'Bills included, walking distance',
-        occupants: 1,
-        passportStatus: 'Pending Verification',
-        leadSource: 'Study Abroad Consultants',
-        partnerId,
-        partnerName,
-        assignedSalesExecutiveId: '',
-        assignedSalesExecutiveName: 'Unassigned',
-        pipelineStage: 'New',
-        leadStatus: 'New',
-        accommodationStatus: 'Requirement Pending',
-        bookingStatus: 'Not Started',
-        moveInStatus: 'Upcoming',
-        commissionStatus: 'Pending',
-        priority: 'Medium',
-        nextFollowUpAt: 'Within 2 hours',
-        lastContactAt: 'Never',
-        createdAt: formattedTimestamp,
-        updatedAt: formattedTimestamp,
-        notes: lead.notes || 'Imported via CSV Bulk Upload.',
-        isTestRecord: false,
-        archivalStatus: 'Active',
-      };
-
-      newRecords.push(record);
-      setDoc(doc(db, 'students', docId), record).catch((err) => {
-        handleFirestoreError(err, OperationType.WRITE, `students/${docId}`);
-      });
-    });
-
-    return {
-      importedCount: newRecords.length,
-      duplicatesCount,
-      errorsCount,
-      importedLeads: newRecords,
-    };
+    }
+    return { importedLeads, importedCount: importedLeads.length, duplicatesCount, errorsCount };
   };
 
-  const submitPartnerLead = (lead: {
-    fullName: string;
-    phone: string;
-    email: string;
-    university: string;
-    destinationCountry: string;
-    destinationCity: string;
-    intake: string;
-    moveInDate: string;
-    budget: number;
-    currency?: string;
-    preferredRoom?: string;
-    accommodationPreference?: string;
-    notes?: string;
-  }): Student => {
-    const year = new Date().getFullYear();
-    const randomSeq = String(Math.floor(100000 + Math.random() * 900000));
-    const generatedId = `HA-${year}-${randomSeq}`;
-    const [firstName, ...rest] = lead.fullName.split(' ');
-    const lastName = rest.join(' ') || 'Student';
-
-    const partnerId = currentUser.role === 'partner' && currentUser.partnerId ? currentUser.partnerId : 'PART-00482';
-    const partnerName = currentUser.partnerName || 'Global Edu Pathways';
-
-    const now = new Date();
-    const formattedTimestamp = now.toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+  const submitPartnerLead = async (lead: LeadDetails, partnerId?: string) => {
+    const details = leadDetailsSchema.parse(lead);
+    const partner = resolveLeadPartner(partnerId);
+    return runTransaction(db, async (transaction) => {
+      await transaction.get(intakeLock);
+      const existing = await getActiveLeads();
+      const conflict = leadConflictMessage(leadContactConflicts(details, existing));
+      if (conflict) throw new Error(conflict);
+      const { record, activity } = makeLead(details, partner, existing, false);
+      transaction.set(doc(db, 'students', record.id), record);
+      transaction.set(doc(db, 'activities', activity.id), activity);
+      transaction.set(intakeLock, { updatedAt: serverTimestamp() });
+      return record;
     });
+  };
 
-    const docId = `std-${generatedId.toLowerCase()}`;
-    const newStudent: Student = {
-      id: docId,
-      studentId: generatedId,
-      firstName,
-      lastName,
-      fullName: lead.fullName,
-      email: lead.email,
-      phone: lead.phone,
-      whatsApp: lead.phone,
-      nationality: 'India',
-      currentCountry: 'India',
-      university: lead.university,
-      course: 'Higher Education Program',
-      intake: lead.intake || 'Sep 2026',
-      destinationCountry: lead.destinationCountry,
-      destinationCity: lead.destinationCity,
-      moveInDate: lead.moveInDate,
-      moveOutDate: '2027-08-31',
-      budget: lead.budget,
-      currency: lead.currency || 'GBP',
-      preferredRoom: lead.preferredRoom || 'En-suite',
-      accommodationPreference: lead.accommodationPreference || 'Standard PBSA, bills included',
-      occupants: 1,
-      passportStatus: 'Pending Verification',
-      leadSource: 'Study Abroad Consultants',
-      partnerId,
-      partnerName,
-      assignedSalesExecutiveId: '',
-      assignedSalesExecutiveName: 'Unassigned',
-
-      pipelineStage: 'New',
-      leadStatus: 'New',
-      accommodationStatus: 'Requirement Pending',
-      bookingStatus: 'Not Started',
-      moveInStatus: 'Upcoming',
-      commissionStatus: 'Pending',
-
-      priority: 'High',
-      nextFollowUpAt: 'Within 2 hours (SLA)',
-      lastContactAt: 'Never',
-      createdAt: formattedTimestamp,
-      updatedAt: formattedTimestamp,
-      notes: lead.notes || 'Submitted via Partners module.',
-    };
-
-    setDoc(doc(db, 'students', docId), newStudent).catch((err) => {
-      handleFirestoreError(err, OperationType.WRITE, `students/${docId}`);
+  const editLeadDetails = async (studentId: string, details: LeadDetails) => {
+    const { fullName, ...fields } = leadEditSchema.parse(details);
+    const [firstName, ...names] = fullName.split(/\s+/);
+    const lead = students.find((entry) => entry.studentId === studentId);
+    if (!lead) throw new Error('This lead is no longer active.');
+    await runTransaction(db, async (transaction) => {
+      await transaction.get(intakeLock);
+      const reference = doc(db, 'students', lead.id);
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error('This lead is no longer active.');
+      const current = snapshot.data() as Student;
+      const partner = partners.find((entry) => entry.partnerId === current.partnerId);
+      const role = currentUser.role;
+      if (!['admin', 'management', 'sales'].includes(role) &&
+          !(role === 'partner' && currentUser.partnerId === current.partnerId) &&
+          !(role === 'portfolio_owner' && partner?.portfolioOwnerId === currentUser.uid)) {
+        throw new Error('You cannot edit this lead.');
+      }
+      const updates = { ...fields, fullName, firstName, lastName: names.join(' ') };
+      const changed = Object.fromEntries(Object.entries(updates).filter(([key, value]) =>
+        value !== undefined && value !== current[key as keyof Student]));
+      if (!Object.keys(changed).length) return;
+      // Legacy duplicates can still receive unrelated corrections.
+      const changedEmail = fields.email !== (current.email || '').trim().toLowerCase();
+      const changedPhone = fields.phone.replace(/\D/g, '') !== (current.phone || '').replace(/\D/g, '');
+      if (changedEmail && !leadDetailsSchema.shape.email.safeParse(fields.email).success) {
+        throw new Error('Enter a valid email address.');
+      }
+      if (changedPhone && !leadDetailsSchema.shape.phone.safeParse(fields.phone).success) {
+        throw new Error('Enter a valid phone number.');
+      }
+      if (changedEmail || changedPhone) {
+        const conflicts = leadContactConflicts(fields, (await getActiveLeads()).filter((entry) => entry.id !== lead.id));
+        const message = leadConflictMessage({ email: changedEmail && conflicts.email, phone: changedPhone && conflicts.phone });
+        if (message) throw new Error(message);
+      }
+      const activity = buildActivity(studentId, 'Lead Details Updated', `Edited fields: ${Object.keys(changed).join(', ')}.`);
+      transaction.update(reference, { ...changed, updatedAt: activity.timestamp });
+      transaction.set(doc(db, 'activities', activity.id), activity);
+      transaction.set(intakeLock, { updatedAt: serverTimestamp() });
     });
+  };
 
-    logStudentActivity(
-      generatedId,
-      'Lead Submitted',
-      `Lead ${generatedId} submitted by partner ${partnerName} (${partnerId}). Assigned to internal workflow pool.`,
-      undefined,
-      'New'
-    );
+  const archiveLead = async (studentId: string, reason: string) => {
+    const lead = students.find((entry) => entry.studentId === studentId);
+    if (!lead || !reason.trim() || leadOperationsRole !== 'management') throw new Error('Management access and an archival reason are required.');
+    await runTransaction(db, async (transaction) => {
+      await transaction.get(intakeLock);
+      const source = doc(db, 'students', lead.id);
+      const snapshot = await transaction.get(source);
+      if (!snapshot.exists()) throw new Error('This lead is no longer active.');
+      const activity = buildActivity(studentId, 'Lead Archived', 'Lead moved to the data archive.');
+      transaction.set(doc(db, 'archivedStudents', lead.id), {
+        ...snapshot.data(), id: lead.id, leadStatus: 'Inactive', archivalStatus: 'Archived',
+        archivalReason: reason.trim(), archivedAt: new Date().toISOString(), archivedBy: currentUser.uid,
+      });
+      transaction.delete(source);
+      transaction.set(doc(db, 'activities', activity.id), activity);
+      transaction.set(intakeLock, { updatedAt: serverTimestamp() });
+    });
+    setSelectedStudentId(null);
+  };
 
-    return newStudent;
+  const setPartnerLeadTarget = async (partnerId: string, season: string, promised: number) => {
+    const partner = partners.find((entry) => entry.partnerId === partnerId);
+    if (!partner || (leadOperationsRole !== 'management' &&
+        !(leadOperationsRole === 'portfolio_owner' && partner.portfolioOwnerId === currentUser.uid))) {
+      throw new Error('You cannot edit this target.');
+    }
+    if (!intakeKey(season) || !Number.isSafeInteger(promised) || promised < 0) throw new Error('Enter a season and a whole number of leads.');
+    await runTransaction(db, async (transaction) => {
+      const reference = doc(db, 'partners', partner.id);
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error('This partner is no longer available.');
+      const stored = snapshot.data() as Partner;
+      const targets = (stored.leadTargets || []).filter((target) => intakeKey(target.season) !== intakeKey(season));
+      transaction.update(reference, { leadTargets: [...targets, { season: season.trim(), promised }] });
+    });
   };
 
   const updateStudentDecoupledStatus = async (
@@ -1335,8 +1388,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       createdAt: formattedTimestamp,
       propertyId: '',
       roomType: 'Standard Room',
-      assignedEmployeeId: student?.assignedSalesExecutiveId || '',
-      assignedEmployeeName: student?.assignedSalesExecutiveName || '',
+      assignedEmployeeId: student ? student.salesOwnerId || getLeadOwner(student).id : '',
+      assignedEmployeeName: student ? student.salesOwnerName || getLeadOwner(student).name : '',
       bookingValue: bookingData.commissionableAmount,
       currency: bookingData.rentCurrency,
       bookingDate: now.toISOString().split('T')[0],
@@ -1635,12 +1688,20 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         payments,
         activities,
         reassignPartnerPortfolioOwner,
-        reassignLeadSalesOwner,
+        reassignLeadOwner,
+        assignSalesOwner,
+        editLeadDetails,
+        archiveLead,
+        leadOperationsRole,
+        leadOwnerOptions,
+        portfolioOwnerOptions,
+        setPartnerLeadTarget,
         bulkImportPartnerLeads,
-  onboardNewPartner,
-  updatePartner,
-  deletePartner,
-  submitPartnerLead,
+        onboardNewPartner,
+        updatePartner,
+        getPartnerAgreement,
+        deletePartner,
+        submitPartnerLead,
         updateStudentDecoupledStatus,
         recordPropertyBooking,
         updatePropertyBooking,

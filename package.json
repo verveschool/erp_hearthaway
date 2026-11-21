@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "clean": "next clean"
+    "clean": "next clean",
+    "staging:emulators": "firebase emulators:start --only auth,firestore --project demo-hearthaway-qa --config firebase.emulators.json",
+    "staging:seed": "node scripts/seed-firebase-emulators.mjs",
+    "staging:web": "NEXT_PUBLIC_FIREBASE_MODE=emulator NEXT_TELEMETRY_DISABLED=1 next dev -H 127.0.0.1 -p 4329"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
