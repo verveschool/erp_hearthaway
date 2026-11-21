@@ -54,3 +54,30 @@ The same emulator suite completed 15 groups of checks on the baseline and the fi
 1. **Provision or identify a cloud staging frontend and Firebase project with disposable data.** Rerun the three reproductions there and compare the deployed rules with `firestore.rules`.
 2. **Resolve management authorization in a separate change.** Confirm intended role-management, approval and soft-deletion authority, then verify the permission matrix on staging.
 3. **Complete staging acceptance.** Check actual CSV upload and preview, proof and agreement file upload, payment rejection, registration and password-reset email delivery. Finish iOS Safari and macOS VoiceOver checks for nested dialogs, focus, text zoom and table scrolling.
+
+## Partner and lead operations
+
+The follow-up covers the partner cards, single-lead forms, editing, seasonal commitments, ownership and archival.
+
+| Workflow | Behavior |
+| --- | --- |
+| Partner cards | The pencil opens Edit. Agreement sits under the pencil. The Leads button stays on one line. Directory actions remain available in the table. |
+| Lead entry | Sales and Partners use the same fields as the CSV template, including intake, destination, move-in date, budget and currency. Sales selects a source partner or Direct. Partner submissions inherit the authenticated partner. |
+| Lead corrections | Edit lead opens the same contact and intake fields plus additional lead details. The audit trail records the actor and changed fields. The record ID, source partner and derived portfolio owner stay linked. |
+| Duplicate checks | Email compares after trimming and case normalization. Phone compares digits independently. Individual entry, edits that change a contact and bulk import recheck current active records. A Firestore transaction serializes these writes. Legacy writers must be retired or updated to participate in that transaction. |
+| Archive | Management supplies a reason and moves the lead to Data archive in a single transaction. Archived leads are inactive and excluded from active leads and their duplicate checks. A corrected lead can be created with the same contact details. Lead IDs and existing booking or payment references are retained in the archived record. |
+| Seasonal targets | Partner cards and directory show active leads received against promises for each intake. Common intake spellings such as September 2027 and Sep-27 are grouped. Management and the assigned portfolio owner can edit the target. |
+| Ownership | The old Sales Owner assignment appears as Lead Owner. New leads start with both owners unassigned. The new Sales Owner requires a Lead Owner and a qualified or later pipeline stage. The same sales staff directory feeds both selectors. |
+
+### Verification
+
+Seven groups of localhost Firebase and rendered-component checks passed. They covered separate email and phone matches, concurrent intake, audited edits, ownership sequencing, archive permissions, recreation after archive, seasonal permissions and matching form fields. The card check verified the accessible pencil and one-line Leads control. TypeScript, lint and the Next.js build passed. Lint retained the existing agreement-image warning.
+
+### Staging and rollout
+
+- This work builds on the authenticated Firestore listener fix in PR #28. Merge that fix before this feature branch.
+- In an isolated Firebase staging project, assign the trusted custom claim `leadOperationsRole` to approved users with the value `management`, `portfolio_owner` or `sales` as appropriate. Use an approved Admin SDK session and preserve any unrelated claims. [Firebase custom claims](https://firebase.google.com/docs/auth/admin/custom-claims) A sign-out and sign-in refreshes a stale token. Management role in a client profile is insufficient for these new privileged writes.
+- Populate `leadOwnerDirectory/{authUid}` with `displayName` for eligible sales staff using that Admin SDK session. Application clients have read-only access to this directory. Existing lead assignments still display through the legacy field fallback.
+- Deploy the revised Firestore rules to the named staging database before testing the feature. Stage new lead creation, archive, partner onboarding and portfolio reassignment, since these paths now depend on the revised rules and role claims. Coordinate the eventual production rule and application rollout after staging passes.
+- Review old flagged leads in staging. The previous flags do not automatically move records, and this PR does not perform any bulk archival.
+- Management edits to other account profiles from the previous handover remain open. The scoped claims for lead operations do not grant that permission.

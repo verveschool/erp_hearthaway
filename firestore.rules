@@ -21,6 +21,40 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function isLeadManagement() {
+      return isSignedIn() && request.auth.token.get('leadOperationsRole', '') == 'management';
+    }
+
+    function ownsPartner() {
+      return isSignedIn() && request.auth.token.get('leadOperationsRole', '') == 'portfolio_owner'
+        && resource.data.get('portfolioOwnerId', '') == request.auth.uid;
+    }
+
+    match /leadOperations/intake {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['updatedAt'])
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    match /leadOwnerDirectory/{uid} {
+      allow read: if isLeadManagement() || (isSignedIn() && request.auth.token.get('leadOperationsRole', '') == 'sales');
+    }
+
+    match /archivedStudents/{studentId} {
+      allow read: if isLeadManagement();
+      allow create: if isLeadManagement()
+        && exists(/databases/$(database)/documents/students/$(studentId))
+        && !existsAfter(/databases/$(database)/documents/students/$(studentId))
+        && request.resource.data.leadStatus == 'Inactive'
+        && request.resource.data.archivalStatus == 'Archived'
+        && request.resource.data.archivedBy == request.auth.uid
+        && request.resource.data.studentId == get(/databases/$(database)/documents/students/$(studentId)).data.studentId
+        && request.resource.data.archivalReason is string
+        && request.resource.data.archivalReason.size() > 0
+        && request.resource.data.archivalReason.size() <= 500;
+    }
+
     // Profiles are client-created, but each authenticated user can only access
     // the profile whose document ID matches their Firebase Auth UID.
     match /users/{userId} {
@@ -29,9 +63,31 @@ service cloud.firestore {
     }
 
     // Students master collection
+    function canChangeSalesOwner() {
+      let nextOwnerId = request.resource.data.get('salesOwnerId', '');
+      let stage = request.resource.data.get('pipelineStage', 'New');
+      let leadOwnerId = request.resource.data.get('leadOwnerId', resource.data.get('assignedSalesExecutiveId', ''));
+      let managesOwners = isLeadManagement() || request.auth.token.get('leadOperationsRole', '') == 'sales';
+      return managesOwners && (nextOwnerId == ''
+        || (leadOwnerId != ''
+          && stage in ['Qualified', 'Option Shared', 'Payment', 'Fulfilment', 'Closed Won']
+          && exists(/databases/$(database)/documents/leadOwnerDirectory/$(nextOwnerId))));
+    }
+
     match /students/{studentId} {
-      allow read, create, update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.get('archivalStatus', 'Active') != 'Archived'
+        && request.resource.data.get('leadStatus', 'New') != 'Inactive'
+        && request.resource.data.get('salesOwnerId', '') == '';
+      allow update: if isSignedIn()
+        && request.resource.data.get('archivalStatus', 'Active') != 'Archived'
+        && request.resource.data.get('leadStatus', 'New') != 'Inactive'
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['salesOwnerId', 'salesOwnerName'])
+          || canChangeSalesOwner());
+      allow delete: if isLeadManagement()
+        && !exists(/databases/$(database)/documents/archivedStudents/$(studentId))
+        && existsAfter(/databases/$(database)/documents/archivedStudents/$(studentId));
 
       // Activities audit trail - Append only
       match /activities/{activityId} {
@@ -54,8 +110,14 @@ service cloud.firestore {
 
     // Partners collection
     match /partners/{partnerId} {
-      allow read, create, update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if !request.resource.data.keys().hasAny(['leadTargets'])
+        && (isLeadManagement() || (isSignedIn() && request.resource.data.get('portfolioOwnerId', '') == ''
+          && request.resource.data.get('accountUid', '') == request.auth.uid));
+      allow update: if isLeadManagement()
+        || (ownsPartner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leadTargets']))
+        || (isSignedIn() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['leadTargets', 'portfolioOwnerId']));
+      allow delete: if isLeadManagement();
     }
 
     // Properties & Inventory

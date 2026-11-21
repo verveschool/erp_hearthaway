@@ -28,7 +28,7 @@ export const ExitReasonSchema = z.enum([
 ]);
 export type ExitReason = z.infer<typeof ExitReasonSchema>;
 
-export const LeadStatusSchema = z.enum(['New', 'Contacted', 'Qualified', 'Lost']);
+export const LeadStatusSchema = z.enum(['New', 'Contacted', 'Qualified', 'Lost', 'Inactive']);
 export type LeadStatus = z.infer<typeof LeadStatusSchema>;
 
 export const AccommodationStatusSchema = z.enum([
@@ -115,8 +115,12 @@ export const StudentSchema = z.object({
   leadSource: z.string(), // e.g. Study Abroad Consultants, Website, etc.
   partnerId: z.string(), // e.g. PART-00482 or 'direct'
   partnerName: z.string().optional(),
-  assignedSalesExecutiveId: z.string(), // e.g. EMP-001
-  assignedSalesExecutiveName: z.string(),
+  assignedSalesExecutiveId: z.string().optional(), // Legacy lead owner
+  assignedSalesExecutiveName: z.string().optional(),
+  leadOwnerId: z.string().optional(),
+  leadOwnerName: z.string().optional(),
+  salesOwnerId: z.string().optional(),
+  salesOwnerName: z.string().optional(),
   
   // Unified CRM lifecycle. Legacy fields remain optional for backward-compatible reads only.
   pipelineStage: PipelineStageSchema.default('New'),
@@ -257,6 +261,7 @@ export const PartnerSchema = z.object({
   status: z.enum(['Active', 'Prospect', 'Contacted', 'Negotiation', 'Onboarding', 'Dormant']).default('Active'),
   onboardingDate: z.string(),
   commissionRate: z.number().default(20), // % of HearthAway revenue
+  leadTargets: z.array(z.object({ season: z.string(), promised: z.number().int().nonnegative() })).optional(),
   // Archival and Test Record flags
   isTestRecord: z.boolean().optional(),
   archivalStatus: z.enum(['Active', 'Flagged For Archival', 'Archived']).optional(),

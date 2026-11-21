@@ -1,6 +1,7 @@
 'use client';
 
 import { WorkspaceMetric } from '@/components/WorkspaceMetric';
+import { getLeadOwner } from '@/lib/lead-details';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
@@ -404,7 +405,8 @@ export default function PortfolioPage() {
         lead.university.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lead.destinationCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (lead.partnerName && lead.partnerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        lead.assignedSalesExecutiveName.toLowerCase().includes(searchQuery.toLowerCase());
+        getLeadOwner(lead).name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (lead.salesOwnerName || '').toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchPartner = filterPartner === 'All' || lead.partnerId === filterPartner;
       const matchLeadStatus = filterLeadStatus === 'All' || lead.leadStatus === filterLeadStatus;
@@ -518,7 +520,8 @@ export default function PortfolioPage() {
         { header: 'Phone', accessor: (s) => s.phone },
         { header: 'Sourcing Partner', accessor: (s) => s.partnerName || s.partnerId },
         { header: 'Partner ID', accessor: (s) => s.partnerId },
-        { header: 'Assigned Sales Owner', accessor: (s) => s.assignedSalesExecutiveName },
+        { header: 'Lead Owner', accessor: (s) => getLeadOwner(s).name },
+        { header: 'Sales Owner', accessor: (s) => s.salesOwnerName || 'Unassigned' },
         { header: 'University', accessor: (s) => s.university },
         { header: 'Destination City', accessor: (s) => s.destinationCity },
         { header: 'Destination Country', accessor: (s) => s.destinationCountry },
@@ -1185,7 +1188,7 @@ export default function PortfolioPage() {
                   <input
                     aria-label="Search portfolio leads"
                     type="text"
-                    placeholder="Search by student name, ID, university, city, partner, or sales owner..."
+                    placeholder="Search by student name, ID, university, city, partner, or lead owner..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-none"
@@ -1612,7 +1615,7 @@ export default function PortfolioPage() {
                       <tr>
                         <th scope="col" className="py-3 px-4 font-bold">Student / Lead</th>
                         <th scope="col" className="py-3 px-4 font-bold">Sourcing Partner</th>
-                        <th scope="col" className="py-3 px-4 font-bold">Assigned Sales Owner</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Lead Owner</th>
                         <th scope="col" className="py-3 px-4 font-bold">University &amp; City</th>
                         <th scope="col" className="py-3 px-4 font-bold">Lead Status</th>
                         <th scope="col" className="py-3 px-4 font-bold">Booking Status</th>
@@ -1650,10 +1653,10 @@ export default function PortfolioPage() {
                             <div className="flex items-center gap-1.5">
                               <span className="h-2 w-2 rounded-full bg-[#00319D]" />
                               <span className="font-bold text-[#1A1A1A]">
-                                {lead.assignedSalesExecutiveName}
+                                {getLeadOwner(lead).name}
                               </span>
                             </div>
-                            <span className="text-xs text-[#6B6860]">Sales Specialist</span>
+                            <span className="text-xs text-[#6B6860]">Sales owner: {lead.salesOwnerName || 'Unassigned'}</span>
                           </td>
 
                           <td className="py-3.5 px-4">
@@ -2054,7 +2057,7 @@ export default function PortfolioPage() {
           <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4">
             <h3 className="text-base font-semibold text-[#1A1A1A]">Reassign Partner Portfolio Owner</h3>
             <p className="text-xs text-[#6B6860] leading-relaxed">
-              When this partner is reassigned, portfolio attribution will automatically update across all leads sourced by this partner, while retaining each lead&apos;s original sales Owner.
+              When this partner is reassigned, portfolio attribution will automatically update across all leads sourced by this partner, while retaining each lead&apos;s original lead owner.
             </p>
 
             <div>
