@@ -405,7 +405,7 @@ export default function SalesPage() {
 
                       <td className="py-3.5 px-4 align-top">
                         <div className="text-[#1A1A1A] font-medium whitespace-normal break-words">{student.destinationCity}</div>
-                        <div className="text-xs text-[#6B6860] whitespace-normal break-words">{student.university}</div>
+                        <div title={student.university} className="line-clamp-3 text-xs text-[#6B6860] whitespace-normal break-words">{student.university}</div>
                       </td>
 
                       <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
@@ -432,11 +432,11 @@ export default function SalesPage() {
                         </select>
                       </td>
 
-                      <td className="py-3.5 px-4 whitespace-nowrap text-[#1A1A1A]">
+                      <td className="py-3.5 px-4 whitespace-normal text-[#1A1A1A]">
                         {formatLeadDate(student.createdAt)}
                       </td>
 
-                      <td className="py-3.5 px-4 whitespace-nowrap text-[#6B6860]">
+                      <td className="py-3.5 px-4 whitespace-normal text-[#6B6860]">
                         {formatLeadDate(lastActivity, true)}
                       </td>
                     </tr>

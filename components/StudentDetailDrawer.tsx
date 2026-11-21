@@ -471,10 +471,6 @@ export function StudentDetailDrawer() {
                   <span className="text-xs font-medium text-[#6B6860]">
                     Partner: <strong className="text-[#1A1A1A]">{student.partnerName || student.partnerId}</strong>
                   </span>
-                  {canEditDetails && (
-                    <button type="button" className="rounded-lg border border-ha-line px-2.5 py-1.5 text-xs font-semibold text-ha-blue"
-                      onClick={() => setEditingLeadId(student.studentId)}>Edit lead</button>
-                  )}
                   {leadOperationsRole === 'management' && (
                     <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-ha-line px-2.5 py-1.5 text-xs"
                       onClick={() => { setArchiveReason(''); setArchiveError(''); setArchivingLeadId(student.studentId); }}>
@@ -499,7 +495,7 @@ export function StudentDetailDrawer() {
             </div>
 
             {/* Quick Action Ribbon */}
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:auto-rows-fr sm:grid-cols-3 text-xs">
               {/* Call */}
               <a
                 href={`tel:${student.phone}`}
@@ -513,7 +509,6 @@ export function StudentDetailDrawer() {
               </a>
 
               {/* WhatsApp + Email */}
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <a
                   href={`https://wa.me/${student.whatsApp.replace(/[^0-9]/g, '')}?text=Hi%20${encodeURIComponent(student.firstName)},%20this%20is%20${encodeURIComponent(currentUser.displayName)}%20from%20HearthAway.`}
                   target="_blank"
@@ -537,11 +532,6 @@ export function StudentDetailDrawer() {
                   <Mail className="h-3.5 w-3.5 text-[#00319D]" />
                   Email
                 </a>
-              </div>
-
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-6">
               {(() => {
                 const partner = partners.find((p) => p.partnerId === student.partnerId);
                 const portfolioOwner = partner?.portfolioOwnerName || 'Unassigned';
@@ -549,12 +539,18 @@ export function StudentDetailDrawer() {
 
                 return (
                   <>
+                    {/* Portfolio Owner */}
+                    <div className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary">
+                      <span className="shrink-0">Portfolio owner</span>
+                      <strong className="min-w-0 break-words text-sm text-[#1A1A1A]">{portfolioOwner}</strong>
+                    </div>
+
                     {(['lead', 'sales'] as const).map((kind) => {
                       const isSales = kind === 'sales';
                       const label = isSales ? 'Sales owner' : 'Lead owner';
                       const owner = isSales ? { id: student.salesOwnerId || '', name: student.salesOwnerName || 'Unassigned' } : getLeadOwner(student);
                       return (
-                        <label key={kind} className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary sm:col-span-2">
+                        <label key={kind} className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary">
                           <span className="shrink-0">{label}</span>
                           {canEditOwners && (!isSales || leadOperationsRole === "management" || leadOperationsRole === "sales") ? <select aria-label={label} value={owner.id} className="w-full min-w-0 bg-transparent text-sm font-semibold text-ha-blue"
                             onChange={(event) => {
@@ -573,15 +569,9 @@ export function StudentDetailDrawer() {
                     })}
 
 
-                    {/* Portfolio Owner */}
-                    <div className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary col-span-2 sm:col-span-2">
-                      <span className="shrink-0">Portfolio Owner:</span>
-                      <strong className="min-w-0 break-words text-sm text-[#1A1A1A]">{portfolioOwner}</strong>
-                    </div>
-
                     {/* Pipeline Stage */}
-                    <label className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary sm:col-span-3">
-                      <span className="shrink-0">Pipeline Stage:</span>
+                    <label className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary">
+                      <span className="shrink-0">Pipeline stage</span>
                       <select
                         aria-label="Pipeline Stage"
                         value={student.pipelineStage || 'New'}
@@ -600,8 +590,8 @@ export function StudentDetailDrawer() {
                       </select>
                     </label>
                     {/* Priority */}
-                    <label className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary sm:col-span-3">
-                      <span className="shrink-0">Priority:</span>
+                    <label className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary">
+                      <span className="shrink-0">Priority</span>
                       <select
                         aria-label="Priority"
                         value={student.priority || 'Medium'}
@@ -614,6 +604,11 @@ export function StudentDetailDrawer() {
                         <option>Low</option>
                       </select>
                     </label>
+                  {canEditDetails && (
+                    <button type="button" className="rounded-lg border border-ha-line bg-white px-3 py-2 text-sm font-bold text-ha-blue hover:bg-ha-canvas"
+                      onClick={() => setEditingLeadId(student.studentId)}>Edit lead</button>
+                  )}
+
 
                     {ownershipError && <p role="alert" className="col-span-full text-xs text-rose-700">{ownershipError}</p>}
                   </>
