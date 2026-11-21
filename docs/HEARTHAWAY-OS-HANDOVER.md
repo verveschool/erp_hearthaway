@@ -51,7 +51,7 @@ The same emulator suite completed 15 groups of checks on the baseline and the fi
 
 ## Remaining verification
 
-1. **Provision or identify a cloud staging frontend and Firebase project with disposable data.** Firebase Console required Google sign-in, and the available Firebase CLI had no authenticated account. Use a separate Firebase project with authorized access to Auth and Firestore. Compare the staging rules with `firestore.rules` and rerun the three Firebase reproductions and the PR #29 acceptance checks below.
+1. **Provision or identify a cloud staging frontend and Firebase project with disposable data.** The signed-in console was later used to provision the separate `hearthaway-staging` project. The staging rules and fixtures are live, and the PR preview is configured. See the hosted acceptance results below. Compare the staging rules with `firestore.rules` and rerun the three Firebase reproductions and the PR #29 acceptance checks below.
 2. **Resolve management authorization in a separate change.** Implement management edits, approval and soft deletion of other account profiles through a trusted server-side mechanism. The scoped claims for partner and lead operations do not grant that permission.
 3. **Finish release acceptance.** Still open are cloud payment proof upload and rejection, registration and password-reset email delivery, iOS Safari, and macOS VoiceOver checks for nested dialogs, focus, text zoom and table scrolling.
 
@@ -83,7 +83,7 @@ The running Next.js app used the Firebase Auth and Firestore emulators in the lo
 | Finance | The browser denied direct access to Data archive. |
 | Firestore role checks | Six non-management fixture accounts were denied access to the archive, agreement attachment and portfolio owner directory. Five wrong-role or wrong-owner target updates were denied. Persisted browser results were checked directly against the emulator. |
 
-TypeScript, the Next.js build and lint passed. Lint retained one existing agreement-logo image warning. Cloud staging has not been provisioned or verified. The current Firestore rules continue to allow signed-in users to read active lead and partner collections. The application scopes the workspace views, and record-level read isolation would require moving duplicate checks and data queries behind a trusted backend.
+TypeScript, the Next.js build and lint passed. Lint retained one existing agreement-logo image warning. The cloud staging project and preview are provisioned. See the hosted acceptance results below. The current Firestore rules continue to allow signed-in users to read active lead and partner collections. The application scopes the workspace views, and record-level read isolation would require moving duplicate checks and data queries behind a trusted backend.
 
 ### Run isolated staging locally
 
@@ -108,3 +108,19 @@ Open [the emulator-backed app](http://127.0.0.1:4329). The seed prints the emula
 - Apply `firestore.rules` to the named **staging** database. Using an authorized Admin SDK session connected to that project, assign the trusted `leadOperationsRole` custom claims `management`, `portfolio_owner` or `sales` to the fixture users. Preserve unrelated claims and refresh the test session by signing out and in. Partner and Finance fixtures need a corresponding profile without a privileged claim. [Firebase custom claims](https://firebase.google.com/docs/auth/admin/custom-claims)
 - Seed `leadOwnerDirectory/{authUid}` for eligible sales staff and `portfolioOwnerDirectory/{authUid}` for approved portfolio owners. Each document needs only `displayName`. Application clients have read-only access where permitted. The portfolio directory and saved agreement bytes are management-only.
 - Complete the role matrix on the hosted staging build before coordinating any production rule and application rollout. Review existing archive flags individually. Older agreement metadata may hold only a filename. Reattach originals to enable file download. The current agreement limit is 768 KB.
+
+### Hosted staging acceptance
+
+The isolated Spark project `hearthaway-staging` has email/password sign-in, a separate Web app and Standard `(default)` Firestore in `nam5`. The staging database runs the checked-in PR #29 rules. The deployed rules SHA-256 is `4a20266557f4cf22e1fa4a2e755544dbd9f1bc2e98706a299792cdd279acee62`. The seed created seven synthetic identities and roles, two agencies, both owner directories and a legacy lead fixture. All seven signed in successfully with a token audience of `hearthaway-staging`. Production data, rules and deployment settings were untouched. [Firebase staging console](https://console.firebase.google.com/project/hearthaway-staging/overview)
+
+The Vercel variables `NEXT_PUBLIC_FIREBASE_MODE` and `NEXT_PUBLIC_FIREBASE_STAGING_CONFIG` target Preview on `codex/partner-lead-operations` only. Deployment `dpl_82BBJAZHDXtTAjpBUKkmKbDksTSq` built commit `00eada78b456abddcb06b8f0c60e33e7832e5316` and reached READY. Vercel's authenticated fetch returned HTTP 200. The deployed client bundle contained the isolated staging project ID. The browser session could reach the app on localhost with cloud staging configured. Its direct Vercel preview navigation timed out, and an unauthenticated HTTP request redirected to Vercel SSO. [Protected Vercel preview](https://erp-hearthaway-35u024oye-boku-wa-tobi.vercel.app)
+
+| Check | Hosted Firebase result |
+| --- | --- |
+| Partner onboarding and profile edit | Management created Hosted QA Agency in the browser, preserved the zero commission, and updated the contact. Firestore confirmed the saved values. |
+| Agreement and partner reassignment | Firestore saved and returned the original agreement bytes, denied Finance access, and persisted the changed portfolio owner. The browser file chooser stalled, so interactive attachment and download remain pending in the hosted environment. |
+| Lead intake and corrections | The browser recreated an archived contact through the Sales form, rejected email-only and phone-only duplicates independently, saved a Partner lead in EUR, and displayed the audited Sales correction. |
+| Ownership, targets and archive | Firestore enforced qualification before Sales Owner assignment, accepted distinct owners, accepted target updates from Management and the assigned owner, and rejected changes from four other roles. Management archived the legacy fixture with a reason, which the browser displayed as inactive. Each non-management fixture was denied archive access. |
+| Remaining hosted checks | Run the role matrix from an interactive Vercel-authenticated browser. Repeat CSV upload and agreement file upload and download there. Those browser workflows passed previously on the Firebase emulators. |
+
+Cloud staging credentials are disposable and excluded from this handover and the repository. See the earlier remaining verification section for the separate Finance and account management work.
