@@ -47,6 +47,7 @@ import {
   deleteDoc,
   updateDoc,
   onSnapshot,
+  writeBatch,
 } from 'firebase/firestore';
 
 const getInitialPipelineStage = (student: Student): PipelineStage => {
@@ -243,6 +244,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const [currentUser, setCurrentUser] = useState<AppUser>(DEFAULT_EMPTY_USER);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authInitialized, setAuthInitialized] = useState<boolean>(false);
+  const [firebaseSessionUid, setFirebaseSessionUid] = useState<string | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [authModalTab, setAuthModalTab] = useState<'signin' | 'signup' | 'manage'>('signin');
   const [availableUsers, setAvailableUsers] = useState<AppUser[]>([]);
@@ -256,27 +258,48 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [hideTestRecords, setHideTestRecords] = useState<boolean>(false);
 
-  // Real-time Firebase Firestore Sync & Auth state listener
+  // Resolve the Firebase identity before subscribing to workspace data.
   useEffect(() => {
     let isMounted = true;
+    let authRevision = 0;
+    let previousUid: string | null = null;
     void setPersistence(auth, browserLocalPersistence).catch((error) => {
       console.warn('[v0] Firebase auth persistence setup failed:', error);
     });
 
     const unsubAuth = onAuthStateChanged(auth, async (fbUser) => {
+      const revision = ++authRevision;
+      const uid = fbUser?.uid ?? null;
+      const isCurrent = () => isMounted && revision === authRevision && (auth.currentUser?.uid ?? null) === uid;
+
+      if (uid !== previousUid) {
+        if (previousUid) {
+          setIsAuthenticated(false);
+          setCurrentUser(DEFAULT_EMPTY_USER);
+        }
+        previousUid = uid;
+        setFirebaseSessionUid(null);
+        setStudents([]);
+        setPartners([]);
+        setBookings([]);
+        setPayments([]);
+        setActivities([]);
+        setAvailableUsers([]);
+        setSelectedStudentId(null);
+      }
+
       if (fbUser) {
         try {
           const cleanEmail = (fbUser.email || '').toLowerCase().trim();
           const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com';
           const userRef = doc(db, 'users', fbUser.uid);
           const snap = await getDoc(userRef);
+          if (!isCurrent()) return;
 
           if (snap.exists()) {
             const storedProfile = snap.data() as AppUser;
             if (storedProfile.status === 'deleted' || storedProfile.deletedAt) {
               await signOut(auth);
-              setIsAuthenticated(false);
-              setCurrentUser(DEFAULT_EMPTY_USER);
               return;
             }
             const profile = {
@@ -287,6 +310,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
             if (isSuperAdmin && profile.role !== 'partner') {
               profile.role = 'management';
               await setDoc(userRef, { role: 'management' }, { merge: true });
+              if (!isCurrent()) return;
             }
             setCurrentUser(profile);
             setIsAuthenticated(true);
@@ -305,6 +329,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
               status: 'approved',
             };
             await setDoc(userRef, newUser);
+            if (!isCurrent()) return;
             setCurrentUser(newUser);
             setIsAuthenticated(true);
             try {
@@ -312,6 +337,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
               localStorage.setItem('hearthaway_auth_uid', newUser.uid);
             } catch {}
           }
+          setFirebaseSessionUid(fbUser.uid);
         } catch (err) {
           console.warn('Error fetching Firestore user profile:', err);
         }
@@ -323,13 +349,25 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           localStorage.removeItem('hearthaway_current_user_profile');
         } catch {}
       }
-      if (isMounted) setAuthInitialized(true);
+      if (isCurrent()) setAuthInitialized(true);
     });
 
-    // Real-time Firestore snapshot listeners across all connected users & devices
+    return () => {
+      isMounted = false;
+      unsubAuth();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!firebaseSessionUid || auth.currentUser?.uid !== firebaseSessionUid) return;
+    let active = true;
+    const isCurrent = () => active && auth.currentUser?.uid === firebaseSessionUid;
+
+    // Firestore stops a listener after a permission failure. Start fresh for each authenticated session.
     const unsubStudents = onSnapshot(
       collection(db, 'students'),
       (snapshot) => {
+        if (!isCurrent()) return;
         const list = snapshot.docs.map((docSnap) => {
           const student = { ...docSnap.data(), id: docSnap.id } as Student;
           const pipelineStage = getInitialPipelineStage(student);
@@ -350,6 +388,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const unsubPartners = onSnapshot(
       collection(db, 'partners'),
       (snapshot) => {
+        if (!isCurrent()) return;
         const list = snapshot.docs.map((docSnap) => ({
           ...docSnap.data(),
           // The Firestore document ID is authoritative; stored IDs can be stale after imports.
@@ -365,6 +404,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const unsubBookings = onSnapshot(
       collection(db, 'bookings'),
       (snapshot) => {
+        if (!isCurrent()) return;
         const list = snapshot.docs.map((docSnap) => docSnap.data() as Booking);
         setBookings(list);
       },
@@ -376,6 +416,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const unsubPayments = onSnapshot(
       collection(db, 'payments'),
       (snapshot) => {
+        if (!isCurrent()) return;
         const list = snapshot.docs.map((docSnap) => docSnap.data() as Payment);
         setPayments(list);
       },
@@ -387,6 +428,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const unsubActivities = onSnapshot(
       collection(db, 'activities'),
       (snapshot) => {
+        if (!isCurrent()) return;
         const list = snapshot.docs.map((docSnap) => docSnap.data() as Activity);
         setActivities(list);
       },
@@ -398,6 +440,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     const unsubUsers = onSnapshot(
       collection(db, 'users'),
       (snapshot) => {
+        if (!isCurrent()) return;
         const list = snapshot.docs
           .map((docSnap) => ({ uid: docSnap.id, ...docSnap.data() } as AppUser))
           .filter((user) => user.status !== 'deleted' && user.status !== 'disabled' && !user.deletedAt);
@@ -409,8 +452,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     );
 
     return () => {
-      isMounted = false;
-      unsubAuth();
+      active = false;
       unsubStudents();
       unsubPartners();
       unsubBookings();
@@ -418,7 +460,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       unsubActivities();
       unsubUsers();
     };
-  }, []);
+  }, [firebaseSessionUid]);
 
   const openAuthModal = (tab: 'signin' | 'signup' | 'manage' = 'signin') => {
     setAuthModalTab(tab);
@@ -1414,37 +1456,55 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       paymentStatus: 'Pending Verification',
       screenshotUrl: primaryAttachmentUrl,
       attachments: data.attachments || [],
-      proofBypassReason: data.proofBypassReason,
-      proofBypassedBy: data.proofBypassReason ? `${currentUser.displayName} (${currentUser.role})` : undefined,
+      ...(data.proofBypassReason ? {
+        proofBypassReason: data.proofBypassReason,
+        proofBypassedBy: `${currentUser.displayName} (${currentUser.role})`,
+      } : {}),
       uploadedBy: currentUser.displayName,
       uploadedRole: currentUser.role,
       uploadedTimestamp: formattedTimestamp,
       remarks: data.remarks || 'Payment proof submitted for booking reservation.',
-      partnerId: student?.partnerId,
+      ...(student?.partnerId !== undefined ? { partnerId: student.partnerId } : {}),
     };
 
-    await setDoc(doc(db, 'payments', docId), newPayment).catch((err) => {
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'payments', docId), newPayment);
+    if (student) {
+      const studentDocId = student.id || `std-${student.studentId.toLowerCase()}`;
+      batch.update(doc(db, 'students', studentDocId), {
+        pipelineStage: 'Payment',
+        updatedAt: formattedTimestamp,
+      });
+    }
+    await batch.commit().catch((err) => {
       handleFirestoreError(err, OperationType.WRITE, `payments/${docId}`);
       throw err;
     });
 
-    await updateStudentDecoupledStatus(data.studentId, {
-      pipelineStage: 'Payment',
-    });
+    if (student && student.pipelineStage !== 'Payment') {
+      const previousStage = student.pipelineStage || 'New';
+      void logStudentActivity(
+        student.studentId,
+        'Pipeline Stage Change',
+        `Changed pipeline from "${previousStage}" to "Payment"`,
+        previousStage,
+        'Payment'
+      ).catch(() => {});
+    }
 
     if (data.proofBypassReason) {
-      logStudentActivity(
+      void logStudentActivity(
         data.studentId,
         'Payment Proof Bypassed',
         `Management proof requirement bypassed for payment ${paymentId} (${data.currency} ${data.amount}) by ${currentUser.displayName} (${currentUser.role}). Recorded Exception Reason: "${data.proofBypassReason}".`
-      );
+      ).catch(() => {});
     }
 
-    logStudentActivity(
+    void logStudentActivity(
       data.studentId,
       'Payment Uploaded',
       `Payment proof ${paymentId} of ${data.currency} ${data.amount} recorded by ${currentUser.displayName} with ${data.attachments?.length || 0} file attachment(s). Status: Pending Verification.`
-    );
+    ).catch(() => {});
 
     return newPayment;
   };

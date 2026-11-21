@@ -42,9 +42,11 @@ export default function FinancePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPaymentStatus, setFilterPaymentStatus] = useState('All');
   const [showRecordModal, setShowRecordModal] = useState(false);
+  const [recordingPayment, setRecordingPayment] = useState(false);
+  const [recordError, setRecordError] = useState('');
 
   // New Payment state
-  const [recordStudentId, setRecordStudentId] = useState(students[0]?.studentId || '');
+  const [recordStudentId, setRecordStudentId] = useState('');
   const [recordAmount, setRecordAmount] = useState('');
   const [recordCurrency, setRecordCurrency] = useState('GBP');
   const [recordMethod, setRecordMethod] = useState<'Bank Transfer' | 'Credit Card' | 'Online Gateway' | 'Direct Debit' | 'UPI'>('Bank Transfer');
@@ -112,21 +114,34 @@ export default function FinancePage() {
     });
   }, [partners, bookings]);
 
-  const handleRecordPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!recordStudentId || !recordAmount) return;
-
-    uploadPaymentTransaction({
-      studentId: recordStudentId,
-      amount: Number(recordAmount),
-      currency: recordCurrency,
-      paymentMethod: recordMethod,
-      remarks: recordRemarks || 'Direct recorded by Finance Team.',
-    });
-
+  const closeRecordModal = () => {
+    if (recordingPayment) return;
     setShowRecordModal(false);
-    setRecordAmount('');
-    setRecordRemarks('');
+    setRecordError('');
+  };
+
+  const handleRecordPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (recordingPayment || !recordStudentId || !recordAmount) return;
+
+    setRecordingPayment(true);
+    setRecordError('');
+    try {
+      await uploadPaymentTransaction({
+        studentId: recordStudentId,
+        amount: Number(recordAmount),
+        currency: recordCurrency,
+        paymentMethod: recordMethod,
+        remarks: recordRemarks || 'Direct recorded by Finance Team.',
+      });
+      setShowRecordModal(false);
+      setRecordAmount('');
+      setRecordRemarks('');
+    } catch {
+      setRecordError('Payment could not be recorded. Check the details and try again.');
+    } finally {
+      setRecordingPayment(false);
+    }
   };
 
   const handleExportPaymentsCSV = () => {
@@ -207,7 +222,10 @@ export default function FinancePage() {
             </div>
 
             <button
-              onClick={() => setShowRecordModal(true)}
+              onClick={() => {
+                setRecordStudentId((id) => students.some((student) => student.studentId === id) ? id : students[0]?.studentId || '');
+                setShowRecordModal(true);
+              }}
               className="ha-primary-action"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -533,24 +551,27 @@ export default function FinancePage() {
 
       {/* RECORD PAYMENT MODAL */}
       {showRecordModal && (
-        <WorkspaceDialog label="Record student payment" onDismiss={() => setShowRecordModal(false)}>
+        <WorkspaceDialog label="Record student payment" onDismiss={closeRecordModal}>
           <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-[#1A1A1A]">Record Student Payment</h3>
-              <button aria-label="Close dialog" onClick={() => setShowRecordModal(false)} className="text-[#6B6860] hover:text-[#1A1A1A]">
+              <button aria-label="Close dialog" onClick={closeRecordModal} disabled={recordingPayment} className="text-[#6B6860] hover:text-[#1A1A1A]">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleRecordPayment} className="space-y-3">
+            <form onSubmit={handleRecordPayment} aria-busy={recordingPayment} className="space-y-3">
+              {recordError && <p role="alert" className="text-sm text-rose-700">{recordError}</p>}
               <div>
                 <label htmlFor="finance-record-student-id" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Student Lead</label>
                 <select
                   id="finance-record-student-id"
+                  required
                   value={recordStudentId}
                   onChange={(e) => setRecordStudentId(e.target.value)}
                   className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
                 >
+                  <option value="" disabled>Select a student lead</option>
                   {students.map((s) => (
                     <option key={s.studentId} value={s.studentId}>
                       {s.fullName} ({s.studentId})
@@ -618,16 +639,17 @@ export default function FinancePage() {
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowRecordModal(false)}
+                  onClick={closeRecordModal} disabled={recordingPayment}
                   className="rounded-lg border border-[#E8E6E1] px-3.5 py-1.5 text-xs font-semibold text-[#6B6860] hover:bg-[#F7F6F3]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A]"
+                  disabled={recordingPayment}
+                  className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] disabled:opacity-50"
                 >
-                  Record Payment
+                  {recordingPayment ? 'Recording…' : 'Record Payment'}
                 </button>
               </div>
             </form>
