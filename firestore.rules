@@ -41,6 +41,23 @@ service cloud.firestore {
       allow read: if isLeadManagement() || (isSignedIn() && request.auth.token.get('leadOperationsRole', '') == 'sales');
     }
 
+    match /portfolioOwnerDirectory/{uid} {
+      allow read: if isLeadManagement();
+    }
+
+    match /partnerAgreements/{partnerId} {
+      allow get: if isLeadManagement();
+      allow create, update: if isLeadManagement()
+        && existsAfter(/databases/$(database)/documents/partners/$(partnerId))
+        && request.resource.data.keys().hasOnly(['name', 'bytes'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 255
+        && request.resource.data.bytes is bytes
+        && request.resource.data.bytes.size() > 0
+        && request.resource.data.bytes.size() <= 786432;
+    }
+
     match /archivedStudents/{studentId} {
       allow read: if isLeadManagement();
       allow create: if isLeadManagement()

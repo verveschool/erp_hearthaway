@@ -2,7 +2,7 @@
 
 import { WorkspaceMetric } from '@/components/WorkspaceMetric';
 import { getLeadOwner } from '@/lib/lead-details';
-import { WorkspaceDialog } from '@/components/WorkspaceDialog';
+import { PartnerOwnerDialog } from '@/components/PartnerOwnerDialog';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useHearthAway } from '@/lib/context';
@@ -113,6 +113,7 @@ export default function PortfolioPage() {
     students,
     activities,
     availableUsers,
+    portfolioOwnerOptions,
     removeAllAccounts,
     reassignPartnerPortfolioOwner,
     setSelectedStudentId,
@@ -123,12 +124,13 @@ export default function PortfolioPage() {
   // Only current Firestore users can be selected as portfolio owners.
   // Partner records may contain historical names, so they must not manufacture users.
   const portfolioOwners = useMemo(() => {
-    const unique = new Map<string, AppUser>();
-    availableUsers
-      .filter((user) => user.uid && user.displayName?.trim() && user.role !== 'partner' && user.status !== 'rejected' && user.status !== 'pending' && user.isApproved !== false)
-      .forEach((user) => unique.set(user.uid, user));
-    return Array.from(unique.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [availableUsers]);
+    if (portfolioOwnerOptions.length) {
+      return portfolioOwnerOptions.map((owner) => ({ ...owner, role: 'portfolio_owner', email: '' } as AppUser));
+    }
+    return availableUsers.filter((user) => user.uid && user.displayName?.trim() && user.role === 'portfolio_owner' &&
+      user.status !== 'rejected' && user.status !== 'pending' && user.isApproved !== false)
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [availableUsers, portfolioOwnerOptions]);
 
   // Selected portfolio owner for inspection:
   // If user is a Portfolio Owner, they ONLY see their own portfolio!
@@ -173,7 +175,6 @@ export default function PortfolioPage() {
 
   // Reassignment Modal state for Management
   const [reassignModalPartnerId, setReassignModalPartnerId] = useState<string | null>(null);
-  const [newOwnerTargetId, setNewOwnerTargetId] = useState<string>('');
 
   // Global Lead Search across all portfolios (independent of active owner)
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
@@ -579,19 +580,7 @@ export default function PortfolioPage() {
     );
   };
 
-  // Handle Reassign Portfolio Owner (Management action)
-  const handleReassign = () => {
-    if (!reassignModalPartnerId || !newOwnerTargetId) return;
-    const targetOwner = portfolioOwners.find((u) => u.uid === newOwnerTargetId);
-    if (!targetOwner) return;
-
-    reassignPartnerPortfolioOwner(
-      reassignModalPartnerId,
-      targetOwner.uid,
-      targetOwner.displayName
-    );
-    setReassignModalPartnerId(null);
-  };
+  const reassignPartner = partners.find((partner) => partner.partnerId === reassignModalPartnerId);
 
   return (
     <div className="ha-workspace">
@@ -1780,7 +1769,6 @@ export default function PortfolioPage() {
                           <button
                             onClick={() => {
                               setReassignModalPartnerId(partner.partnerId);
-                              setNewOwnerTargetId(activeOwner.uid);
                             }}
                             className="rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] px-2.5 py-1 text-xs font-bold text-[#00319D] hover:bg-[#E8E6E1] transition-colors cursor-pointer"
                           >
@@ -2052,48 +2040,9 @@ export default function PortfolioPage() {
       </div>
 
       {/* REASSIGN PORTFOLIO OWNER MODAL (Management Only) */}
-      {reassignModalPartnerId && (
-        <WorkspaceDialog label="Reassign partner portfolio owner" onDismiss={() => setReassignModalPartnerId(null)}>
-          <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-semibold text-[#1A1A1A]">Reassign Partner Portfolio Owner</h3>
-            <p className="text-xs text-[#6B6860] leading-relaxed">
-              When this partner is reassigned, portfolio attribution will automatically update across all leads sourced by this partner, while retaining each lead&apos;s original lead owner.
-            </p>
-
-            <div>
-              <label htmlFor="portfolio-new-owner-target-id" className="block text-xs font-bold text-[#1A1A1A] mb-1">
-                Select New Portfolio Owner:
-              </label>
-              <select
-                id="portfolio-new-owner-target-id"
-                value={newOwnerTargetId}
-                onChange={(e) => setNewOwnerTargetId(e.target.value)}
-                className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-              >
-                {portfolioOwners.map((owner) => (
-                  <option key={owner.uid} value={owner.uid}>
-                    {owner.displayName} ({owner.email})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setReassignModalPartnerId(null)}
-                className="rounded-lg border border-[#E8E6E1] px-3 py-1.5 text-xs font-semibold text-[#6B6860] hover:bg-[#F7F6F3] cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReassign}
-                className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] cursor-pointer"
-              >
-                Confirm Reassignment
-              </button>
-            </div>
-          </div>
-        </WorkspaceDialog>
+      {reassignPartner && (
+        <PartnerOwnerDialog partner={reassignPartner} options={portfolioOwners}
+          onClose={() => setReassignModalPartnerId(null)} onSave={reassignPartnerPortfolioOwner} />
       )}
     </div>
   );

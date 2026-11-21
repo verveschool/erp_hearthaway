@@ -379,7 +379,7 @@ export default function SalesPage() {
                       {/* Lead Owner with inline reassignment */}
                       <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
                         <select
-                          aria-label={`Sales owner for ${student.fullName}`}
+                          aria-label={`Lead owner for ${student.fullName}`}
                           value={getLeadOwner(student).id}
                           onChange={(e) => {
                             const newRep = salesUsers.find((su) => su.uid === e.target.value);

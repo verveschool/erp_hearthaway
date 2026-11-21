@@ -51,9 +51,9 @@ The same emulator suite completed 15 groups of checks on the baseline and the fi
 
 ## Remaining verification
 
-1. **Provision or identify a cloud staging frontend and Firebase project with disposable data.** Rerun the three reproductions there and compare the deployed rules with `firestore.rules`.
-2. **Resolve management authorization in a separate change.** Confirm intended role-management, approval and soft-deletion authority, then verify the permission matrix on staging.
-3. **Complete staging acceptance.** Check actual CSV upload and preview, proof and agreement file upload, payment rejection, registration and password-reset email delivery. Finish iOS Safari and macOS VoiceOver checks for nested dialogs, focus, text zoom and table scrolling.
+1. **Provision or identify a cloud staging frontend and Firebase project with disposable data.** Firebase Console required Google sign-in, and the available Firebase CLI had no authenticated account. Use a separate Firebase project with authorized access to Auth and Firestore. Compare the staging rules with `firestore.rules` and rerun the three Firebase reproductions and the PR #29 acceptance checks below.
+2. **Resolve management authorization in a separate change.** Implement management edits, approval and soft deletion of other account profiles through a trusted server-side mechanism. The scoped claims for partner and lead operations do not grant that permission.
+3. **Finish release acceptance.** Still open are cloud payment proof upload and rejection, registration and password-reset email delivery, iOS Safari, and macOS VoiceOver checks for nested dialogs, focus, text zoom and table scrolling.
 
 ## Partner and lead operations
 
@@ -69,15 +69,42 @@ The follow-up covers the partner cards, single-lead forms, editing, seasonal com
 | Seasonal targets | Partner cards and directory show active leads received against promises for each intake. Common intake spellings such as September 2027 and Sep-27 are grouped. Management and the assigned portfolio owner can edit the target. |
 | Ownership | The old Sales Owner assignment appears as Lead Owner. New leads start with both owners unassigned. The new Sales Owner requires a Lead Owner and a qualified or later pipeline stage. The same sales staff directory feeds both selectors. |
 
-### Verification
+### PR #29 isolated acceptance
 
-Seven groups of localhost Firebase and rendered-component checks passed. They covered separate email and phone matches, concurrent intake, audited edits, ownership sequencing, archive permissions, recreation after archive, seasonal permissions and matching form fields. The card check verified the accessible pencil and one-line Leads control. TypeScript, lint and the Next.js build passed. Lint retained the existing agreement-image warning.
+The running Next.js app used the Firebase Auth and Firestore emulators in the loopback-only `demo-hearthaway-qa` project. All accounts, records and uploads were synthetic. The browser was tested against the checked-in rules. No production records, Firebase rules or deployment settings were changed during this work. [PR #29](https://github.com/verveschool/erp_hearthaway/pull/29)
 
-### Staging and rollout
+| Role | Verified outcome |
+| --- | --- |
+| Management | Onboarded a new partner under an eligible portfolio owner, edited its contact with a zero commission preserved, and reassigned it with an audit event. Changed the agreement status and terms, uploaded an attachment and downloaded the same bytes. Changed a seasonal target. Required an archival reason, removed the lead from the active queue, verified its inactive record in Data archive and reused its email and phone in a new lead with a different ID. |
+| Assigned portfolio owner | Saw the assigned partner and saved the September commitment. The visible ratio updated from 4 / 4 to 4 / 9. |
+| Other portfolio owner | Saw only the partners in that account's Partners workspace, including the reassigned agency. Firestore denied changes to the first owner's target. |
+| Sales | Rejected an email-only duplicate and a separate phone-only duplicate, then created a complete lead under a partner. Assigned the Lead Owner, qualified the lead, assigned a different Sales Owner and verified the edit audit after correcting the name and phone. |
+| Partner | Submitted an individual lead under the linked partner. Saw a read-only commitment and uploaded a real CSV. Preview kept EUR 205 and the quoted name. It skipped existing email, existing phone and within-file phone duplicates, then saved one eligible row with its currency, notes and attribution. |
+| Finance | The browser denied direct access to Data archive. |
+| Firestore role checks | Six non-management fixture accounts were denied access to the archive, agreement attachment and portfolio owner directory. Five wrong-role or wrong-owner target updates were denied. Persisted browser results were checked directly against the emulator. |
 
-- This work builds on the authenticated Firestore listener fix in PR #28. Merge that fix before this feature branch.
-- In an isolated Firebase staging project, assign the trusted custom claim `leadOperationsRole` to approved users with the value `management`, `portfolio_owner` or `sales` as appropriate. Use an approved Admin SDK session and preserve any unrelated claims. [Firebase custom claims](https://firebase.google.com/docs/auth/admin/custom-claims) A sign-out and sign-in refreshes a stale token. Management role in a client profile is insufficient for these new privileged writes.
-- Populate `leadOwnerDirectory/{authUid}` with `displayName` for eligible sales staff using that Admin SDK session. Application clients have read-only access to this directory. Existing lead assignments still display through the legacy field fallback.
-- Deploy the revised Firestore rules to the named staging database before testing the feature. Stage new lead creation, archive, partner onboarding and portfolio reassignment, since these paths now depend on the revised rules and role claims. Coordinate the eventual production rule and application rollout after staging passes.
-- Review old flagged leads in staging. The previous flags do not automatically move records, and this PR does not perform any bulk archival.
-- Management edits to other account profiles from the previous handover remain open. The scoped claims for lead operations do not grant that permission.
+TypeScript, the Next.js build and lint passed. Lint retained one existing agreement-logo image warning. Cloud staging has not been provisioned or verified. The current Firestore rules continue to allow signed-in users to read active lead and partner collections. The application scopes the workspace views, and record-level read isolation would require moving duplicate checks and data queries behind a trusted backend.
+
+### Run isolated staging locally
+
+Install the project dependencies and make Java 21 available on `PATH`. From the PR checkout, start the emulators in one terminal. Then seed fixtures and run the app in another terminal. The seed writes only to the hard-coded loopback emulator project and is intended for a disposable dataset. [Firebase Emulator Suite](https://firebase.google.com/docs/emulator-suite)
+
+```sh
+npm run staging:emulators
+```
+
+```sh
+npm run staging:seed
+npm run staging:web
+```
+
+Open [the emulator-backed app](http://127.0.0.1:4329). The seed prints the emulator-only fixture password. Fixture addresses use the suffix `@example.invalid` with the aliases `qa-management`, `qa-portfolio`, `qa-other-portfolio`, `qa-sales`, `qa-sales-two`, `qa-partner` and `qa-finance`.
+
+### Hosted staging and rollout
+
+- PR #29 is stacked on the authenticated Firestore listener fix in PR #28. Merge that fix first when the PRs are ready for release.
+- Create a separate Firebase project, enable email/password Auth, create Firestore and register a web app. Use disposable users and records. Never copy production credentials or records into staging. [Firebase environments](https://firebase.google.com/docs/projects/dev-workflows/overview-environments)
+- In Vercel, scope `NEXT_PUBLIC_FIREBASE_MODE=staging` and the complete `NEXT_PUBLIC_FIREBASE_STAGING_CONFIG` JSON to a dedicated staging frontend or the PR branch only, then rebuild. Include `firestoreDatabaseId` as shown in `.env.example`. The staging mode rejects missing configuration and reuse of production project or Web app values. The default preview can still point to the checked-in Firebase project. Confirm the isolated build and Firebase project before signing in or writing test data.
+- Apply `firestore.rules` to the named **staging** database. Using an authorized Admin SDK session connected to that project, assign the trusted `leadOperationsRole` custom claims `management`, `portfolio_owner` or `sales` to the fixture users. Preserve unrelated claims and refresh the test session by signing out and in. Partner and Finance fixtures need a corresponding profile without a privileged claim. [Firebase custom claims](https://firebase.google.com/docs/auth/admin/custom-claims)
+- Seed `leadOwnerDirectory/{authUid}` for eligible sales staff and `portfolioOwnerDirectory/{authUid}` for approved portfolio owners. Each document needs only `displayName`. Application clients have read-only access where permitted. The portfolio directory and saved agreement bytes are management-only.
+- Complete the role matrix on the hosted staging build before coordinating any production rule and application rollout. Review existing archive flags individually. Older agreement metadata may hold only a filename. Reattach originals to enable file download. The current agreement limit is 768 KB.

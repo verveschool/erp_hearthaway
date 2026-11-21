@@ -42,6 +42,7 @@ import {
   onIdTokenChanged,
 } from 'firebase/auth';
 import {
+  Bytes,
   collection,
   doc,
   setDoc,
@@ -117,19 +118,21 @@ interface HearthAwayContextType {
   activities: Activity[];
 
   // Workflows & Mutations with Audit Logs
-  reassignPartnerPortfolioOwner: (partnerId: string, newOwnerId: string, newOwnerName: string) => void;
+  reassignPartnerPortfolioOwner: (partnerId: string, newOwnerId: string, newOwnerName: string) => Promise<void>;
   reassignLeadOwner: (studentId: string, ownerId: string, ownerName: string) => Promise<void>;
   assignSalesOwner: (studentId: string, ownerId: string, ownerName: string) => Promise<void>;
   editLeadDetails: (studentId: string, details: LeadDetails) => Promise<void>;
   archiveLead: (studentId: string, reason: string) => Promise<void>;
   leadOperationsRole: string;
   leadOwnerOptions: Array<{ uid: string; displayName: string }>;
+  portfolioOwnerOptions: Array<{ uid: string; displayName: string }>;
   setPartnerLeadTarget: (partnerId: string, season: string, promised: number) => Promise<void>;
   bulkImportPartnerLeads: (leads: LeadDetails[], partnerId?: string) => Promise<{
     importedCount: number; duplicatesCount: number; errorsCount: number; importedLeads: Student[];
   }>;
   onboardNewPartner: (partnerData: any) => Promise<Partner>;
-  updatePartner: (partnerId: string, updates: Partial<Partner>) => Promise<void>;
+  updatePartner: (partnerId: string, updates: Partial<Partner>, agreementFile?: File) => Promise<void>;
+  getPartnerAgreement: (partnerId: string) => Promise<{ name: string; bytes: ArrayBuffer } | null>;
   deletePartner: (partnerId: string) => Promise<void>;
   submitPartnerLead: (lead: LeadDetails, partnerId?: string) => Promise<Student>;
 
@@ -256,6 +259,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const [operationsIdentity, setOperationsIdentity] = useState<{ uid: string; role: string } | null>(null);
   const leadOperationsRole = operationsIdentity?.uid === currentUser.uid ? operationsIdentity?.role || '' : '';
   const [leadOwnerOptions, setLeadOwnerOptions] = useState<Array<{ uid: string; displayName: string }>>([]);
+  const [portfolioOwnerOptions, setPortfolioOwnerOptions] = useState<Array<{ uid: string; displayName: string }>>([]);
 
   useEffect(() => {
     let revision = 0;
@@ -276,13 +280,18 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (leadOperationsRole !== 'management' && leadOperationsRole !== 'sales') return;
-    return onSnapshot(collection(db, 'leadOwnerDirectory'), (snapshot) => {
-      if (auth.currentUser?.uid !== currentUser.uid) return;
-      setLeadOwnerOptions(snapshot.docs.flatMap((entry) => {
-        const name = entry.data().displayName;
-        return typeof name === 'string' && name.trim() ? [{ uid: entry.id, displayName: name }] : [];
-      }).sort((a, b) => a.displayName.localeCompare(b.displayName)));
-    }, () => setLeadOwnerOptions([]));
+    const watch = (directory: string, setOptions: typeof setLeadOwnerOptions) =>
+      onSnapshot(collection(db, directory), (snapshot) => {
+        if (auth.currentUser?.uid !== currentUser.uid) return;
+        setOptions(snapshot.docs.flatMap((entry) => {
+          const name = entry.data().displayName;
+          return typeof name === 'string' && name.trim() ? [{ uid: entry.id, displayName: name }] : [];
+        }).sort((a, b) => a.displayName.localeCompare(b.displayName)));
+      }, () => setOptions([]));
+    const stopLeadOwners = watch('leadOwnerDirectory', setLeadOwnerOptions);
+    const stopPortfolioOwners = leadOperationsRole === 'management'
+      ? watch('portfolioOwnerDirectory', setPortfolioOwnerOptions) : null;
+    return () => { stopLeadOwners(); stopPortfolioOwners?.(); };
   }, [leadOperationsRole, currentUser.uid]);
 
   // Resolve the Firebase identity before subscribing to workspace data.
@@ -314,6 +323,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         setAvailableUsers([]);
         setSelectedStudentId(null);
         setLeadOwnerOptions([]);
+        setPortfolioOwnerOptions([]);
       }
 
       if (fbUser) {
@@ -881,24 +891,27 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const reassignPartnerPortfolioOwner = (partnerId: string, newOwnerId: string, newOwnerName: string) => {
+  const reassignPartnerPortfolioOwner = async (partnerId: string, newOwnerId: string, newOwnerName: string) => {
     const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
-    if (partner) {
-      const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
-      logStudentActivity(
-        partner.partnerId,
-        'Partner Portfolio Owner Reassigned',
-        `Partner "${partner.companyName}" (${partner.partnerId}) reassigned from ${partner.portfolioOwnerName || 'Unassigned'} to ${newOwnerName} by ${currentUser.displayName}.`,
-        partner.portfolioOwnerName || 'Unassigned',
-        newOwnerName
+    if (!partner) throw new Error('This partner is no longer available.');
+    const reference = doc(db, 'partners', partner.id || `part-${partner.partnerId.toLowerCase()}`);
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error('This partner is no longer available.');
+      const current = snapshot.data() as Partner;
+      if (current.portfolioOwnerId === newOwnerId) return;
+      const previousName = current.portfolioOwnerName || 'Unassigned';
+      const activity = buildActivity(
+        current.partnerId, 'Partner Portfolio Owner Reassigned',
+        `Partner "${current.companyName}" reassigned from ${previousName} to ${newOwnerName}.`,
+        previousName, newOwnerName
       );
-      updateDoc(doc(db, 'partners', docId), {
-        portfolioOwnerId: newOwnerId,
-        portfolioOwnerName: newOwnerName,
-        assignedManagerId: newOwnerId,
-        assignedManagerName: newOwnerName,
-      }).catch((err) => handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`));
-    }
+      transaction.update(reference, {
+        portfolioOwnerId: newOwnerId, portfolioOwnerName: newOwnerName,
+        assignedManagerId: newOwnerId, assignedManagerName: newOwnerName,
+      });
+      transaction.set(doc(db, 'activities', activity.id), activity);
+    });
   };
 
   const updateLeadOwner = async (studentId: string, kind: 'lead' | 'sales', ownerId: string, ownerName: string) => {
@@ -936,7 +949,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       (normalizedEmail && partner.email.toLowerCase().trim() === normalizedEmail) ||
       (partnerData.companyName && partner.companyName.toLowerCase().trim() === String(partnerData.companyName).toLowerCase().trim())
     );
-    if (existingPartner) return existingPartner;
+    if (existingPartner) throw new Error('A partner with this name or email already exists.');
 
     const partnerIdStr = partnerData.partnerId || `PART-${Math.floor(10000 + Math.random() * 90000)}`;
     const docId = `part-${partnerIdStr.toLowerCase()}`;
@@ -981,7 +994,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     return newPartner;
   };
 
-  const updatePartner = async (partnerId: string, updates: Partial<Partner>): Promise<void> => {
+  const updatePartner = async (partnerId: string, updates: Partial<Partner>, agreementFile?: File): Promise<void> => {
     const partner = partners.find((p) => p.partnerId === partnerId || p.id === partnerId);
     if (!partner) {
       throw new Error(`Partner ${partnerId} was not found. Refresh the partners page and try again.`);
@@ -989,8 +1002,20 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
     const docId = partner.id || `part-${partner.partnerId.toLowerCase()}`;
     try {
-      await setDoc(doc(db, 'partners', docId), updates, { merge: true });
-      setPartners((previous) => previous.map((item) => item.partnerId === partner.partnerId ? { ...item, ...updates } : item));
+      const partnerRef = doc(db, 'partners', docId);
+      const fields = agreementFile ? { ...updates, agreementDocumentUrl: agreementFile.name } : updates;
+      if (agreementFile) {
+        const batch = writeBatch(db);
+        batch.set(partnerRef, fields, { merge: true });
+        batch.set(doc(db, 'partnerAgreements', docId), {
+          name: agreementFile.name,
+          bytes: Bytes.fromUint8Array(new Uint8Array(await agreementFile.arrayBuffer())),
+        });
+        await batch.commit();
+      } else {
+        await setDoc(partnerRef, fields, { merge: true });
+      }
+      setPartners((previous) => previous.map((item) => item.partnerId === partner.partnerId ? { ...item, ...fields } : item));
       logStudentActivity(
         partner.partnerId,
         'Partner Updated',
@@ -999,6 +1024,17 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `partners/${docId}`);
     }
+  };
+
+  const getPartnerAgreement = async (partnerId: string) => {
+    const partner = partners.find((item) => item.partnerId === partnerId);
+    if (!partner) return null;
+    const snapshot = await getDoc(doc(db, 'partnerAgreements', partner.id || `part-${partner.partnerId.toLowerCase()}`));
+    const file = snapshot.data();
+    if (!file || !(file.bytes instanceof Bytes) || typeof file.name !== 'string') return null;
+
+    const bytes = Uint8Array.from(file.bytes.toUint8Array()).buffer;
+    return { name: file.name, bytes };
   };
 
   const deletePartner = async (partnerId: string): Promise<void> => {
@@ -1658,12 +1694,14 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         archiveLead,
         leadOperationsRole,
         leadOwnerOptions,
+        portfolioOwnerOptions,
         setPartnerLeadTarget,
         bulkImportPartnerLeads,
-  onboardNewPartner,
-  updatePartner,
-  deletePartner,
-  submitPartnerLead,
+        onboardNewPartner,
+        updatePartner,
+        getPartnerAgreement,
+        deletePartner,
+        submitPartnerLead,
         updateStudentDecoupledStatus,
         recordPropertyBooking,
         updatePropertyBooking,

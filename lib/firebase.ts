@@ -1,13 +1,49 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+import { initializeApp, getApps, type FirebaseOptions } from 'firebase/app';
+import { connectAuthEmulator, getAuth } from 'firebase/auth';
+import { connectFirestoreEmulator, getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import productionConfig from '../firebase-applet-config.json';
 
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+type AppConfig = FirebaseOptions & { firestoreDatabaseId: string };
 
-// CRITICAL: The app requires firestoreDatabaseId
-export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
+const mode = process.env.NEXT_PUBLIC_FIREBASE_MODE || 'production';
+const useEmulators = mode === 'emulator';
+
+function selectFirebaseConfig(): AppConfig {
+  if (useEmulators) {
+    return { projectId: 'demo-hearthaway-qa', apiKey: 'local-qa-only', firestoreDatabaseId: '(default)' };
+  }
+  if (mode === 'production') return productionConfig;
+  if (mode !== 'staging') throw new Error('Unknown Firebase environment.');
+
+  let config: AppConfig | undefined;
+  try {
+    config = JSON.parse(process.env.NEXT_PUBLIC_FIREBASE_STAGING_CONFIG || '');
+  } catch {
+    throw new Error('Staging must have its own Firebase web configuration.');
+  }
+  if (!config?.projectId || config.projectId === productionConfig.projectId ||
+      !config.apiKey || !config.appId || !config.authDomain || !config.firestoreDatabaseId) {
+    throw new Error('Staging must use a complete configuration for a separate Firebase project.');
+  }
+  if (config.apiKey === productionConfig.apiKey || config.appId === productionConfig.appId ||
+      config.authDomain === productionConfig.authDomain ||
+      (config.storageBucket && config.storageBucket === productionConfig.storageBucket)) {
+    throw new Error('Staging cannot reuse production Firebase app credentials or service endpoints.');
+  }
+  return config;
+}
+
+const config = selectFirebaseConfig();
+const name = mode === 'production' ? '[DEFAULT]' : `hearthaway-${mode}`;
+const existingApp = getApps().find((app) => app.name === name);
+const app = existingApp ?? initializeApp(config, name);
+export const db = getFirestore(app, config.firestoreDatabaseId);
 export const auth = getAuth(app);
+
+if (useEmulators && !existingApp) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:49199');
+  connectFirestoreEmulator(db, '127.0.0.1', 48081);
+}
 
 export enum OperationType {
   CREATE = 'create',

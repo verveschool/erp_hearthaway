@@ -1,13 +1,14 @@
 'use client';
 
 import { LeadDetailsDialog } from '@/components/LeadDetailsDialog';
+import { PartnerOwnerDialog } from '@/components/PartnerOwnerDialog';
 import { PartnerLeadTargets } from '@/components/PartnerLeadTargets';
 import { getLeadOwner, leadContactConflicts, leadConflictMessage, leadDetailsSchema, parseLeadCsv } from '@/lib/lead-details';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
 import React, { useState, useMemo, useRef } from 'react';
 import { useHearthAway } from '@/lib/context';
-import { Partner, Student } from '@/lib/types';
+import { AgreementStatusSchema, type Partner, type Student, type AgreementStatus } from '@/lib/types';
 import { exportToCSV } from '@/lib/export-csv';
 import {
   Users,
@@ -41,6 +42,8 @@ import {
   Trash2,
 } from 'lucide-react';
 
+const MAX_AGREEMENT_BYTES = 768 * 1024;
+
 export default function PartnersPage() {
   const {
     currentUser,
@@ -49,11 +52,13 @@ export default function PartnersPage() {
     partners,
     students,
     availableUsers,
+    portfolioOwnerOptions,
     reassignPartnerPortfolioOwner,
     bulkImportPartnerLeads,
     submitPartnerLead,
     onboardNewPartner,
     updatePartner,
+    getPartnerAgreement,
     deletePartner,
     setSelectedStudentId,
   } = useHearthAway();
@@ -63,15 +68,15 @@ export default function PartnersPage() {
 
   // Portfolio Owners list for assignments
   const portfolioOwners = useMemo(() => {
-    const uniqueUsers = new Map<string, (typeof availableUsers)[number]>();
-    availableUsers
-      .filter((u) => u.uid && u.displayName?.trim() && u.role !== 'partner' && u.status !== 'rejected' && u.status !== 'pending' && u.isApproved !== false)
-      .forEach((u) => uniqueUsers.set(u.uid, u));
-    return Array.from(uniqueUsers.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [availableUsers]);
+    if (portfolioOwnerOptions.length) return portfolioOwnerOptions;
+    return availableUsers.filter((user) => user.uid && user.displayName?.trim() && user.role === 'portfolio_owner' &&
+      user.status !== 'rejected' && user.status !== 'pending' && user.isApproved !== false)
+      .map(({ uid, displayName }) => ({ uid, displayName }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [availableUsers, portfolioOwnerOptions]);
 
   // Active Partner context for Partner role
-  const activePartnerId = isPartner && currentUser.partnerId ? currentUser.partnerId : 'PART-00482';
+  const activePartnerId = isPartner ? currentUser.partnerId : undefined;
   const currentPartnerRecord = partners.find((p) => p.partnerId === activePartnerId);
 
   // Search, Filter & View state for Partners
@@ -95,16 +100,15 @@ export default function PartnersPage() {
   const [onboardingError, setOnboardingError] = useState('');
   const [showSingleLeadModal, setShowSingleLeadModal] = useState(false);
   const [reassignPartnerTarget, setReassignPartnerTarget] = useState<Partner | null>(null);
-  const [selectedNewOwnerId, setSelectedNewOwnerId] = useState<string>('');
 
   // Agreement Modal state
   const [selectedAgreementPartner, setSelectedAgreementPartner] = useState<Partner | null>(null);
-  const [agreementStatus, setAgreementStatus] = useState<string>('Active');
+  const [agreementStatus, setAgreementStatus] = useState<AgreementStatus>('Active');
   const [agreementType, setAgreementType] = useState<string>('Master Services Agreement (MSA)');
   const [agreementSignedDate, setAgreementSignedDate] = useState<string>('');
   const [agreementExpiryDate, setAgreementExpiryDate] = useState<string>('');
   const [agreementTerms, setAgreementTerms] = useState<string>('');
-  const [agreementDocName, setAgreementDocName] = useState<string>('');
+  const [agreementFile, setAgreementFile] = useState<File | null>(null);
   const [agreementLogoUrl, setAgreementLogoUrl] = useState<string>('');
   const [agreementSaved, setAgreementSaved] = useState<boolean>(false);
   const [agreementSaving, setAgreementSaving] = useState<boolean>(false);
@@ -258,11 +262,30 @@ export default function PartnersPage() {
   const [newCity, setNewCity] = useState('Mumbai');
   const [newState, setNewState] = useState('Maharashtra');
   const [newCountry, setNewCountry] = useState('India');
-  const [newAgreementStatus, setNewAgreementStatus] = useState<any>('Active');
+  const [newAgreementStatus, setNewAgreementStatus] = useState<AgreementStatus>('Active');
   const [newAgreementType, setNewAgreementType] = useState('Master Services Agreement (MSA)');
   const [newAgreementTerms, setNewAgreementTerms] = useState('40% Commission, 120-day payment window');
-  const [newPortfolioOwnerId, setNewPortfolioOwnerId] = useState(portfolioOwners[0]?.uid || 'user-po-001');
+  const [newPortfolioOwnerId, setNewPortfolioOwnerId] = useState('');
   const [newCommissionRate, setNewCommissionRate] = useState('40');
+
+  const openNewPartner = () => {
+    setOnboardingPartner(null);
+    setOnboardingError('');
+    setNewCompanyName('');
+    setNewPartnerType('Study Abroad Consultant');
+    setNewContactPerson('');
+    setNewEmail('');
+    setNewPhone('');
+    setNewCity('Mumbai');
+    setNewState('Maharashtra');
+    setNewCountry('India');
+    setNewAgreementStatus('Active');
+    setNewAgreementType('Master Services Agreement (MSA)');
+    setNewAgreementTerms('40% Commission, 120-day payment window');
+    setNewPortfolioOwnerId('');
+    setNewCommissionRate('40');
+    setShowOnboardModal(true);
+  };
 
   const handleOpenAgreementModal = (partner: Partner) => {
     setSelectedAgreementPartner(partner);
@@ -273,7 +296,7 @@ export default function PartnersPage() {
       partner.agreementExpiryDate || '2027-10-15'
     );
     setAgreementTerms(partner.agreementTerms || `${partner.commissionRate}% Commission, 120-day payment window`);
-    setAgreementDocName(partner.agreementDocumentUrl || '');
+    setAgreementFile(null);
     setAgreementLogoUrl(partner.logoUrl || '');
     setAgreementSaved(false);
     setAgreementError('');
@@ -287,15 +310,13 @@ export default function PartnersPage() {
     setAgreementError('');
     try {
       await updatePartner(selectedAgreementPartner.partnerId, {
-        agreementStatus: 'Active',
+        agreementStatus,
         agreementType,
         agreementSignedDate,
         agreementExpiryDate,
         agreementTerms,
-        agreementDocumentUrl: agreementDocName.trim() || selectedAgreementPartner.agreementDocumentUrl || '',
         logoUrl: agreementLogoUrl || '',
-        status: 'Active',
-      });
+      }, agreementFile ?? undefined);
 
       setAgreementSaved(true);
       setTimeout(() => {
@@ -313,13 +334,38 @@ export default function PartnersPage() {
     const file = e.target.files?.[0];
     if (!file || !selectedAgreementPartner) return;
 
-    setAgreementDocName(file.name);
-    // Keep the selected file in the form until Save is pressed so all agreement fields persist together.
+    e.target.value = '';
     setAgreementSaved(false);
+    if (file.size === 0 || file.size > MAX_AGREEMENT_BYTES) {
+      setAgreementError('Choose a nonempty agreement file up to 768 KB.');
+      return;
+    }
+    setAgreementFile(file);
+    setAgreementError('');
+  };
+
+  const handleDownloadAgreement = async (partner: Partner) => {
+    setAgreementError('');
+    try {
+      const attachment = await getPartnerAgreement(partner.partnerId);
+      if (!attachment) {
+        setAgreementError('Only the original filename was saved. Attach the original again to enable download.');
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([attachment.bytes], { type: 'application/octet-stream' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = attachment.name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      setAgreementError(error instanceof Error ? error.message : 'Unable to download the agreement.');
+    }
   };
 
   const openPartnerOnboarding = (partner: Partner) => {
     setOnboardingPartner(partner);
+    setOnboardingError('');
     setNewCompanyName(partner.companyName);
     setNewPartnerType(partner.type);
     setNewContactPerson(partner.contactPerson);
@@ -328,11 +374,11 @@ export default function PartnersPage() {
     setNewCity(partner.city || 'Mumbai');
     setNewState(partner.state || 'Maharashtra');
     setNewCountry(partner.country || 'India');
-    setNewAgreementStatus(partner.agreementStatus || 'Pending Internal Review');
+    setNewAgreementStatus(partner.agreementStatus || 'Pending Review');
     setNewAgreementType(partner.agreementType || 'Master Services Agreement (MSA)');
     setNewAgreementTerms(partner.agreementTerms || '40% Commission, 120-day payment window');
-    setNewCommissionRate(String(partner.commissionRate || 40));
-    setNewPortfolioOwnerId(partner.portfolioOwnerId || portfolioOwners[0]?.uid || '');
+    setNewCommissionRate(String(partner.commissionRate ?? 40));
+    setNewPortfolioOwnerId(partner.portfolioOwnerId || '');
     setShowOnboardModal(true);
   };
 
@@ -342,6 +388,13 @@ export default function PartnersPage() {
     setIsOnboarding(true);
 
     const chosenPO = portfolioOwners.find((u) => u.uid === newPortfolioOwnerId);
+    if (!chosenPO && (!onboardingPartner || newPortfolioOwnerId !== onboardingPartner.portfolioOwnerId)) {
+      setOnboardingError('Choose an available portfolio owner.');
+      setIsOnboarding(false);
+      return;
+    }
+    const assignedId = chosenPO?.uid ?? onboardingPartner?.portfolioOwnerId ?? '';
+    const assignedName = chosenPO?.displayName ?? onboardingPartner?.portfolioOwnerName ?? '';
     const randomSeq = String(Math.floor(10000 + Math.random() * 90000));
     const generatedPartnerId = `PART-${randomSeq}`;
 
@@ -357,18 +410,15 @@ export default function PartnersPage() {
       country: newCountry.trim(),
       countries: [newCountry.trim() || 'India'],
       cities: [newCity.trim() || 'Mumbai'],
-      portfolioOwnerId: chosenPO?.uid || 'user-po-001',
-      portfolioOwnerName: chosenPO?.displayName || 'Primary Portfolio Manager',
-      assignedManagerId: chosenPO?.uid || 'user-po-001',
-      assignedManagerName: chosenPO?.displayName || 'Primary Portfolio Manager',
+      portfolioOwnerId: assignedId,
+      portfolioOwnerName: assignedName,
+      assignedManagerId: assignedId,
+      assignedManagerName: assignedName,
       agreementStatus: newAgreementStatus,
       agreementType: newAgreementType,
       agreementTerms: newAgreementTerms,
-      agreementSignedDate: new Date().toISOString().split('T')[0],
-      agreementExpiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'Active' as const,
-      onboardingDate: new Date().toISOString().split('T')[0],
-      commissionRate: Number(newCommissionRate) || 40,
+      ...(onboardingPartner ? {} : { status: 'Active' as const, onboardingDate: new Date().toISOString().split('T')[0] }),
+      commissionRate: newCommissionRate === '' ? 40 : Number(newCommissionRate),
     };
 
     try {
@@ -400,20 +450,6 @@ export default function PartnersPage() {
     } catch (error) {
       setOnboardingError(error instanceof Error ? error.message : 'Unable to delete partner.');
     }
-  };
-
-  // Reassign Partner Portfolio Owner Handler
-  const handleConfirmReassign = () => {
-    if (!reassignPartnerTarget || !selectedNewOwnerId) return;
-    const targetOwner = portfolioOwners.find((u) => u.uid === selectedNewOwnerId);
-    if (!targetOwner) return;
-
-    reassignPartnerPortfolioOwner(
-      reassignPartnerTarget.partnerId,
-      targetOwner.uid,
-      targetOwner.displayName
-    );
-    setReassignPartnerTarget(null);
   };
 
   // CSV Template Downloader
@@ -670,7 +706,7 @@ export default function PartnersPage() {
 
               {isManagement && (
                 <button
-                  onClick={() => { setOnboardingPartner(null); setOnboardingError(''); setShowOnboardModal(true); }}
+                  onClick={openNewPartner}
                   className="ha-primary-action"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -760,6 +796,13 @@ export default function PartnersPage() {
                   </div>
                 </div>
               </div>
+
+              {currentPartnerRecord && (
+                <div className="mt-4 rounded-lg border border-ha-line p-3">
+                  <h3 className="mb-2 text-xs font-semibold">Seasonal leads received / promised</h3>
+                  {seasonalTargets(currentPartnerRecord)}
+                </div>
+              )}
 
               {/* Agency Quick Stats */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-[#E8E6E1]">
@@ -945,9 +988,12 @@ export default function PartnersPage() {
                     <option value="All">All Agreements</option>
                     <option value="Active">Agreement: Active</option>
                     <option value="Signed">Agreement: Signed</option>
+                    <option value="Pending Review">Pending Review</option>
                     <option value="Pending Signature">Pending Signature</option>
                     <option value="Under Review">Under Review</option>
+                    <option value="Draft">Draft</option>
                     <option value="Expired">Expired</option>
+                    <option value="Terminated">Terminated</option>
                   </select>
 
                   {/* Filter by Partner Type */}
@@ -1218,7 +1264,6 @@ export default function PartnersPage() {
                                 <button
                                   onClick={() => {
                                     setReassignPartnerTarget(partner);
-                                    setSelectedNewOwnerId(partner.portfolioOwnerId || portfolioOwners[0]?.uid || '');
                                   }}
                                   className="text-xs text-[#00319D] hover:underline mt-0.5 block cursor-pointer"
                                 >
@@ -1320,7 +1365,7 @@ export default function PartnersPage() {
                   <select
                     id="partners-agreement-status"
                     value={agreementStatus}
-                    onChange={(e) => setAgreementStatus(e.target.value)}
+                    onChange={(e) => setAgreementStatus(AgreementStatusSchema.parse(e.target.value))}
                     className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs font-semibold text-[#1A1A1A] focus:border-[#00319D] focus:outline-none"
                   >
                     <option value="Active">Active / In Force</option>
@@ -1412,12 +1457,9 @@ export default function PartnersPage() {
                     <FileText className="h-3.5 w-3.5 text-[#00319D]" />
                     Contract Document File
                   </span>
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    Audit Verified
-                  </span>
                 </div>
                 <p className="text-xs text-[#6B6860]">
-                  Attach or download the signed MSA document or authorization letter for this partner.
+                  Attach or download the signed MSA or authorization letter. The file limit is 768 KB.
                 </p>
 
                 <div className="flex items-center gap-2 pt-1">
@@ -1427,7 +1469,7 @@ export default function PartnersPage() {
                     className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#FFFFFF] px-3 py-1.5 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/5 cursor-pointer"
                   >
                     <Upload className="h-3.5 w-3.5" />
-                    Upload Executed Agreement (PDF)
+                    Choose agreement file
                   </button>
                   <input
                     ref={agreementFileRef}
@@ -1437,25 +1479,18 @@ export default function PartnersPage() {
                     onChange={handleAgreementFileUpload}
                   />
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const docContent = `HEARTHAWAY MASTER SERVICES AGREEMENT (MSA)\nPartner: ${selectedAgreementPartner.companyName} (${selectedAgreementPartner.partnerId})\nTerritory: ${selectedAgreementPartner.city || 'Mumbai'}, ${selectedAgreementPartner.state || 'Maharashtra'}\nStatus: ${agreementStatus}\nAgreement Type: ${agreementType}\nSigned Date: ${agreementSignedDate}\nExpiry Date: ${agreementExpiryDate}\nTerms: ${agreementTerms}\nAuthorized Counterparty: ${selectedAgreementPartner.contactPerson} (${selectedAgreementPartner.email})\n\nExecuted under HearthAway Global Accommodation Partner Framework.`;
-                      const blob = new Blob([docContent], { type: 'text/plain;charset=utf-8' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `${selectedAgreementPartner.partnerId}_Agreement_Executed.txt`;
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                    }}
-                    className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 cursor-pointer"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    {agreementDocName || `${selectedAgreementPartner.partnerId}_MSA.pdf`}
-                  </button>
+                  {selectedAgreementPartner.agreementDocumentUrl && (
+                    <button
+                      type="button"
+                      onClick={() => void handleDownloadAgreement(selectedAgreementPartner)}
+                      className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 cursor-pointer"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download saved agreement
+                    </button>
+                  )}
                 </div>
+                {agreementFile && <p className="text-xs text-[#6B6860]" role="status">Selected: {agreementFile.name}</p>}
               </div>
 
               {agreementSaved && (
@@ -1696,7 +1731,7 @@ export default function PartnersPage() {
                             <td className="py-2 px-3 text-[#6B6860]">{r.email}</td>
                             <td className="py-2 px-3 text-[#6B6860]">{r.university}</td>
                             <td className="py-2 px-3 text-[#6B6860]">{r.destinationCity}</td>
-                            <td className="py-2 px-3 font-mono font-bold text-[#00319D]">£{r.budget}</td>
+                            <td className="py-2 px-3 font-mono font-bold text-[#00319D]">{r.currency} {r.budget}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1768,10 +1803,10 @@ export default function PartnersPage() {
 
       {/* MODAL 2: ONBOARD NEW PARTNER (with State, City, Agreement) */}
       {showOnboardModal && (
-        <WorkspaceDialog label="Onboard education consultant" onDismiss={() => setShowOnboardModal(false)}>
+        <WorkspaceDialog label={onboardingPartner ? 'Edit partner' : 'Onboard education consultant'} onDismiss={() => setShowOnboardModal(false)}>
           <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-[#1A1A1A]">Onboard Education Consultant</h3>
+              <h3 className="text-base font-semibold text-[#1A1A1A]">{onboardingPartner ? 'Edit partner' : 'Onboard Education Consultant'}</h3>
               <button
                 aria-label="Close dialog"
                 onClick={() => setShowOnboardModal(false)}
@@ -1845,13 +1880,17 @@ export default function PartnersPage() {
                   <select
                     id="partners-new-agreement-status"
                     value={newAgreementStatus}
-                    onChange={(e) => setNewAgreementStatus(e.target.value)}
+                    onChange={(e) => setNewAgreementStatus(AgreementStatusSchema.parse(e.target.value))}
                     className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
                   >
                     <option value="Active">Active</option>
                     <option value="Signed">Signed</option>
                     <option value="Pending Signature">Pending Signature</option>
                     <option value="Under Review">Under Review</option>
+                    <option value="Pending Review">Pending Review</option>
+                    <option value="Draft">Draft</option>
+                    <option value="Expired">Expired</option>
+                    <option value="Terminated">Terminated</option>
                   </select>
                 </div>
                 <div>
@@ -1880,9 +1919,13 @@ export default function PartnersPage() {
                   onChange={(e) => setNewPortfolioOwnerId(e.target.value)}
                   className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2 text-xs font-semibold text-[#1A1A1A] focus:border-[#00319D] focus:outline-none"
                 >
+                  <option value="">Choose a portfolio owner</option>
+                  {onboardingPartner?.portfolioOwnerId && !portfolioOwners.some((owner) => owner.uid === onboardingPartner.portfolioOwnerId) && (
+                    <option value={onboardingPartner.portfolioOwnerId}>{onboardingPartner.portfolioOwnerName || 'Current portfolio owner'}</option>
+                  )}
                   {portfolioOwners.map((po) => (
                     <option key={po.uid} value={po.uid}>
-                      {po.displayName} ({po.email})
+                      {po.displayName}
                     </option>
                   ))}
                 </select>
@@ -1943,12 +1986,12 @@ export default function PartnersPage() {
                 >
                   Cancel
                 </button>
-  <button
-  type="submit"
-  disabled={isOnboarding}
-  className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-  >
-  {isOnboarding ? 'Saving…' : 'Onboard Partner'}
+                <button
+                  type="submit"
+                  disabled={isOnboarding}
+                  className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                >
+                  {isOnboarding ? 'Saving…' : onboardingPartner ? 'Save changes' : 'Onboard Partner'}
                 </button>
               </div>
             </form>
@@ -1956,54 +1999,11 @@ export default function PartnersPage() {
         </WorkspaceDialog>
       )}
 
-      {/* MODAL 3: REASSIGN PORTFOLIO OWNER */}
       {reassignPartnerTarget && (
-        <WorkspaceDialog label="Reassign portfolio owner" onDismiss={() => setReassignPartnerTarget(null)}>
-          <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-semibold text-[#1A1A1A]">
-              Reassign {reassignPartnerTarget.companyName}
-            </h3>
-            <p className="text-xs text-[#6B6860] leading-relaxed">
-              Updating the Portfolio Owner will immediately and consistently roll up all leads sourced by this partner into the new Portfolio Owner&apos;s Portfolio, while preserving each lead&apos;s assigned sales Owner.
-            </p>
-
-            <div>
-              <label htmlFor="partners-selected-new-owner-id" className="block text-xs font-bold text-[#1A1A1A] mb-1">
-                New Portfolio Owner:
-              </label>
-              <select
-                id="partners-selected-new-owner-id"
-                value={selectedNewOwnerId}
-                onChange={(e) => setSelectedNewOwnerId(e.target.value)}
-                className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-2.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-              >
-                {portfolioOwners.map((owner) => (
-                  <option key={owner.uid} value={owner.uid}>
-                    {owner.displayName} ({owner.email})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setReassignPartnerTarget(null)}
-                className="rounded-lg border border-[#E8E6E1] px-3 py-1.5 text-xs font-semibold text-[#6B6860] hover:bg-[#F7F6F3] cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmReassign}
-                className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] cursor-pointer"
-              >
-                Confirm Reassignment
-              </button>
-            </div>
-          </div>
-        </WorkspaceDialog>
+        <PartnerOwnerDialog partner={reassignPartnerTarget} options={portfolioOwners}
+          onClose={() => setReassignPartnerTarget(null)} onSave={reassignPartnerPortfolioOwner} />
       )}
 
-      {/* MODAL 4: SUBMIT SINGLE LEAD (For Partner) */}
       {showSingleLeadModal && (
         <LeadDetailsDialog title="Submit student lead" onClose={() => setShowSingleLeadModal(false)}
           onSave={async (lead) => { await submitPartnerLead(lead); }} />
