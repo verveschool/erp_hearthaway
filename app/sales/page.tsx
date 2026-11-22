@@ -64,8 +64,11 @@ export default function SalesPage() {
     activities,
     availableUsers,
     leadOwnerOptions,
+    currentUser,
+    leadOperationsRole,
     setSelectedStudentId,
     reassignLeadOwner,
+    assignSalesOwner,
     submitPartnerLead,
     updateStudentDecoupledStatus,
     hideTestRecords,
@@ -401,7 +404,24 @@ export default function SalesPage() {
                         </select>
                       </td>
 
-                      <td className="py-3.5 px-4">{student.salesOwnerName || 'Unassigned'}</td>
+                      <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                        {['admin', 'management', 'sales'].includes(currentUser.role) && ['management', 'sales'].includes(leadOperationsRole) ? (
+                          <select
+                            aria-label={`Sales owner for ${student.fullName}`}
+                            value={student.salesOwnerId || ''}
+                            onChange={(e) => {
+                              const newOwner = leadOwnerOptions.find((user) => user.uid === e.target.value);
+                              setOwnerError('');
+                              void assignSalesOwner(student.studentId, newOwner?.uid || '', newOwner?.displayName || '').catch(() => setOwnerError('Could not update the sales owner. Open the lead to try again.'));
+                            }}
+                            className="rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-xs font-bold text-[#00319D] focus:outline-none focus:border-[#00319D] cursor-pointer"
+                          >
+                            <option value="">Unassigned</option>
+                            {!!student.salesOwnerId && !leadOwnerOptions.some((user) => user.uid === student.salesOwnerId) && <option value={student.salesOwnerId}>{student.salesOwnerName || 'Unknown owner'}</option>}
+                            {leadOwnerOptions.map((user) => <option key={user.uid} value={user.uid}>{user.displayName}</option>)}
+                          </select>
+                        ) : student.salesOwnerName || 'Unassigned'}
+                      </td>
 
                       <td className="py-3.5 px-4 align-top">
                         <div className="text-[#1A1A1A] font-medium whitespace-normal break-words">{student.destinationCity}</div>
