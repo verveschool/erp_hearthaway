@@ -521,6 +521,13 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
               <div className="min-w-0">
                 <h2 className="break-words text-xl font-bold text-ha-ink">{student.fullName}</h2>
                 <p className="mt-1 text-xs font-semibold text-ha-blue">{student.studentId}</p>
+                <p className="lead-desktop-metadata mt-1 flex items-start gap-1.5 break-words text-xs text-ha-secondary">
+                  <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  {student.destinationCity}, {student.destinationCountry} • {student.university} ({student.intake})
+                </p>
+                <p className="lead-desktop-metadata mt-1 break-words text-xs text-ha-secondary">
+                  Partner: <strong className="text-ha-ink">{student.partnerName || student.partnerId}</strong>
+                </p>
               </div>
 
               <button
@@ -532,7 +539,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
               </button>
             </div>
 
-            <div className="mt-2 space-y-1 break-words text-xs text-ha-secondary">
+            <div className="lead-mobile-metadata mt-2 space-y-1 break-words text-xs text-ha-secondary">
               {student.university && <p className="font-semibold text-ha-ink">{student.university}</p>}
               {destination && (
                 <p className="flex items-start gap-1.5">
@@ -594,6 +601,11 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
 
                 return (
                   <>
+                    <div className="lead-desktop-portfolio grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
+                      <span className="shrink-0">Portfolio owner</span>
+                      <strong className="min-w-0 break-words text-sm text-[#1A1A1A]">{portfolioOwner}</strong>
+                    </div>
+
                     {(['lead', 'sales'] as const).map((kind) => {
                       const isSales = kind === 'sales';
                       const label = isSales ? 'Sales owner' : 'Lead owner';
@@ -601,7 +613,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                       return (
                         <label key={kind} className="grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
                           <span className="shrink-0">{label}</span>
-                          {canEditOwners && (!isSales || leadOperationsRole === "management" || leadOperationsRole === "sales") ? <select aria-label={label} value={owner.id} className="w-full min-w-0 font-medium text-ha-blue"
+                          {canEditOwners && (!isSales || leadOperationsRole === "management" || leadOperationsRole === "sales") ? <select aria-label={label} value={owner.id} className="w-full min-w-0 bg-transparent text-sm font-semibold text-ha-blue"
                             onChange={(event) => {
                               const id = event.target.value;
                               const name = salesUsers.find((user) => user.uid === id)?.displayName || '';
@@ -612,7 +624,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                             <option value="">Unassigned</option>
                             {!!owner.id && !salesUsers.some((user) => user.uid === owner.id) && <option value={owner.id}>{owner.name}</option>}
                             {salesUsers.map((user) => <option key={user.uid} value={user.uid}>{user.displayName}</option>)}
-                          </select> : <strong className="break-words text-xs text-ha-ink">{owner.name}</strong>}
+                          </select> : <strong className="lead-owner-value break-words text-sm text-ha-ink">{owner.name}</strong>}
                         </label>
                       );
                     })}
@@ -625,7 +637,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                         aria-label="Pipeline Stage"
                         value={student.pipelineStage || 'New'}
                         onChange={(e) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: e.target.value as any })}
-                        className="w-full min-w-0 font-medium text-ha-blue focus-visible:outline-ha-blue cursor-pointer"
+                        className="w-full min-w-0 bg-transparent text-sm font-semibold text-[#00319D] focus-visible:outline-ha-blue cursor-pointer"
                       >
                         <option>New</option>
                         <option>Active</option>
@@ -645,7 +657,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                         aria-label="Priority"
                         value={student.priority || 'Medium'}
                         onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as any })}
-                        className="w-full min-w-0 font-medium text-ha-blue focus-visible:outline-ha-blue cursor-pointer"
+                        className="w-full min-w-0 bg-transparent text-sm font-semibold text-[#00319D] focus-visible:outline-ha-blue cursor-pointer"
                       >
                         <option>Urgent</option>
                         <option>High</option>
