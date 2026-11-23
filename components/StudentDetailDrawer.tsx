@@ -509,6 +509,12 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
   const portfolioOwner = partners.find((partner) => partner.partnerId === student.partnerId)?.portfolioOwnerName || 'Unassigned';
   const destination = [student.destinationCity, student.destinationCountry].filter(Boolean).join(', ');
 
+  function openArchiveDialog() {
+    setArchiveReason('');
+    setArchiveError('');
+    setArchivingLeadId(student.studentId);
+  }
+
   return (
     <>
     <LeadDetailSurface embedded={embedded} label="Student details" onClose={requestClose}>
@@ -519,14 +525,23 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
           <div className="border-b border-[#E8E6E1] px-6 py-4 bg-[#F7F6F3]">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
+                <div className="lead-desktop-metadata mb-1 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded border border-ha-line bg-white px-2 py-0.5 font-bold text-ha-blue">{student.studentId}</span>
+                  <span className="text-ha-secondary">
+                    Partner: <strong className="text-ha-ink">{student.partnerName || student.partnerId}</strong>
+                  </span>
+                  {leadOperationsRole === 'management' && (
+                    <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-ha-line px-2.5 py-1.5"
+                      onClick={openArchiveDialog}>
+                      <Archive className="h-3.5 w-3.5" aria-hidden="true" /> Archive lead
+                    </button>
+                  )}
+                </div>
                 <h2 className="break-words text-xl font-bold text-ha-ink">{student.fullName}</h2>
-                <p className="mt-1 text-xs font-semibold text-ha-blue">{student.studentId}</p>
+                <p className="lead-mobile-only mt-1 text-xs font-semibold text-ha-blue">{student.studentId}</p>
                 <p className="lead-desktop-metadata mt-1 flex items-start gap-1.5 break-words text-xs text-ha-secondary">
                   <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   {student.destinationCity}, {student.destinationCountry} • {student.university} ({student.intake})
-                </p>
-                <p className="lead-desktop-metadata mt-1 break-words text-xs text-ha-secondary">
-                  Partner: <strong className="text-ha-ink">{student.partnerName || student.partnerId}</strong>
                 </p>
               </div>
 
@@ -554,137 +569,138 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
               </div>
             </div>
 
-            {/* Quick Action Ribbon */}
-            <div className="lead-contact-actions mt-3 grid grid-cols-3 gap-1.5">
-              {/* Call */}
-              <a
-                href={`tel:${student.phone}`}
-                title={student.phone}
-                onClick={() =>
-                  logStudentActivity(student.studentId, 'Phone Call', `Outbound call initiated to ${student.phone}`)
-                }
-                className="flex items-center justify-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
-              >
-                <Phone className="h-3.5 w-3.5 text-[#00319D]" />
-                <span>Call</span>
-              </a>
-
-              {/* WhatsApp + Email */}
+            <div className="lead-record-controls">
+              <div className="lead-contact-actions mt-3 grid grid-cols-3 gap-1.5">
+                {/* Call */}
                 <a
-                  href={`https://wa.me/${student.whatsApp.replace(/[^0-9]/g, '')}?text=Hi%20${encodeURIComponent(student.firstName)},%20this%20is%20${encodeURIComponent(currentUser.displayName)}%20from%20HearthAway.`}
-                  target="_blank"
-                  rel="noreferrer"
+                  href={`tel:${student.phone}`}
+                  title={student.phone}
                   onClick={() =>
-                    logStudentActivity(student.studentId, 'WhatsApp Outbound', `WhatsApp chat initiated to ${student.whatsApp}`)
+                    logStudentActivity(student.studentId, 'Phone Call', `Outbound call initiated to ${student.phone}`)
                   }
-                  className="flex flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
                 >
-                  <MessageSquare className="h-3.5 w-3.5 text-[#00319D]" />
-                  WhatsApp
+                  <Phone className="h-3.5 w-3.5 text-[#00319D]" />
+                  <span className="min-w-0 [overflow-wrap:anywhere]">Call<span className="lead-desktop-metadata">{student.phone ? ` (${student.phone})` : ''}</span></span>
                 </a>
 
-                <a
-                  href={`mailto:${student.email}?subject=HearthAway%20Accommodation%20Update%20-${student.studentId}`}
-                  onClick={() =>
-                    logStudentActivity(student.studentId, 'Email Outbound', `Email client opened for ${student.email}`)
-                  }
-                  className="flex flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
-                >
-                  <Mail className="h-3.5 w-3.5 text-[#00319D]" />
-                  Email
-                </a>
-            </div>
+                {/* WhatsApp + Email */}
+                  <a
+                    href={`https://wa.me/${student.whatsApp.replace(/[^0-9]/g, '')}?text=Hi%20${encodeURIComponent(student.firstName)},%20this%20is%20${encodeURIComponent(currentUser.displayName)}%20from%20HearthAway.`}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() =>
+                      logStudentActivity(student.studentId, 'WhatsApp Outbound', `WhatsApp chat initiated to ${student.whatsApp}`)
+                    }
+                    className="flex flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 text-[#00319D]" />
+                    WhatsApp
+                  </a>
 
-            <div className="lead-assignment-fields mt-3 grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg border border-ha-line bg-white p-3">
-              {(() => {
-                const salesUsers = leadOwnerOptions.length ? leadOwnerOptions : availableUsers.filter((u) => u.role === 'sales');
-
-                return (
-                  <>
-                    <div className="lead-desktop-portfolio grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
-                      <span className="shrink-0">Portfolio owner</span>
-                      <strong className="min-w-0 break-words text-sm text-[#1A1A1A]">{portfolioOwner}</strong>
-                    </div>
-
-                    {(['lead', 'sales'] as const).map((kind) => {
-                      const isSales = kind === 'sales';
-                      const label = isSales ? 'Sales owner' : 'Lead owner';
-                      const owner = isSales ? { id: student.salesOwnerId || '', name: student.salesOwnerName || 'Unassigned' } : getLeadOwner(student);
-                      return (
-                        <label key={kind} className="grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
-                          <span className="shrink-0">{label}</span>
-                          {canEditOwners && (!isSales || leadOperationsRole === "management" || leadOperationsRole === "sales") ? <select aria-label={label} value={owner.id} className="w-full min-w-0 bg-transparent text-sm font-semibold text-ha-blue"
-                            onChange={(event) => {
-                              const id = event.target.value;
-                              const name = salesUsers.find((user) => user.uid === id)?.displayName || '';
-                              setOwnershipError('');
-                              const save = isSales ? assignSalesOwner : reassignLeadOwner;
-                              void save(student.studentId, id, name).catch((cause) => setOwnershipError(cause instanceof Error ? cause.message : 'Could not update ownership.'));
-                            }}>
-                            <option value="">Unassigned</option>
-                            {!!owner.id && !salesUsers.some((user) => user.uid === owner.id) && <option value={owner.id}>{owner.name}</option>}
-                            {salesUsers.map((user) => <option key={user.uid} value={user.uid}>{user.displayName}</option>)}
-                          </select> : <strong className="lead-owner-value break-words text-sm text-ha-ink">{owner.name}</strong>}
-                        </label>
-                      );
-                    })}
-
-
-                    {/* Pipeline Stage */}
-                    <label className="grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
-                      <span className="shrink-0">Pipeline stage</span>
-                      <select
-                        aria-label="Pipeline Stage"
-                        value={student.pipelineStage || 'New'}
-                        onChange={(e) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: e.target.value as any })}
-                        className="w-full min-w-0 bg-transparent text-sm font-semibold text-[#00319D] focus-visible:outline-ha-blue cursor-pointer"
-                      >
-                        <option>New</option>
-                        <option>Active</option>
-                        <option>Qualified</option>
-                        <option>Option Shared</option>
-                        <option>Payment</option>
-                        <option>Fulfilment</option>
-                        <option>Closed Won</option>
-                        <option>Disqualified</option>
-                        <option>Cancelled</option>
-                      </select>
-                    </label>
-                    {/* Priority */}
-                    <label className="grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
-                      <span className="shrink-0">Priority</span>
-                      <select
-                        aria-label="Priority"
-                        value={student.priority || 'Medium'}
-                        onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as any })}
-                        className="w-full min-w-0 bg-transparent text-sm font-semibold text-[#00319D] focus-visible:outline-ha-blue cursor-pointer"
-                      >
-                        <option>Urgent</option>
-                        <option>High</option>
-                        <option>Medium</option>
-                        <option>Low</option>
-                      </select>
-                    </label>
-                    {ownershipError && <p role="alert" className="col-span-full text-xs text-rose-700">{ownershipError}</p>}
-                  </>
-                );
-              })()}
-            </div>
-
-            {(canEditDetails || leadOperationsRole === 'management') && (
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                {canEditDetails && (
-                  <button type="button" className="min-h-10 rounded-lg px-2 text-xs font-bold text-ha-blue hover:bg-ha-canvas"
-                    onClick={() => setEditingLeadId(student.studentId)}>Edit lead</button>
-                )}
-                {leadOperationsRole === 'management' && (
-                  <button type="button" className="inline-flex items-center gap-1 min-h-10 rounded-lg px-2 text-xs text-ha-secondary hover:bg-ha-canvas"
-                    onClick={() => { setArchiveReason(''); setArchiveError(''); setArchivingLeadId(student.studentId); }}>
-                    <Archive className="h-3.5 w-3.5" aria-hidden="true" /> Archive lead
-                  </button>
-                )}
+                  <a
+                    href={`mailto:${student.email}?subject=HearthAway%20Accommodation%20Update%20-${student.studentId}`}
+                    onClick={() =>
+                      logStudentActivity(student.studentId, 'Email Outbound', `Email client opened for ${student.email}`)
+                    }
+                    className="flex flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
+                  >
+                    <Mail className="h-3.5 w-3.5 text-[#00319D]" />
+                    Email
+                  </a>
               </div>
-            )}
+
+              <div className="lead-assignment-fields mt-3 grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg border border-ha-line bg-white p-3">
+                {(() => {
+                  const salesUsers = leadOwnerOptions.length ? leadOwnerOptions : availableUsers.filter((u) => u.role === 'sales');
+
+                  return (
+                    <>
+                      <div className="lead-desktop-portfolio grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
+                        <span className="shrink-0">Portfolio owner</span>
+                        <strong className="min-w-0 break-words text-sm text-[#1A1A1A]">{portfolioOwner}</strong>
+                      </div>
+
+                      {(['lead', 'sales'] as const).map((kind) => {
+                        const isSales = kind === 'sales';
+                        const label = isSales ? 'Sales owner' : 'Lead owner';
+                        const owner = isSales ? { id: student.salesOwnerId || '', name: student.salesOwnerName || 'Unassigned' } : getLeadOwner(student);
+                        return (
+                          <label key={kind} className="grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
+                            <span className="shrink-0">{label}</span>
+                            {canEditOwners && (!isSales || leadOperationsRole === "management" || leadOperationsRole === "sales") ? <select aria-label={label} value={owner.id} className="w-full min-w-0 bg-transparent text-sm font-semibold text-ha-blue"
+                              onChange={(event) => {
+                                const id = event.target.value;
+                                const name = salesUsers.find((user) => user.uid === id)?.displayName || '';
+                                setOwnershipError('');
+                                const save = isSales ? assignSalesOwner : reassignLeadOwner;
+                                void save(student.studentId, id, name).catch((cause) => setOwnershipError(cause instanceof Error ? cause.message : 'Could not update ownership.'));
+                              }}>
+                              <option value="">Unassigned</option>
+                              {!!owner.id && !salesUsers.some((user) => user.uid === owner.id) && <option value={owner.id}>{owner.name}</option>}
+                              {salesUsers.map((user) => <option key={user.uid} value={user.uid}>{user.displayName}</option>)}
+                            </select> : <strong className="lead-owner-value break-words text-sm text-ha-ink">{owner.name}</strong>}
+                          </label>
+                        );
+                      })}
+
+
+                      {/* Pipeline Stage */}
+                      <label className="grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
+                        <span className="shrink-0">Pipeline stage</span>
+                        <select
+                          aria-label="Pipeline Stage"
+                          value={student.pipelineStage || 'New'}
+                          onChange={(e) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: e.target.value as any })}
+                          className="w-full min-w-0 bg-transparent text-sm font-semibold text-[#00319D] focus-visible:outline-ha-blue cursor-pointer"
+                        >
+                          <option>New</option>
+                          <option>Active</option>
+                          <option>Qualified</option>
+                          <option>Option Shared</option>
+                          <option>Payment</option>
+                          <option>Fulfilment</option>
+                          <option>Closed Won</option>
+                          <option>Disqualified</option>
+                          <option>Cancelled</option>
+                        </select>
+                      </label>
+                      {/* Priority */}
+                      <label className="grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
+                        <span className="shrink-0">Priority</span>
+                        <select
+                          aria-label="Priority"
+                          value={student.priority || 'Medium'}
+                          onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as any })}
+                          className="w-full min-w-0 bg-transparent text-sm font-semibold text-[#00319D] focus-visible:outline-ha-blue cursor-pointer"
+                        >
+                          <option>Urgent</option>
+                          <option>High</option>
+                          <option>Medium</option>
+                          <option>Low</option>
+                        </select>
+                      </label>
+                      {ownershipError && <p role="alert" className="col-span-full text-xs text-rose-700">{ownershipError}</p>}
+                    </>
+                  );
+                })()}
+              </div>
+
+              {(canEditDetails || leadOperationsRole === 'management') && (
+                <div className="lead-record-actions mt-1 flex flex-wrap items-center gap-2">
+                  {canEditDetails && (
+                    <button type="button" className="lead-edit-action min-h-10 rounded-lg px-2 text-xs font-bold text-ha-blue hover:bg-ha-canvas"
+                      onClick={() => setEditingLeadId(student.studentId)}>Edit lead</button>
+                  )}
+                  {leadOperationsRole === 'management' && (
+                    <button type="button" className="lead-mobile-only inline-flex items-center gap-1 min-h-10 rounded-lg px-2 text-xs text-ha-secondary hover:bg-ha-canvas"
+                      onClick={openArchiveDialog}>
+                      <Archive className="h-3.5 w-3.5" aria-hidden="true" /> Archive lead
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Navigation Tabs */}
             <div className="lead-record-tabs mt-3 flex border-b border-[#E8E6E1] gap-4 text-xs font-semibold overflow-x-auto">
@@ -1725,10 +1741,15 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
             {/* ========================================================= */}
             {activeTab === 'timeline' && (
               <div className="space-y-4">
-                <h3 className="flex items-center gap-1.5 text-sm font-bold text-ha-ink">
-                  <Clock className="h-4 w-4 text-ha-blue" aria-hidden="true" />
-                  Activity timeline
-                </h3>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="lead-activity-title flex items-center gap-1.5 text-sm font-bold text-ha-ink">
+                    <Clock className="h-4 w-4 text-ha-blue" aria-hidden="true" />
+                    Activity timeline<span className="lead-desktop-metadata"> ({studentActivities.length})</span>
+                  </h3>
+                  <span className="lead-desktop-metadata rounded border border-ha-line bg-ha-canvas px-2 py-0.5 text-xs text-ha-secondary">
+                    ABAC Log Guard Active
+                  </span>
+                </div>
 
                 <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3.5 text-xs text-[#1A1A1A]">
                   <span className="font-bold block mb-1">Lead Requirement Notes</span>
