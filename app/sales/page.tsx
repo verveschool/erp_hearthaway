@@ -3,26 +3,11 @@
 import { LeadDetailsDialog } from '@/components/LeadDetailsDialog';
 import { getLeadOwner } from '@/lib/lead-details';
 
-import React, { useState, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useHearthAway } from '@/lib/context';
-import {
-  Briefcase,
-  Users,
-  Search,
-  Filter,
-  Phone,
-  MessageSquare,
-  Clock,
-  CheckCircle2,
-  Calendar,
-  MapPin,
-  ChevronRight,
-  CreditCard,
-  Plus,
-  ArrowUpDown,
-  Building,
-  Download,
-} from 'lucide-react';
+import { ArrowUpDown, Download, Plus, Search } from 'lucide-react';
+import { SalesLeadWorkspace } from '@/components/SalesLeadWorkspace';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { exportToCSV } from '@/lib/export-csv';
 import type { PipelineStage } from '@/lib/types';
 
@@ -66,7 +51,6 @@ export default function SalesPage() {
     leadOwnerOptions,
     currentUser,
     leadOperationsRole,
-    setSelectedStudentId,
     reassignLeadOwner,
     assignSalesOwner,
     submitPartnerLead,
@@ -84,25 +68,34 @@ export default function SalesPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [ownerError, setOwnerError] = useState('');
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const leaveGuard = useRef<(() => boolean) | null>(null);
+  const registerLeaveGuard = useCallback((guard: (() => boolean) | null) => { leaveGuard.current = guard; }, []);
+  const selectedTrigger = useRef<HTMLButtonElement | null>(null);
+  const isMobile = useIsMobile();
+  const openStudentId = students.some((student) => student.studentId === selectedStudentId) ? selectedStudentId : null;
+
+  function openStudent(id: string, trigger: HTMLButtonElement | null) {
+    if (id === openStudentId || leaveGuard.current?.() === false) return;
+    selectedTrigger.current = trigger;
+    setSelectedStudentId(id);
+  }
+
+  function closeStudent() {
+    setSelectedStudentId(null);
+    requestAnimationFrame(() => selectedTrigger.current?.focus({ preventScroll: true }));
+  }
 
   const salesUsers = useMemo(() => {
     return leadOwnerOptions.length ? leadOwnerOptions : availableUsers.filter((u) => u.role === 'sales');
   }, [availableUsers, leadOwnerOptions]);
 
-  const stats = useMemo(() => {
-    return {
-      newLeads: students.filter((s) => (s.pipelineStage || 'New') === 'New').length,
-      activeLeads: students.filter((s) => ['Active', 'Qualified'].includes(s.pipelineStage || 'New')).length,
-      followUpsToday: students.filter((s) => s.nextFollowUpAt?.toLowerCase().includes('today') || s.nextFollowUpAt?.toLowerCase().includes('2 hours')).length,
-      processing: students.filter((s) => (s.pipelineStage || 'New') === 'Fulfilment').length,
-      paymentPending: students.filter((s) => (s.pipelineStage || 'New') === 'Payment').length,
-      booked: students.filter((s) => (s.pipelineStage || 'New') === 'Closed Won').length,
-    };
-  }, [students]);
+  const visibleStudents = useMemo(() => students.filter((student) => (
+    !hideTestRecords || (!student.isTestRecord && student.archivalStatus !== 'Flagged For Archival')
+  )), [hideTestRecords, students]);
 
   const filteredStudents = useMemo(() => {
-    const matchingStudents = students.filter((student) => {
-      const matchArchived = !hideTestRecords || (!student.isTestRecord && student.archivalStatus !== 'Flagged For Archival');
+    const matchingStudents = visibleStudents.filter((student) => {
       const matchSearch =
         searchQuery === '' ||
         student.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -121,7 +114,7 @@ export default function SalesPage() {
       const matchPriority = filterPriority === 'All' || student.priority === filterPriority;
       const matchDest = filterDestination === 'All' || student.destinationCity === filterDestination;
 
-      return matchArchived && matchSearch && matchStage && matchLeadOwner && matchSalesOwner && matchPriority && matchDest;
+      return matchSearch && matchStage && matchLeadOwner && matchSalesOwner && matchPriority && matchDest;
     });
 
     return matchingStudents.sort((a, b) => {
@@ -150,7 +143,7 @@ export default function SalesPage() {
 
       return createdB - createdA;
     });
-  }, [students, activities, searchQuery, filterStage, filterLeadOwner, filterSalesOwner, filterPriority, filterDestination, hideTestRecords, sortColumn, sortDirection]);
+  }, [visibleStudents, activities, searchQuery, filterStage, filterLeadOwner, filterSalesOwner, filterPriority, filterDestination, sortColumn, sortDirection]);
 
   const toggleSort = (column: 'createdAt' | 'lastActivity') => {
     if (sortColumn === column) {
@@ -214,27 +207,24 @@ export default function SalesPage() {
 
           <div className="mt-5 rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-[#6B6860]">Lead-to-booking pipeline</p>
-                <p className="mt-0.5 text-xs text-[#6B6860]">Click a stage to focus the lead queue.</p>
-              </div>
-              <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-[#6B6860] border border-[#E8E6E1]">{students.length} total leads</span>
+              <h2 className="text-xs font-bold uppercase tracking-wider text-ha-secondary">Lead-to-booking pipeline</h2>
+              <span className="rounded-full border border-ha-line bg-white px-2 py-1 text-xs font-bold text-ha-secondary">{visibleStudents.length} leads</span>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
               {PIPELINE_STAGES.map((stage) => {
-                const count = students.filter((student) => (student.pipelineStage || 'New') === stage.key).length;
+                const count = visibleStudents.filter((student) => (student.pipelineStage || 'New') === stage.key).length;
                 const isActive = filterStage === stage.key;
                 return (
                   <button
                     key={stage.key}
                     type="button"
                     onClick={() => setFilterStage(isActive ? 'All' : stage.key)}
-                    className={`rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-[#00319D] bg-[#00319D] text-white' : 'border-[#E8E6E1] bg-white text-[#1A1A1A] hover:border-[#00319D]/40'}`}
+                    className={`min-h-19 rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-ha-blue/50 bg-ha-blue/5' : 'border-ha-line bg-white hover:border-ha-blue/40'}`}
                     aria-pressed={isActive}
                   >
-                    <span className={`block text-lg font-semibold tabular-nums ${isActive ? 'text-white' : 'text-[#00319D]'}`}>{count}</span>
+                    <span className="block text-lg font-semibold tabular-nums text-ha-blue">{count}</span>
                     <span className="block text-xs font-semibold">{stage.label}</span>
-                    <span className={`mt-0.5 block text-xs ${isActive ? 'text-white/75' : 'text-[#6B6860]'}`}>{stage.hint}</span>
+                    <span className="mt-0.5 block text-xs text-ha-secondary">{stage.hint}</span>
                   </button>
                 );
               })}
@@ -247,107 +237,103 @@ export default function SalesPage() {
         {ownerError && <p role="alert" className="text-sm text-rose-700">{ownerError}</p>}
         {/* Search & Filter Toolbar */}
         <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3">
-          <div className="flex flex-col xl:flex-row gap-3">
-            <div className="relative min-w-0 flex-1">
+          <div className="sales-lead-filters">
+            <div className="sales-lead-search relative min-w-0">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
               <input
                 aria-label="Search sales leads"
                 type="text"
-                placeholder="Search leads by student name, ID, university, partner, or lead owner..."
+                placeholder="Search leads"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-none"
+                className="h-full w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-none"
               />
             </div>
 
-            <div className="flex max-w-full flex-wrap items-center gap-2">
-              {[
-                { label: 'Lead owner', value: filterLeadOwner, setValue: setFilterLeadOwner },
-                { label: 'Sales owner', value: filterSalesOwner, setValue: setFilterSalesOwner },
-              ].map(({ label, value, setValue }) => (
-                <label key={label} className="flex items-center gap-1.5 text-xs font-medium text-ha-secondary">
-                  {label}
-                  <select
-                    aria-label={`Filter by ${label.toLowerCase()}`}
-                    value={value}
-                    onChange={(e) => setValue(e.target.value)}
-                    className="max-w-36 rounded-lg border border-ha-line bg-white px-2 py-2 text-xs text-ha-ink focus:border-ha-blue"
-                  >
-                    <option value="All">Any</option>
-                    <option value="">Unassigned</option>
-                    {salesUsers.map((user) => <option key={user.uid} value={user.uid}>{user.displayName}</option>)}
-                  </select>
-                </label>
+            {[
+              { label: 'lead owner', value: filterLeadOwner, setValue: setFilterLeadOwner },
+              { label: 'sales owner', value: filterSalesOwner, setValue: setFilterSalesOwner },
+            ].map(({ label, value, setValue }) => (
+              <select
+                key={label}
+                aria-label={`Filter by ${label}`}
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                className="rounded-lg border border-ha-line bg-white px-2.5 text-xs font-medium text-ha-ink focus:border-ha-blue"
+              >
+                <option value="All">All {label}s</option>
+                <option value="">Unassigned</option>
+                {salesUsers.map((user) => <option key={user.uid} value={user.uid}>{user.displayName}</option>)}
+              </select>
+            ))}
+
+            {/* Lead Stage Filter */}
+            <select
+              aria-label="Filter by pipeline stage"
+              value={filterStage}
+              onChange={(e) => setFilterStage(e.target.value as PipelineFilter)}
+              className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
+            >
+              <option value="All">{isMobile ? 'All stages' : 'All pipeline stages'}</option>
+              {PIPELINE_STAGES.map((stage) => (
+                <option key={stage.key} value={stage.key}>{stage.label}</option>
               ))}
+              <option value="Disqualified">Disqualified</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
 
-              {/* Lead Stage Filter */}
-              <select
-                aria-label="Filter by pipeline stage"
-                value={filterStage}
-                onChange={(e) => setFilterStage(e.target.value as PipelineFilter)}
-                className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-              >
-                <option value="All">All Pipeline Stages</option>
-                {PIPELINE_STAGES.map((stage) => (
-                  <option key={stage.key} value={stage.key}>{stage.label}</option>
-                ))}
-                <option value="Disqualified">Disqualified</option>
-                <option value="Cancelled">Cancelled</option>
-              </select>
+            {/* Priority Filter */}
+            <select
+              aria-label="Filter by priority"
+              value={filterPriority}
+              onChange={(e) => setFilterPriority(e.target.value)}
+              className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
+            >
+              <option value="All">All priorities</option>
+              <option value="Urgent">Urgent</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
 
-              {/* Priority Filter */}
-              <select
-                aria-label="Filter by priority"
-                value={filterPriority}
-                onChange={(e) => setFilterPriority(e.target.value)}
-                className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-              >
-                <option value="All">All Priorities</option>
-                <option value="Urgent">Urgent</option>
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
-              </select>
-
-              <button
-                onClick={handleExportSalesLeadsCSV}
-                disabled={filteredStudents.length === 0}
-                className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-2 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
-                title="Download current leads table as CSV"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>Export CSV ({filteredStudents.length})</span>
-              </button>
-            </div>
+            <button
+              onClick={handleExportSalesLeadsCSV}
+              disabled={filteredStudents.length === 0}
+              className="sales-lead-export flex items-center justify-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-2 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+              title="Download current leads table as CSV"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Export CSV</span>
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#6B6860] pt-1 border-t border-[#E8E6E1]">
-            <span>Showing <strong>{filteredStudents.length}</strong> of <strong>{students.length}</strong> active sales leads</span>
-            <span className="text-xs text-[#00319D] font-medium">Select a student to view their record.</span>
-          </div>
+          <p role="status" className={filteredStudents.length === visibleStudents.length ? 'sr-only' : 'border-t border-ha-line pt-2 text-xs text-ha-secondary'}>
+            {filteredStudents.length === visibleStudents.length
+              ? `${visibleStudents.length} leads`
+              : `${filteredStudents.length} of ${visibleStudents.length} leads`}
+          </p>
         </div>
 
-        {/* Leads Table */}
-        <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
-          <div className="ha-table-scroll">
+        <SalesLeadWorkspace key={currentUser.uid} studentId={openStudentId} userId={currentUser.uid} onClose={closeStudent} registerLeaveGuard={registerLeaveGuard}>
+          <div className="ha-table-scroll sales-lead-scroll" tabIndex={0} role="region" aria-label="Sales leads table">
             <table className="ha-table sales-leads-table">
               <thead>
                 <tr>
-                  <th scope="col" className="py-3 px-4 font-bold">Student Name & ID</th>
-                  <th scope="col" className="py-3 px-4 font-bold">Sourcing Partner</th>
-                  <th scope="col" className="py-3 px-4 font-bold">Lead Owner</th>
-                  <th scope="col" className="py-3 px-4 font-bold">Sales Owner</th>
-                  <th scope="col" className="py-3 px-4 font-bold">University & City</th>
-                  <th scope="col" className="py-3 px-4 font-bold">Pipeline</th>
-                  <th scope="col" className="py-3 px-4 font-bold">Priority</th>
-                  <th scope="col" className="py-3 px-4 font-bold">
+                  <th data-column="student" scope="col" className="py-3 px-4 font-bold">Student Name & ID</th>
+                  <th data-column="partner" scope="col" className="py-3 px-4 font-bold">Sourcing Partner</th>
+                  <th data-column="lead-owner" scope="col" className="py-3 px-4 font-bold">Lead Owner</th>
+                  <th data-column="sales-owner" scope="col" className="py-3 px-4 font-bold">Sales Owner</th>
+                  <th data-column="city" scope="col" className="py-3 px-4 font-bold"><span className="sales-city-label">City</span><span className="sales-university">University & City</span></th>
+                  <th data-column="pipeline" scope="col" className="py-3 px-4 font-bold">Pipeline</th>
+                  <th data-column="priority" scope="col" className="py-3 px-4 font-bold">Priority</th>
+                  <th data-column="created" scope="col" className="py-3 px-4 font-bold">
                     <button type="button" onClick={() => toggleSort('createdAt')} className="inline-flex items-center gap-1 hover:text-[#00319D]">
                       Created On
                       <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
                       <span className="sr-only">{sortColumn === 'createdAt' ? `sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}` : 'sort'}</span>
                     </button>
                   </th>
-                  <th scope="col" className="py-3 px-4 font-bold">
+                  <th data-column="activity" scope="col" className="py-3 px-4 font-bold">
                     <button type="button" onClick={() => toggleSort('lastActivity')} className="inline-flex items-center gap-1 hover:text-[#00319D]">
                       Last Activity
                       <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
@@ -367,15 +353,20 @@ export default function SalesPage() {
                   return (
                     <tr
                       key={student.id}
-                      className="hover:bg-[#F7F6F3]/60 transition-colors cursor-pointer"
-                      onClick={() => setSelectedStudentId(student.studentId)}
+                      data-selected={openStudentId === student.studentId || undefined}
+                      className="cursor-pointer transition-colors hover:bg-ha-canvas/60"
+                      onClick={(event) => openStudent(student.studentId, event.currentTarget.querySelector('button'))}
                     >
-                      <td className="py-3.5 px-4">
-                        <button type="button" className="text-left font-semibold text-ha-blue hover:underline [overflow-wrap:anywhere]" onClick={(event) => { event.stopPropagation(); setSelectedStudentId(student.studentId); }}>{student.fullName}</button>
+                      <td data-column="student" className="py-3.5 px-4">
+                        <button type="button" title={student.fullName} aria-expanded={openStudentId === student.studentId}
+                          className="text-left font-semibold text-ha-blue hover:underline [overflow-wrap:anywhere]"
+                          onClick={(event) => { event.stopPropagation(); openStudent(student.studentId, event.currentTarget); }}>
+                          <span className="line-clamp-2">{student.fullName}</span>
+                        </button>
                         <div className="font-mono text-xs text-[#00319D]">{student.studentId}</div>
                       </td>
 
-                      <td className="py-3.5 px-4">
+                      <td data-column="partner" className="py-3.5 px-4">
                         <div className="font-semibold text-[#1A1A1A]">
                           {student.partnerName || student.partnerId}
                         </div>
@@ -383,7 +374,7 @@ export default function SalesPage() {
                       </td>
 
                       {/* Lead Owner with inline reassignment */}
-                      <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                      <td data-column="lead-owner" className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
                         <select
                           aria-label={`Lead owner for ${student.fullName}`}
                           value={getLeadOwner(student).id}
@@ -404,7 +395,7 @@ export default function SalesPage() {
                         </select>
                       </td>
 
-                      <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                      <td data-column="sales-owner" className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
                         {['admin', 'management', 'sales'].includes(currentUser.role) && ['management', 'sales'].includes(leadOperationsRole) ? (
                           <select
                             aria-label={`Sales owner for ${student.fullName}`}
@@ -423,12 +414,12 @@ export default function SalesPage() {
                         ) : student.salesOwnerName || 'Unassigned'}
                       </td>
 
-                      <td className="py-3.5 px-4 align-top">
+                      <td data-column="city" className="py-3.5 px-4 align-top">
                         <div className="text-[#1A1A1A] font-medium whitespace-normal break-words">{student.destinationCity}</div>
-                        <div title={student.university} className="line-clamp-3 text-xs text-[#6B6860] whitespace-normal break-words">{student.university}</div>
+                        <div title={student.university} className="sales-university line-clamp-3 text-xs text-[#6B6860] whitespace-normal break-words">{student.university}</div>
                       </td>
 
-                      <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                      <td data-column="pipeline" className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
                         <select
                           aria-label={`Pipeline stage for ${student.fullName}`}
                           value={student.pipelineStage || 'New'}
@@ -441,7 +432,7 @@ export default function SalesPage() {
                         </select>
                       </td>
 
-                      <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                      <td data-column="priority" className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
                         <select
                           aria-label={`Priority for ${student.fullName}`}
                           value={student.priority || 'Medium'}
@@ -452,11 +443,11 @@ export default function SalesPage() {
                         </select>
                       </td>
 
-                      <td className="py-3.5 px-4 whitespace-normal text-[#1A1A1A]">
+                      <td data-column="created" className="py-3.5 px-4 whitespace-normal text-[#1A1A1A]">
                         {formatLeadDate(student.createdAt)}
                       </td>
 
-                      <td className="py-3.5 px-4 whitespace-normal text-[#6B6860]">
+                      <td data-column="activity" className="py-3.5 px-4 whitespace-normal text-[#6B6860]">
                         {formatLeadDate(lastActivity, true)}
                       </td>
                     </tr>
@@ -465,7 +456,7 @@ export default function SalesPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </SalesLeadWorkspace>
       </div>
 
       {/* ADD LEAD MODAL */}

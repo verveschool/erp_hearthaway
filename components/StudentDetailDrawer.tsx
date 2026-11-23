@@ -4,7 +4,7 @@ import { LeadDetailsDialog } from '@/components/LeadDetailsDialog';
 import { getLeadOwner } from '@/lib/lead-details';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useLayoutEffect, useCallback, type ReactNode } from 'react';
 import { useHearthAway } from '@/lib/context';
 import {
   X,
@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import {
   Booking,
+  Student,
   Payment,
   PaymentProofAttachment,
   RentFrequency,
@@ -49,11 +50,46 @@ import {
   CURRENCY_SYMBOLS,
 } from '@/lib/types';
 
-export function StudentDetailDrawer() {
+export type RegisterLeadLeaveGuard = (guard: (() => boolean) | null) => void;
+
+export function StudentDetailDrawer({ studentId, embedded = false, onClose, registerLeaveGuard }: {
+  studentId?: string;
+  embedded?: boolean;
+  onClose?: () => void;
+  registerLeaveGuard?: RegisterLeadLeaveGuard;
+} = {}) {
+  const { selectedStudentId, setSelectedStudentId, students } = useHearthAway();
+  const id = studentId ?? selectedStudentId;
+  const student = id ? students.find((entry) => entry.studentId === id || entry.id === id) : undefined;
+  if (!student) return null;
+
+  return <StudentDetail
+    key={student.studentId}
+    student={student}
+    embedded={embedded}
+    onClose={onClose ?? (() => setSelectedStudentId(null))}
+    registerLeaveGuard={registerLeaveGuard}
+  />;
+}
+
+function LeadDetailSurface({ embedded, label, onClose, children }: {
+  embedded: boolean;
+  label: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return embedded
+    ? <aside id="sales-lead-panel" aria-label={label} className="sales-lead-panel">{children}</aside>
+    : <WorkspaceDialog label={label} onDismiss={onClose} drawer>{children}</WorkspaceDialog>;
+}
+
+function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
+  student: Student;
+  embedded: boolean;
+  onClose: () => void;
+  registerLeaveGuard?: RegisterLeadLeaveGuard;
+}) {
   const {
-    selectedStudentId,
-    setSelectedStudentId,
-    students,
     partners,
     activities,
     payments,
@@ -131,6 +167,23 @@ export function StudentDetailDrawer() {
   const [bookingFormError, setBookingFormError] = useState<string | null>(null);
 
   const [newNote, setNewNote] = useState('');
+  const [bookingDirty, setBookingDirty] = useState(false);
+  const [paymentDirty, setPaymentDirty] = useState(false);
+  const savingBooking = useRef(false);
+  const hasDraft = Boolean(newNote.trim() || bookingDirty || paymentDirty || selectedProofFiles.length);
+
+  const canLeave = useCallback(() => !savingBooking.current && !isUploadingPayment &&
+    (!hasDraft || window.confirm('Discard unsaved changes to this lead?')), [hasDraft, isUploadingPayment]);
+
+  useLayoutEffect(() => {
+    if (!registerLeaveGuard) return;
+    registerLeaveGuard(canLeave);
+    return () => registerLeaveGuard(null);
+  }, [canLeave, registerLeaveGuard]);
+
+  function requestClose() {
+    if (!registerLeaveGuard || canLeave()) onClose();
+  }
 
   const isManagementUser = currentUser.role === 'management' || currentUser.role === 'admin';
 
@@ -143,11 +196,6 @@ export function StudentDetailDrawer() {
     }
     return Number(((amount * rate) / 100).toFixed(2));
   }, [bookingCommissionRate, bookingCommissionableAmount]);
-
-  if (!selectedStudentId) return null;
-
-  const student = students.find((s) => s.studentId === selectedStudentId || s.id === selectedStudentId);
-  if (!student) return null;
 
   const studentActivities = activities.filter((a) => a.studentId === student.studentId);
   const studentPayments = payments.filter((p) => p.studentId === student.studentId);
@@ -162,7 +210,7 @@ export function StudentDetailDrawer() {
   const isPartner = currentUser.role === 'partner';
   if (isPartner && student.partnerId !== currentUser.partnerId) {
     return (
-      <WorkspaceDialog label="Access restricted" onDismiss={() => setSelectedStudentId(null)} drawer>
+      <LeadDetailSurface embedded={embedded} label="Access restricted" onClose={requestClose}>
         <div className="w-full max-w-md bg-[#FFFFFF] p-6 shadow-2xl flex flex-col justify-center items-center text-center border-l border-[#E8E6E1]">
           <div className="h-12 w-12 rounded-xl bg-[#F7F6F3] border border-[#E8E6E1] flex items-center justify-center text-[#00319D] mb-4">
             <AlertCircle className="h-6 w-6" />
@@ -172,13 +220,13 @@ export function StudentDetailDrawer() {
             Partner isolation boundary active. You can only view student records assigned to your organization.
           </p>
           <button
-            onClick={() => setSelectedStudentId(null)}
+            onClick={requestClose}
             className="mt-6 rounded-lg bg-[#00319D] px-4 py-2 text-xs font-semibold text-[#FFFFFF] hover:bg-[#00257A] transition-colors"
           >
             Close
           </button>
         </div>
-      </WorkspaceDialog>
+      </LeadDetailSurface>
     );
   }
 
@@ -310,6 +358,7 @@ export function StudentDetailDrawer() {
       });
 
       // Clear form
+      setPaymentDirty(false);
       setPaymentAmount('');
       setPaymentRemarks('');
       setSelectedProofFiles([]);
@@ -396,6 +445,7 @@ export function StudentDetailDrawer() {
     }
 
     // Reset booking form
+    setBookingDirty(false);
     setShowBookingForm(false);
     setBookingPropertyName('');
     setBookingPropertyAddress('');
@@ -408,6 +458,7 @@ export function StudentDetailDrawer() {
   };
 
   const handleStartEditBooking = (b: Booking) => {
+    setBookingDirty(false);
     setEditingBookingId(b.bookingId);
     setBookingPropertyName(b.propertyName);
     setBookingPropertyAddress(b.propertyAddress);
@@ -456,7 +507,8 @@ export function StudentDetailDrawer() {
   ];
 
   return (
-    <WorkspaceDialog label="Student details" onDismiss={() => setSelectedStudentId(null)} drawer>
+    <>
+    <LeadDetailSurface embedded={embedded} label="Student details" onClose={requestClose}>
       <div className="h-full min-w-0">
         <div className="ha-drawer-layout w-full max-w-3xl bg-[#FFFFFF] shadow-2xl flex flex-col h-full border-l border-[#E8E6E1] animate-in slide-in-from-right duration-200">
           
@@ -486,16 +538,16 @@ export function StudentDetailDrawer() {
               </div>
 
               <button
-                onClick={() => setSelectedStudentId(null)}
+                onClick={requestClose}
                 className="rounded-lg p-1.5 text-[#6B6860] hover:bg-[#E8E6E1] hover:text-[#1A1A1A] transition-colors"
-                aria-label="Close drawer"
+                aria-label={embedded ? "Close lead workspace" : "Close drawer"}
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Quick Action Ribbon */}
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:auto-rows-fr sm:grid-cols-3 text-xs">
+            <div className="lead-quick-actions mt-4 grid grid-cols-2 gap-2 sm:auto-rows-fr sm:grid-cols-3 text-xs">
               {/* Call */}
               <a
                 href={`tel:${student.phone}`}
@@ -505,7 +557,7 @@ export function StudentDetailDrawer() {
                 className="flex items-center justify-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
               >
                 <Phone className="h-3.5 w-3.5 text-[#00319D]" />
-                Call ({student.phone})
+                <span className="min-w-0 [overflow-wrap:anywhere]">Call ({student.phone})</span>
               </a>
 
               {/* WhatsApp + Email */}
@@ -691,7 +743,16 @@ export function StudentDetailDrawer() {
                       </div>
                     </div>
 
-                    <form onSubmit={handleSaveBooking} className="space-y-4">
+                    <form className="space-y-4" onChange={() => setBookingDirty(true)} onSubmit={async (event) => {
+                      event.preventDefault();
+                      if (savingBooking.current) return;
+                      savingBooking.current = true;
+                      try {
+                        await handleSaveBooking(event);
+                      } finally {
+                        savingBooking.current = false;
+                      }
+                    }}>
                       {bookingFormError && (
                         <div role="alert" className="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-700 flex items-center gap-2">
                           <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
@@ -705,7 +766,7 @@ export function StudentDetailDrawer() {
                           1. Accommodation &amp; Property Details
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lead-detail-grid-2 gap-3">
                           <div>
                             <label htmlFor="studentdetaildrawer-booking-property-name" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Property Name *
@@ -758,7 +819,7 @@ export function StudentDetailDrawer() {
                           2. Rent &amp; Deposit Financials
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 lead-detail-grid-3 gap-3">
                           <div>
                             <label htmlFor="studentdetaildrawer-booking-rent-amount" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Rent Amount *
@@ -815,7 +876,7 @@ export function StudentDetailDrawer() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lead-detail-grid-2 gap-3">
                           <div>
                             <label htmlFor="studentdetaildrawer-booking-deposit-amount" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Deposit Amount (Allows 0)
@@ -850,7 +911,7 @@ export function StudentDetailDrawer() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 lead-detail-grid-3 gap-3">
                           <div>
                             <label htmlFor="studentdetaildrawer-booking-tenancy-start-date" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Tenancy Start Date *
@@ -911,7 +972,7 @@ export function StudentDetailDrawer() {
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 lead-detail-grid-3 gap-3">
                           <div>
                             <label htmlFor="studentdetaildrawer-booking-commission-rate" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                               Commission Rate (%) *
@@ -1022,6 +1083,7 @@ export function StudentDetailDrawer() {
                           onClick={() => {
                             setShowBookingForm(false);
                             setEditingBookingId(null);
+                            setBookingDirty(false);
                           }}
                           className="rounded-lg border border-[#E8E6E1] px-3.5 py-2 text-xs font-semibold text-[#6B6860] hover:bg-[#F7F6F3]"
                         >
@@ -1107,7 +1169,7 @@ export function StudentDetailDrawer() {
                         </div>
 
                         {/* Financial Metrics Grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#F7F6F3] p-3.5 rounded-lg border border-[#E8E6E1]">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lead-detail-grid-4 gap-3 bg-[#F7F6F3] p-3.5 rounded-lg border border-[#E8E6E1]">
                           <div>
                             <span className="text-xs font-bold text-[#6B6860] uppercase tracking-wider block">
                               Rent &amp; Frequency
@@ -1224,7 +1286,7 @@ export function StudentDetailDrawer() {
                     Record Payment Transaction
                   </h4>
 
-                  <form onSubmit={handleUploadPayment} className="space-y-4">
+                  <form onSubmit={handleUploadPayment} onChange={() => setPaymentDirty(true)} className="space-y-4">
                     {paymentUploadError && (
                       <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 flex items-start gap-2">
                         <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
@@ -1232,7 +1294,7 @@ export function StudentDetailDrawer() {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 lead-detail-grid-3 gap-3">
                       <div>
                         <label htmlFor="studentdetaildrawer-payment-amount" className="block text-xs font-bold text-[#1A1A1A] mb-1">
                           Amount *
@@ -1371,7 +1433,7 @@ export function StudentDetailDrawer() {
                           <span className="text-xs font-bold text-[#1A1A1A] block">
                             Ready to upload ({filePreviews.length}):
                           </span>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lead-detail-grid-2 gap-2">
                             {filePreviews.map((preview, idx) => {
                               const isPdf = preview.type.includes('pdf') || preview.name.endsWith('.pdf');
                               return (
@@ -1542,7 +1604,7 @@ export function StudentDetailDrawer() {
                             Attached Payment Proofs ({pmt.attachments.length})
                           </span>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lead-detail-grid-2 gap-2">
                             {pmt.attachments.map((att) => {
                               const isPdf = att.fileType.includes('pdf') || att.fileName.toLowerCase().endsWith('.pdf');
                               return (
@@ -1723,6 +1785,8 @@ export function StudentDetailDrawer() {
         </div>
       </div>
 
+    </LeadDetailSurface>
+
       {/* ========================================================= */}
       {editingLeadId === student.studentId && (
         <LeadDetailsDialog title="Edit lead details" lead={student} onClose={() => setEditingLeadId(null)}
@@ -1739,6 +1803,7 @@ export function StudentDetailDrawer() {
             try {
               await archiveLead(student.studentId, archiveReason);
               setArchivingLeadId(null);
+              onClose();
             } catch (cause) {
               setArchiveError(cause instanceof Error ? cause.message : 'Could not archive this lead.');
             } finally {
@@ -1850,6 +1915,6 @@ export function StudentDetailDrawer() {
           </div>
         </WorkspaceDialog>
       )}
-    </WorkspaceDialog>
+    </>
   );
 }
