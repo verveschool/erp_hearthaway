@@ -32,7 +32,11 @@ export function LeadDetailsDialog({ title, lead, partners, onClose, onSave }: {
   const [saving, setSaving] = useState(false);
   const running = useRef(false);
   const [error, setError] = useState('');
-  const dismiss = () => { if (!running.current) onClose(); };
+  const [dirty, setDirty] = useState(false);
+  const dismiss = () => {
+    if (running.current || (lead && dirty && !window.confirm('Discard unsaved changes to this lead?'))) return;
+    onClose();
+  };
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,7 +69,7 @@ export function LeadDetailsDialog({ title, lead, partners, onClose, onSave }: {
 
   return (
     <WorkspaceDialog label={title} onDismiss={dismiss}>
-      <form onSubmit={submit} className="w-full max-w-2xl space-y-4 p-5 sm:p-6" aria-busy={saving}>
+      <form onSubmit={submit} onChange={() => { if (lead) setDirty(true); }} className="w-full max-w-2xl space-y-4 p-5 sm:p-6" aria-busy={saving}>
         <h2 className="text-lg font-semibold">{title}</h2>
         {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
         <fieldset disabled={saving} className="space-y-4">
