@@ -486,9 +486,10 @@ html:has(.ha-dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
   .sales-page-header > div > :first-child { flex-direction: row; align-items: center; justify-content: space-between; gap: .5rem; }
   .sales-toolbar-actions { justify-content: space-between; }
   .sales-compact-toggle { display: inline-flex; }
+  .sales-page .sales-desktop-add, .sales-pipeline-cards { display: none; }
   .sales-toolbar-fields { grid-template-columns: minmax(0, 1fr); }
   .sales-filter-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sales-pipeline-cards, .sales-filter-fields {
+  .sales-filter-fields {
     position: absolute;
     z-index: 2;
     inset: 100% 0 auto;
@@ -502,7 +503,7 @@ html:has(.ha-dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
     background: var(--ha-warm-gray);
     box-shadow: 0 4px 14px rgb(31 32 38 / 12%);
   }
-  .sales-pipeline-cards[data-open="false"], .sales-filter-fields[data-open="false"] { display: none; }
+  .sales-filter-fields[data-open="false"] { display: none; }
 }
 
 @media (max-width: 63.99rem) {
@@ -519,5 +520,5 @@ html:has(.ha-dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
   .ha-shell:has(.sales-page) > footer { padding-block: .25rem; }
   .sales-page-header { padding: .5rem; }
   .sales-page-header > div { gap: .25rem; }
-  .sales-pipeline-cards, .sales-filter-fields { max-height: 30dvh; }
+  .sales-filter-fields { max-height: 30dvh; }
 }
