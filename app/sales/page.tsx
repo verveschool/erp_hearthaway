@@ -5,7 +5,7 @@ import { getLeadOwner } from '@/lib/lead-details';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useHearthAway } from '@/lib/context';
-import { ArrowUpDown, Download, Plus, Search } from 'lucide-react';
+import { ArrowUpDown, Download, ListFilter, Plus, Search } from 'lucide-react';
 import { SalesLeadWorkspace } from '@/components/SalesLeadWorkspace';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { exportToCSV } from '@/lib/export-csv';
@@ -66,8 +66,7 @@ export default function SalesPage() {
   const [filterDestination, setFilterDestination] = useState<string>('All');
   const [sortColumn, setSortColumn] = useState<'createdAt' | 'lastActivity'>('lastActivity');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [openToolbar, setOpenToolbar] = useState<'stages' | 'filters' | null>(null);
-  const stageToggle = useRef<HTMLButtonElement>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const filterToggle = useRef<HTMLButtonElement>(null);
   const [ownerError, setOwnerError] = useState('');
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
@@ -187,11 +186,9 @@ export default function SalesPage() {
     <div className="ha-workspace sales-page">
       {/* Top Header */}
       <div className="ha-page-header sales-page-header" onKeyDown={(event) => {
-        if (event.key !== 'Escape' || !openToolbar) return;
-        const toggle = openToolbar === 'stages' ? stageToggle.current : filterToggle.current;
-        if (!toggle?.offsetWidth) return;
-        setOpenToolbar(null);
-        toggle.focus();
+        if (event.key !== 'Escape' || !filtersOpen || !filterToggle.current?.offsetWidth) return;
+        setFiltersOpen(false);
+        filterToggle.current.focus();
       }}>
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -207,7 +204,7 @@ export default function SalesPage() {
 
             <button
               onClick={() => setShowAddLeadModal(true)}
-              className="ha-primary-action"
+              className="ha-primary-action sales-desktop-add"
             >
               <Plus className="h-3.5 w-3.5" />
               Add Sales Lead
@@ -215,15 +212,15 @@ export default function SalesPage() {
           </div>
 
           <div className="sales-toolbar-actions">
-            <button ref={stageToggle} type="button" className="sales-compact-toggle"
-              aria-expanded={openToolbar === 'stages'} aria-controls="sales-pipeline-cards"
-              onClick={() => setOpenToolbar(openToolbar === 'stages' ? null : 'stages')}>
-              {openToolbar === 'stages' ? 'Hide stages' : 'Show stages'}
+            <button type="button" className="sales-compact-toggle" onClick={() => setShowAddLeadModal(true)}>
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              Add lead
             </button>
             <button ref={filterToggle} type="button" className="sales-compact-toggle"
-              aria-expanded={openToolbar === 'filters'} aria-controls="sales-filter-fields"
-              onClick={() => setOpenToolbar(openToolbar === 'filters' ? null : 'filters')}>
-              {openToolbar === 'filters' ? 'Hide filters' : 'Show filters'}
+              aria-expanded={filtersOpen} aria-controls="sales-filter-fields"
+              onClick={() => setFiltersOpen(!filtersOpen)}>
+              <ListFilter className="h-3.5 w-3.5" aria-hidden="true" />
+              Filter leads
             </button>
             <button type="button" onClick={handleExportSalesLeadsCSV} disabled={filteredStudents.length === 0}
               className="sales-export-action disabled:opacity-40">
@@ -232,7 +229,7 @@ export default function SalesPage() {
             </button>
           </div>
 
-          <div id="sales-pipeline-cards" data-open={openToolbar === 'stages'} className="sales-pipeline-cards grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+          <div className="sales-pipeline-cards grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
             {PIPELINE_STAGES.map((stage) => {
               const count = visibleStudents.filter((student) => (student.pipelineStage || 'New') === stage.key).length;
               const isActive = filterStage === stage.key;
@@ -240,11 +237,7 @@ export default function SalesPage() {
                 <button
                   key={stage.key}
                   type="button"
-                  onClick={() => {
-                    setFilterStage(isActive ? 'All' : stage.key);
-                    setOpenToolbar(null);
-                    if (stageToggle.current?.offsetWidth) stageToggle.current.focus();
-                  }}
+                  onClick={() => setFilterStage(isActive ? 'All' : stage.key)}
                   className={`min-h-19 rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-ha-blue/50 bg-ha-blue/5' : 'border-ha-line bg-white hover:border-ha-blue/40'}`}
                   aria-pressed={isActive}
                 >
@@ -269,7 +262,7 @@ export default function SalesPage() {
               />
             </div>
 
-            <div id="sales-filter-fields" data-open={openToolbar === 'filters'} className="sales-filter-fields">
+            <div id="sales-filter-fields" data-open={filtersOpen} className="sales-filter-fields">
               {[
                 { label: 'lead owner', value: filterLeadOwner, setValue: setFilterLeadOwner },
                 { label: 'sales owner', value: filterSalesOwner, setValue: setFilterSalesOwner },
