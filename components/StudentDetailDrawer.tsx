@@ -510,36 +510,26 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
     <>
     <LeadDetailSurface embedded={embedded} label="Student details" onClose={requestClose}>
       <div className="h-full min-w-0">
-        <div className="ha-drawer-layout w-full max-w-3xl bg-[#FFFFFF] shadow-2xl flex flex-col h-full border-l border-[#E8E6E1] animate-in slide-in-from-right duration-200">
+        <div className="ha-drawer-layout lead-record-layout w-full max-w-3xl bg-[#FFFFFF] shadow-2xl flex flex-col h-full border-l border-[#E8E6E1] animate-in slide-in-from-right duration-200">
           
           {/* Header */}
           <div className="border-b border-[#E8E6E1] px-6 py-4 bg-[#F7F6F3]">
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-xs font-bold text-[#00319D] bg-[#FFFFFF] border border-[#E8E6E1] px-2 py-0.5 rounded">
-                    {student.studentId}
-                  </span>
-                  <span className="text-xs font-medium text-[#6B6860]">
-                    Partner: <strong className="text-[#1A1A1A]">{student.partnerName || student.partnerId}</strong>
-                  </span>
-                  {leadOperationsRole === 'management' && (
-                    <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-ha-line px-2.5 py-1.5 text-xs"
-                      onClick={() => { setArchiveReason(''); setArchiveError(''); setArchivingLeadId(student.studentId); }}>
-                      <Archive className="h-3.5 w-3.5" aria-hidden="true" /> Archive lead
-                    </button>
-                  )}
-                </div>
-                <h2 className="text-xl font-bold text-[#1A1A1A] mt-1">{student.fullName}</h2>
-                <p className="text-xs text-[#6B6860] flex items-center gap-1.5 mt-0.5">
-                  <MapPin className="h-3.5 w-3.5 text-[#6B6860]" />
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="break-words text-xl font-bold text-ha-ink">{student.fullName}</h2>
+                <p className="mt-1 text-xs font-semibold text-ha-blue">{student.studentId}</p>
+                <p className="mt-1 flex items-start gap-1.5 break-words text-xs text-ha-secondary">
+                  <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   {student.destinationCity}, {student.destinationCountry} • {student.university} ({student.intake})
+                </p>
+                <p className="mt-1 break-words text-xs text-ha-secondary">
+                  Partner: <strong className="text-ha-ink">{student.partnerName || student.partnerId}</strong>
                 </p>
               </div>
 
               <button
                 onClick={requestClose}
-                className="rounded-lg p-1.5 text-[#6B6860] hover:bg-[#E8E6E1] hover:text-[#1A1A1A] transition-colors"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-[#6B6860] hover:bg-[#E8E6E1] hover:text-[#1A1A1A] transition-colors"
                 aria-label={embedded ? "Close lead workspace" : "Close drawer"}
               >
                 <X className="h-5 w-5" />
@@ -547,17 +537,18 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
             </div>
 
             {/* Quick Action Ribbon */}
-            <div className="lead-quick-actions mt-4 grid grid-cols-2 gap-2 sm:auto-rows-fr sm:grid-cols-3 text-xs">
+            <div className="lead-contact-actions mt-3 grid grid-cols-3 gap-1.5">
               {/* Call */}
               <a
                 href={`tel:${student.phone}`}
+                title={student.phone}
                 onClick={() =>
                   logStudentActivity(student.studentId, 'Phone Call', `Outbound call initiated to ${student.phone}`)
                 }
                 className="flex items-center justify-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] shadow-2xs transition-colors"
               >
                 <Phone className="h-3.5 w-3.5 text-[#00319D]" />
-                <span className="min-w-0 [overflow-wrap:anywhere]">Call ({student.phone})</span>
+                <span>Call</span>
               </a>
 
               {/* WhatsApp + Email */}
@@ -584,6 +575,9 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                   <Mail className="h-3.5 w-3.5 text-[#00319D]" />
                   Email
                 </a>
+            </div>
+
+            <div className="lead-assignment-fields mt-3 grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg border border-ha-line bg-white p-3">
               {(() => {
                 const partner = partners.find((p) => p.partnerId === student.partnerId);
                 const portfolioOwner = partner?.portfolioOwnerName || 'Unassigned';
@@ -592,7 +586,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                 return (
                   <>
                     {/* Portfolio Owner */}
-                    <div className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary">
+                    <div className="grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
                       <span className="shrink-0">Portfolio owner</span>
                       <strong className="min-w-0 break-words text-sm text-[#1A1A1A]">{portfolioOwner}</strong>
                     </div>
@@ -602,7 +596,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                       const label = isSales ? 'Sales owner' : 'Lead owner';
                       const owner = isSales ? { id: student.salesOwnerId || '', name: student.salesOwnerName || 'Unassigned' } : getLeadOwner(student);
                       return (
-                        <label key={kind} className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary">
+                        <label key={kind} className="grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
                           <span className="shrink-0">{label}</span>
                           {canEditOwners && (!isSales || leadOperationsRole === "management" || leadOperationsRole === "sales") ? <select aria-label={label} value={owner.id} className="w-full min-w-0 bg-transparent text-sm font-semibold text-ha-blue"
                             onChange={(event) => {
@@ -622,7 +616,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
 
 
                     {/* Pipeline Stage */}
-                    <label className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary">
+                    <label className="grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
                       <span className="shrink-0">Pipeline stage</span>
                       <select
                         aria-label="Pipeline Stage"
@@ -642,7 +636,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                       </select>
                     </label>
                     {/* Priority */}
-                    <label className="grid min-w-0 content-start gap-1 rounded-lg border border-ha-line bg-white px-3 py-2 text-xs text-ha-secondary">
+                    <label className="grid min-w-0 content-start gap-0.5 text-xs text-ha-secondary">
                       <span className="shrink-0">Priority</span>
                       <select
                         aria-label="Priority"
@@ -656,20 +650,29 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                         <option>Low</option>
                       </select>
                     </label>
-                  {canEditDetails && (
-                    <button type="button" className="rounded-lg border border-ha-line bg-white px-3 py-2 text-sm font-bold text-ha-blue hover:bg-ha-canvas"
-                      onClick={() => setEditingLeadId(student.studentId)}>Edit lead</button>
-                  )}
-
-
                     {ownershipError && <p role="alert" className="col-span-full text-xs text-rose-700">{ownershipError}</p>}
                   </>
                 );
               })()}
             </div>
 
+            {(canEditDetails || leadOperationsRole === 'management') && (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                {canEditDetails && (
+                  <button type="button" className="min-h-10 rounded-lg px-2 text-xs font-bold text-ha-blue hover:bg-ha-canvas"
+                    onClick={() => setEditingLeadId(student.studentId)}>Edit lead</button>
+                )}
+                {leadOperationsRole === 'management' && (
+                  <button type="button" className="inline-flex items-center gap-1 min-h-10 rounded-lg px-2 text-xs text-ha-secondary hover:bg-ha-canvas"
+                    onClick={() => { setArchiveReason(''); setArchiveError(''); setArchivingLeadId(student.studentId); }}>
+                    <Archive className="h-3.5 w-3.5" aria-hidden="true" /> Archive lead
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Navigation Tabs */}
-            <div className="mt-4 flex border-b border-[#E8E6E1] gap-4 text-xs font-semibold overflow-x-auto">
+            <div className="lead-record-tabs mt-3 flex border-b border-[#E8E6E1] gap-4 text-xs font-semibold overflow-x-auto">
               <button
                 aria-pressed={activeTab === 'timeline'}
                 onClick={() => setActiveTab('timeline')}
@@ -1707,15 +1710,10 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
             {/* ========================================================= */}
             {activeTab === 'timeline' && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="h-4 w-4 text-[#00319D]" />
-                    Activity Timeline ({studentActivities.length})
-                  </h3>
-                  <span className="text-xs font-mono text-[#6B6860] bg-[#F7F6F3] px-2 py-0.5 rounded border border-[#E8E6E1]">
-                    ABAC Log Guard Active
-                  </span>
-                </div>
+                <h3 className="flex items-center gap-1.5 text-sm font-bold text-ha-ink">
+                  <Clock className="h-4 w-4 text-ha-blue" aria-hidden="true" />
+                  Activity timeline
+                </h3>
 
                 <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3.5 text-xs text-[#1A1A1A]">
                   <span className="font-bold block mb-1">Lead Requirement Notes</span>

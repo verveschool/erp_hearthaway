@@ -66,7 +66,9 @@ export default function SalesPage() {
   const [filterDestination, setFilterDestination] = useState<string>('All');
   const [sortColumn, setSortColumn] = useState<'createdAt' | 'lastActivity'>('lastActivity');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [pipelineOpen, setPipelineOpen] = useState(false);
+  const [openToolbar, setOpenToolbar] = useState<'stages' | 'filters' | null>(null);
+  const stageToggle = useRef<HTMLButtonElement>(null);
+  const filterToggle = useRef<HTMLButtonElement>(null);
   const [ownerError, setOwnerError] = useState('');
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -184,7 +186,13 @@ export default function SalesPage() {
   return (
     <div className="ha-workspace sales-page">
       {/* Top Header */}
-      <div className="ha-page-header sales-page-header">
+      <div className="ha-page-header sales-page-header" onKeyDown={(event) => {
+        if (event.key !== 'Escape' || !openToolbar) return;
+        const toggle = openToolbar === 'stages' ? stageToggle.current : filterToggle.current;
+        if (!toggle?.offsetWidth) return;
+        setOpenToolbar(null);
+        toggle.focus();
+      }}>
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -206,43 +214,49 @@ export default function SalesPage() {
             </button>
           </div>
 
-          <div className="sales-pipeline mt-5 rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3">
-            <div className="sales-pipeline-heading flex items-center justify-between gap-3">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-ha-secondary">Lead-to-booking pipeline</h2>
-              <button type="button" className="sales-pipeline-toggle rounded-md px-2 py-1 text-xs font-semibold text-ha-blue"
-                aria-expanded={pipelineOpen} aria-controls="sales-pipeline-cards" onClick={() => setPipelineOpen(!pipelineOpen)}>
-                {pipelineOpen ? 'Hide stages' : 'Show stages'}
-              </button>
-              <span className="shrink-0 rounded-full border border-ha-line bg-white px-2 py-1 text-xs font-bold text-ha-secondary">{visibleStudents.length} leads</span>
-            </div>
-            <div id="sales-pipeline-cards" data-open={pipelineOpen} className="sales-pipeline-cards grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-              {PIPELINE_STAGES.map((stage) => {
-                const count = visibleStudents.filter((student) => (student.pipelineStage || 'New') === stage.key).length;
-                const isActive = filterStage === stage.key;
-                return (
-                  <button
-                    key={stage.key}
-                    type="button"
-                    onClick={() => { setFilterStage(isActive ? 'All' : stage.key); setPipelineOpen(false); }}
-                    className={`min-h-19 rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-ha-blue/50 bg-ha-blue/5' : 'border-ha-line bg-white hover:border-ha-blue/40'}`}
-                    aria-pressed={isActive}
-                  >
-                    <span className="block text-lg font-semibold tabular-nums text-ha-blue">{count}</span>
-                    <span className="block text-xs font-semibold">{stage.label}</span>
-                    <span className="mt-0.5 block text-xs text-ha-secondary">{stage.hint}</span>
-                  </button>
-                );
-              })}
-            </div>
+          <div className="sales-toolbar-actions">
+            <button ref={stageToggle} type="button" className="sales-compact-toggle"
+              aria-expanded={openToolbar === 'stages'} aria-controls="sales-pipeline-cards"
+              onClick={() => setOpenToolbar(openToolbar === 'stages' ? null : 'stages')}>
+              {openToolbar === 'stages' ? 'Hide stages' : 'Show stages'}
+            </button>
+            <button ref={filterToggle} type="button" className="sales-compact-toggle"
+              aria-expanded={openToolbar === 'filters'} aria-controls="sales-filter-fields"
+              onClick={() => setOpenToolbar(openToolbar === 'filters' ? null : 'filters')}>
+              {openToolbar === 'filters' ? 'Hide filters' : 'Show filters'}
+            </button>
+            <button type="button" onClick={handleExportSalesLeadsCSV} disabled={filteredStudents.length === 0}
+              className="sales-export-action disabled:opacity-40">
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              Export CSV
+            </button>
           </div>
-        </div>
-      </div>
 
-      <div className="sales-page-content">
-        {ownerError && <p role="alert" className="text-sm text-rose-700">{ownerError}</p>}
-        {/* Search & Filter Toolbar */}
-        <div className="sales-filter-panel rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3 shadow-2xs space-y-2">
-          <div className="sales-lead-filters">
+          <div id="sales-pipeline-cards" data-open={openToolbar === 'stages'} className="sales-pipeline-cards grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+            {PIPELINE_STAGES.map((stage) => {
+              const count = visibleStudents.filter((student) => (student.pipelineStage || 'New') === stage.key).length;
+              const isActive = filterStage === stage.key;
+              return (
+                <button
+                  key={stage.key}
+                  type="button"
+                  onClick={() => {
+                    setFilterStage(isActive ? 'All' : stage.key);
+                    setOpenToolbar(null);
+                    if (stageToggle.current?.offsetWidth) stageToggle.current.focus();
+                  }}
+                  className={`min-h-19 rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-ha-blue/50 bg-ha-blue/5' : 'border-ha-line bg-white hover:border-ha-blue/40'}`}
+                  aria-pressed={isActive}
+                >
+                  <span className="block text-lg font-semibold tabular-nums text-ha-blue">{count}</span>
+                  <span className="block text-xs font-semibold">{stage.label}</span>
+                  <span className="mt-0.5 block text-xs text-ha-secondary">{stage.hint}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="sales-toolbar-fields">
             <div className="sales-lead-search relative min-w-0">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
               <input
@@ -255,70 +269,64 @@ export default function SalesPage() {
               />
             </div>
 
-            {[
-              { label: 'lead owner', value: filterLeadOwner, setValue: setFilterLeadOwner },
-              { label: 'sales owner', value: filterSalesOwner, setValue: setFilterSalesOwner },
-            ].map(({ label, value, setValue }) => (
-              <select
-                key={label}
-                aria-label={`Filter by ${label}`}
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                className="rounded-lg border border-ha-line bg-white px-2.5 text-xs font-medium text-ha-ink focus:border-ha-blue"
-              >
-                <option value="All">All {label}s</option>
-                <option value="">Unassigned</option>
-                {salesUsers.map((user) => <option key={user.uid} value={user.uid}>{user.displayName}</option>)}
-              </select>
-            ))}
-
-            {/* Lead Stage Filter */}
-            <select
-              aria-label="Filter by pipeline stage"
-              value={filterStage}
-              onChange={(e) => setFilterStage(e.target.value as PipelineFilter)}
-              className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-            >
-              <option value="All">{isMobile ? 'All stages' : 'All pipeline stages'}</option>
-              {PIPELINE_STAGES.map((stage) => (
-                <option key={stage.key} value={stage.key}>{stage.label}</option>
+            <div id="sales-filter-fields" data-open={openToolbar === 'filters'} className="sales-filter-fields">
+              {[
+                { label: 'lead owner', value: filterLeadOwner, setValue: setFilterLeadOwner },
+                { label: 'sales owner', value: filterSalesOwner, setValue: setFilterSalesOwner },
+              ].map(({ label, value, setValue }) => (
+                <select
+                  key={label}
+                  aria-label={`Filter by ${label}`}
+                  value={value}
+                  onChange={(event) => setValue(event.target.value)}
+                  className="rounded-lg border border-ha-line bg-white px-2.5 text-xs font-medium text-ha-ink focus:border-ha-blue"
+                >
+                  <option value="All">All {label}s</option>
+                  <option value="">Unassigned</option>
+                  {salesUsers.map((user) => <option key={user.uid} value={user.uid}>{user.displayName}</option>)}
+                </select>
               ))}
-              <option value="Disqualified">Disqualified</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
 
-            {/* Priority Filter */}
-            <select
-              aria-label="Filter by priority"
-              value={filterPriority}
-              onChange={(e) => setFilterPriority(e.target.value)}
-              className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
-            >
-              <option value="All">All priorities</option>
-              <option value="Urgent">Urgent</option>
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
-            </select>
+              {/* Lead Stage Filter */}
+              <select
+                aria-label="Filter by pipeline stage"
+                value={filterStage}
+                onChange={(e) => setFilterStage(e.target.value as PipelineFilter)}
+                className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
+              >
+                <option value="All">{isMobile ? 'All stages' : 'All pipeline stages'}</option>
+                {PIPELINE_STAGES.map((stage) => (
+                  <option key={stage.key} value={stage.key}>{stage.label}</option>
+                ))}
+                <option value="Disqualified">Disqualified</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
 
-            <button
-              onClick={handleExportSalesLeadsCSV}
-              disabled={filteredStudents.length === 0}
-              className="sales-lead-export flex items-center justify-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-2 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
-              title="Download current leads table as CSV"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>Export CSV</span>
-            </button>
+              {/* Priority Filter */}
+              <select
+                aria-label="Filter by priority"
+                value={filterPriority}
+                onChange={(e) => setFilterPriority(e.target.value)}
+                className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
+              >
+                <option value="All">All priorities</option>
+                <option value="Urgent">Urgent</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
           </div>
-
-          <p role="status" className={filteredStudents.length === visibleStudents.length ? 'sr-only' : 'border-t border-ha-line pt-2 text-xs text-ha-secondary'}>
+          <p role="status" className="sales-lead-count text-xs text-ha-secondary">
             {filteredStudents.length === visibleStudents.length
               ? `${visibleStudents.length} leads`
               : `${filteredStudents.length} of ${visibleStudents.length} leads`}
           </p>
         </div>
+      </div>
 
+      <div className="sales-page-content">
+        {ownerError && <p role="alert" className="text-sm text-rose-700">{ownerError}</p>}
         <SalesLeadWorkspace key={currentUser.uid} studentId={openStudentId} userId={currentUser.uid} onClose={closeStudent} registerLeaveGuard={registerLeaveGuard}>
           <div className="ha-table-scroll sales-lead-scroll" tabIndex={0} role="region" aria-label="Sales leads table">
             <table className="ha-table sales-leads-table">
