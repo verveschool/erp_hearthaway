@@ -190,17 +190,9 @@ export default function SalesPage() {
         setFiltersOpen(false);
         filterToggle.current.focus();
       }}>
-        <div>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-
-              <h1 className="ha-title">
-                Sales
-              </h1>
-              <p className="ha-summary sales-page-summary">
-                Manage student leads, assign internal lead owners, coordinate booking progression, and record payments.
-              </p>
-            </div>
+        <div className="sales-overview">
+          <div className="sales-overview-title flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <h1 className="ha-title">Sales</h1>
 
             <button
               onClick={() => setShowAddLeadModal(true)}
@@ -208,24 +200,6 @@ export default function SalesPage() {
             >
               <Plus className="h-3.5 w-3.5" />
               Add Sales Lead
-            </button>
-          </div>
-
-          <div className="sales-toolbar-actions">
-            <button type="button" className="sales-compact-toggle" onClick={() => setShowAddLeadModal(true)}>
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              Add lead
-            </button>
-            <button ref={filterToggle} type="button" className="sales-compact-toggle"
-              aria-expanded={filtersOpen} aria-controls="sales-filter-fields"
-              onClick={() => setFiltersOpen(!filtersOpen)}>
-              <ListFilter className="h-3.5 w-3.5" aria-hidden="true" />
-              Filter leads
-            </button>
-            <button type="button" onClick={handleExportSalesLeadsCSV} disabled={filteredStudents.length === 0}
-              className="sales-export-action disabled:opacity-40">
-              <Download className="h-3.5 w-3.5" aria-hidden="true" />
-              Export CSV
             </button>
           </div>
 
@@ -248,7 +222,27 @@ export default function SalesPage() {
               );
             })}
           </div>
+        </div>
 
+        <div className="sales-toolbar-actions">
+          <button type="button" className="sales-compact-toggle" onClick={() => setShowAddLeadModal(true)}>
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            Add lead
+          </button>
+          <button ref={filterToggle} type="button" className="sales-compact-toggle"
+            aria-expanded={filtersOpen} aria-controls="sales-filter-fields"
+            onClick={() => setFiltersOpen(!filtersOpen)}>
+            <ListFilter className="h-3.5 w-3.5" aria-hidden="true" />
+            Filter leads
+          </button>
+          <button type="button" onClick={handleExportSalesLeadsCSV} disabled={filteredStudents.length === 0}
+            className="sales-export-action disabled:opacity-40">
+            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+            Export CSV
+          </button>
+        </div>
+
+        <div className="sales-filter-bar">
           <div className="sales-toolbar-fields">
             <div className="sales-lead-search relative min-w-0">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
@@ -309,8 +303,14 @@ export default function SalesPage() {
                 <option value="Low">Low</option>
               </select>
             </div>
+            <button type="button" onClick={handleExportSalesLeadsCSV} disabled={filteredStudents.length === 0}
+              className="sales-desktop-export items-center justify-center gap-1.5 rounded-lg border border-ha-blue bg-ha-blue/5 px-3 py-2 text-xs font-bold text-ha-blue hover:bg-ha-blue/15 disabled:opacity-40">
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              Export CSV
+            </button>
           </div>
-          <p role="status" className="sales-lead-count text-xs text-ha-secondary">
+          <p role="status" data-filtered={filteredStudents.length !== visibleStudents.length}
+            className="sales-lead-count text-xs text-ha-secondary">
             {filteredStudents.length === visibleStudents.length
               ? `${visibleStudents.length} leads`
               : `${filteredStudents.length} of ${visibleStudents.length} leads`}
