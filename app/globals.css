@@ -406,6 +406,8 @@ html:has(.ha-dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
   .sales-lead-panel .ha-drawer-body { padding-inline: 1rem; }
 }
 
+html:has(.sales-page) { overflow: hidden; }
+
 .ha-shell:has(.sales-page) {
   height: 100dvh;
   overflow: clip;
