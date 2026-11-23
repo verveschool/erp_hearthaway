@@ -460,19 +460,25 @@ html:has(.ha-dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
 .sales-page, .lead-record-layout { font-family: Lato, sans-serif; }
 .sales-leads-table { font-size: .875rem; }
 .sales-leads-table :is(thead, td *):not(svg, svg *) { font-size: inherit; font-family: inherit; }
-/* Keep editable values visibly distinct from links, including on mobile. */
-.ha-workspace :is(.sales-leads-table, .sales-filter-fields) select:not([type]),
-.ha-workspace .lead-assignment-fields select:not([type]),
-.ha-dialog .lead-assignment-fields select:not([type]) {
-  border: 1px solid #cfccc5;
-  border-radius: .375rem;
-  background-color: white;
-  padding-inline: .5rem;
-  font-size: .8125rem;
+.ha-workspace .sales-leads-table select:not([type]) { font-size: inherit; min-height: 2rem; }
+.lead-mobile-metadata { display: none; }
+.lead-desktop-portfolio { grid-column: 1 / -1; }
+
+@media (max-width: 63.99rem) {
+  .lead-mobile-metadata { display: block; }
+  .lead-desktop-metadata, .lead-desktop-portfolio { display: none; }
+  .lead-assignment-fields .lead-owner-value { font-size: .75rem; }
+  .ha-workspace :is(.sales-leads-table, .sales-filter-fields) select:not([type]),
+  .ha-workspace .lead-assignment-fields select:not([type]),
+  .ha-dialog .lead-assignment-fields select:not([type]) {
+    border: 1px solid #cfccc5;
+    border-radius: .375rem;
+    background-color: white;
+    padding-inline: .5rem;
+    font-size: .8125rem;
+    font-weight: 500;
+  }
 }
-
-.ha-workspace .sales-leads-table select:not([type]) { min-height: 2rem; }
-
 
 .lead-contact-actions > a { min-width: 0; min-height: 2.5rem; padding-inline: .25rem; box-shadow: none; }
 .lead-contact-actions svg { flex-shrink: 0; }
