@@ -66,6 +66,7 @@ export default function SalesPage() {
   const [filterDestination, setFilterDestination] = useState<string>('All');
   const [sortColumn, setSortColumn] = useState<'createdAt' | 'lastActivity'>('lastActivity');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [pipelineOpen, setPipelineOpen] = useState(false);
   const [ownerError, setOwnerError] = useState('');
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -181,9 +182,9 @@ export default function SalesPage() {
   };
 
   return (
-    <div className="ha-workspace">
+    <div className="ha-workspace sales-page">
       {/* Top Header */}
-      <div className="ha-page-header">
+      <div className="ha-page-header sales-page-header">
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -191,7 +192,7 @@ export default function SalesPage() {
               <h1 className="ha-title">
                 Sales
               </h1>
-              <p className="ha-summary">
+              <p className="ha-summary sales-page-summary">
                 Manage student leads, assign internal lead owners, coordinate booking progression, and record payments.
               </p>
             </div>
@@ -205,12 +206,16 @@ export default function SalesPage() {
             </button>
           </div>
 
-          <div className="mt-5 rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3">
-            <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="sales-pipeline mt-5 rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3">
+            <div className="sales-pipeline-heading flex items-center justify-between gap-3">
               <h2 className="text-xs font-bold uppercase tracking-wider text-ha-secondary">Lead-to-booking pipeline</h2>
-              <span className="rounded-full border border-ha-line bg-white px-2 py-1 text-xs font-bold text-ha-secondary">{visibleStudents.length} leads</span>
+              <button type="button" className="sales-pipeline-toggle rounded-md px-2 py-1 text-xs font-semibold text-ha-blue"
+                aria-expanded={pipelineOpen} aria-controls="sales-pipeline-cards" onClick={() => setPipelineOpen(!pipelineOpen)}>
+                {pipelineOpen ? 'Hide stages' : 'Show stages'}
+              </button>
+              <span className="shrink-0 rounded-full border border-ha-line bg-white px-2 py-1 text-xs font-bold text-ha-secondary">{visibleStudents.length} leads</span>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+            <div id="sales-pipeline-cards" data-open={pipelineOpen} className="sales-pipeline-cards grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
               {PIPELINE_STAGES.map((stage) => {
                 const count = visibleStudents.filter((student) => (student.pipelineStage || 'New') === stage.key).length;
                 const isActive = filterStage === stage.key;
@@ -218,7 +223,7 @@ export default function SalesPage() {
                   <button
                     key={stage.key}
                     type="button"
-                    onClick={() => setFilterStage(isActive ? 'All' : stage.key)}
+                    onClick={() => { setFilterStage(isActive ? 'All' : stage.key); setPipelineOpen(false); }}
                     className={`min-h-19 rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-ha-blue/50 bg-ha-blue/5' : 'border-ha-line bg-white hover:border-ha-blue/40'}`}
                     aria-pressed={isActive}
                   >
@@ -233,10 +238,10 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <div className="min-w-0 pt-5 space-y-4">
+      <div className="sales-page-content">
         {ownerError && <p role="alert" className="text-sm text-rose-700">{ownerError}</p>}
         {/* Search & Filter Toolbar */}
-        <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3">
+        <div className="sales-filter-panel rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-3 shadow-2xs space-y-2">
           <div className="sales-lead-filters">
             <div className="sales-lead-search relative min-w-0">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
