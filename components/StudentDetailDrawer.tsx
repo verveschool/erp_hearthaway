@@ -1790,7 +1790,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                   )}
                 </div>
 
-                <form onSubmit={handleAddNote} className="space-y-2">
+                <form onSubmit={handleAddNote} className="relative space-y-2">
                   <label htmlFor="activity-note" className="sr-only">Add activity note</label>
                   <textarea
                     id="activity-note"
