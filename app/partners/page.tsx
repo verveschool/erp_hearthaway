@@ -1,5 +1,9 @@
 'use client';
 
+import { WorkspaceSearch } from '@/components/WorkspaceSearch';
+import { matchesSearch } from '@/lib/utils';
+import { ConfirmActionDialog } from '@/components/ConfirmActionDialog';
+
 import { WorkspaceNotice } from '@/components/WorkspaceNotice';
 import { useWorkspaceView } from '@/hooks/use-workspace-view';
 
@@ -114,6 +118,7 @@ export default function PartnersPage() {
   const [onboardingError, setOnboardingError] = useState('');
   const [showSingleLeadModal, setShowSingleLeadModal] = useState(false);
   const [reassignPartnerTarget, setReassignPartnerTarget] = useState<Partner | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Partner | null>(null);
 
   // Agreement Modal state
   const [selectedAgreementPartner, setSelectedAgreementPartner] = useState<Partner | null>(null);
@@ -171,14 +176,7 @@ export default function PartnersPage() {
   const filteredPartners = useMemo(() => {
     return partners.filter((p) => {
       if (currentUser.role === 'portfolio_owner' && p.portfolioOwnerId !== currentUser.uid) return false;
-      const matchSearch =
-        searchQuery === '' ||
-        p.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.partnerId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.contactPerson.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.city && p.city.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (p.state && p.state.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchSearch = matchesSearch(searchQuery, [p.companyName, p.partnerId, p.contactPerson, p.email, p.city, p.state]);
 
       const matchType = filterType === 'All' || p.type === filterType;
       const matchPO = filterPortfolioOwner === 'All' || p.portfolioOwnerId === filterPortfolioOwner;
@@ -457,15 +455,7 @@ export default function PartnersPage() {
     setNewPhone('');
   };
 
-  const handleDeletePartner = async (partner: Partner) => {
-    if (!window.confirm(`Delete ${partner.companyName}? This cannot be undone.`)) return;
-    try {
-      await deletePartner(partner.partnerId);
-      if (inspectPartnerId === partner.partnerId) setInspectPartnerId(null);
-    } catch (error) {
-      setOnboardingError(error instanceof Error ? error.message : 'Unable to delete partner.');
-    }
-  };
+  const handleDeletePartner = (partner: Partner) => setDeleteTarget(partner);
 
   // CSV Template Downloader
   const handleDownloadTemplate = () => {
@@ -956,17 +946,7 @@ export default function PartnersPage() {
             {/* Multi-Dimensional Filters Bar (State, City, Agreement, PO, Type) */}
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3">
               <div className="flex flex-col xl:flex-row gap-3">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
-                  <input
-                    aria-label="Search partners"
-                    type="text"
-                    placeholder="Search partners"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-none"
-                  />
-                </div>
+                <WorkspaceSearch label="Search partners" value={searchQuery} onChange={setSearchQuery} />
 
                 <button type="button" className="partner-filter-toggle" aria-expanded={filtersOpen} aria-controls="partner-filters" onClick={() => setFiltersOpen(!filtersOpen)}>
                   Filters{filterCount ? ` (${filterCount})` : ''}
@@ -2006,6 +1986,7 @@ export default function PartnersPage() {
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E8E6E1]">
                 <button
                   type="button"
+                  disabled={isOnboarding}
                   onClick={() => {
                     setOnboardingError('');
                     setShowOnboardModal(false);
@@ -2026,6 +2007,8 @@ export default function PartnersPage() {
           </div>
         </WorkspaceDialog>
       )}
+
+      {deleteTarget && <ConfirmActionDialog title={`Delete ${deleteTarget.companyName}?`} description="This permanently removes the partner record. Its existing lead records will remain." action="Delete partner" onClose={() => setDeleteTarget(null)} onConfirm={async () => { await deletePartner(deleteTarget.partnerId); if (inspectPartnerId === deleteTarget.partnerId) setInspectPartnerId(null); setNotice('Partner deleted.'); }} />}
 
       {reassignPartnerTarget && (
         <PartnerOwnerDialog partner={reassignPartnerTarget} options={portfolioOwners}

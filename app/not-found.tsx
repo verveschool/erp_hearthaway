@@ -13,16 +13,16 @@ export default function NotFound() {
 
         <div className="space-y-2">
 
-          <h1 className="text-2xl font-bold text-[#1A1A1A]">Page Not Found</h1>
+          <h1 className="ha-title">Page not found</h1>
           <p className="text-xs text-[#6B6860] leading-relaxed">
-            The workspace or resource you requested could not be found or may have been relocated.
+            This page may have moved or no longer exists.
           </p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
           <Link
             href="/"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-[#00319D] px-4 py-2.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors"
+            className="ha-primary-action w-full sm:w-auto"
           >
             <Home className="h-4 w-4" />
             Return to workspace

@@ -5,6 +5,7 @@ import { normalizeLeadPhone, leadWhatsAppTarget } from '@/lib/lead-phone';
 import { LeadDetailsDialog } from '@/components/LeadDetailsDialog';
 import { getLeadOwner } from '@/lib/lead-details';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
+import { ConfirmActionDialog } from '@/components/ConfirmActionDialog';
 
 import React, { useState, useRef, useMemo, useLayoutEffect, useCallback, type ReactNode } from 'react';
 import { useHearthAway } from '@/lib/context';
@@ -118,7 +119,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreTrigger = useRef<HTMLButtonElement>(null);
   const phone = normalizeLeadPhone(student.phone);
-  const whatsApp = leadWhatsAppTarget(student.whatsApp);
+  const whatsApp = leadWhatsAppTarget(typeof student.whatsApp === 'string' && student.whatsApp.trim() ? student.whatsApp : student.phone);
   function closeArchive() {
     setArchivingLeadId(null);
     requestAnimationFrame(() => moreTrigger.current?.focus());
@@ -152,7 +153,9 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
   // ==========================================
   // PROPERTY BOOKING FORM STATE
   // ==========================================
-  const [showBookingForm, setShowBookingForm] = useState(true);
+  const [showBookingForm, setShowBookingForm] = useState(false);
+  const [bookingSaving, setBookingSaving] = useState(false);
+  const [cancelBookingId, setCancelBookingId] = useState<string | null>(null);
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
 
   const [bookingPropertyName, setBookingPropertyName] = useState('');
@@ -175,12 +178,16 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
   const [bookingFormError, setBookingFormError] = useState<string | null>(null);
 
   const [newNote, setNewNote] = useState('');
+  const noteInFlight = useRef(false);
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [noteError, setNoteError] = useState('');
+  const [contactError, setContactError] = useState('');
   const [bookingDirty, setBookingDirty] = useState(false);
   const [paymentDirty, setPaymentDirty] = useState(false);
   const savingBooking = useRef(false);
   const hasDraft = Boolean(newNote.trim() || bookingDirty || paymentDirty || selectedProofFiles.length);
 
-  const canLeave = useCallback(() => !savingBooking.current && !isUploadingPayment &&
+  const canLeave = useCallback(() => !savingBooking.current && !noteInFlight.current && !isUploadingPayment &&
     (!hasDraft || window.confirm('Discard unsaved changes to this lead?')), [hasDraft, isUploadingPayment]);
 
   useLayoutEffect(() => {
@@ -190,7 +197,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
   }, [canLeave, registerLeaveGuard]);
 
   function requestClose() {
-    if (!registerLeaveGuard || canLeave()) onClose();
+    if (canLeave()) onClose();
   }
 
   const isManagementUser = currentUser.role === 'management' || currentUser.role === 'admin';
@@ -486,25 +493,26 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
     setShowBookingForm(true);
   };
 
-  const handleCancelBookingRecord = async (bookingId: string) => {
-    if (!confirm('Are you sure you want to cancel this property booking? This will update the status to Cancelled and retain all audit records.')) {
-      return;
-    }
-    await updatePropertyBooking(bookingId, { bookingStatus: 'Cancelled' });
-  };
+  const handleCancelBookingRecord = (bookingId: string) => setCancelBookingId(bookingId);
 
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
     const note = newNote.trim();
-    if (!note) return;
-
-    await logStudentActivity(
-      student.studentId,
-      'Internal Note Added',
-      `${currentUser.displayName}: ${note}`
-    );
-    setNewNote('');
+    if (!note || noteInFlight.current) return;
+    noteInFlight.current = true;
+    setNoteSaving(true);
+    setNoteError('');
+    try {
+      await logStudentActivity(student.studentId, 'Internal Note Added', `${currentUser.displayName}: ${note}`);
+      setNewNote('');
+    } catch { setNoteError('Note could not be saved. Try again.'); }
+    finally { noteInFlight.current = false; setNoteSaving(false); }
   };
+
+  function recordContact(type: string, description: string) {
+    setContactError('');
+    void logStudentActivity(student.studentId, type, description).catch(() => setContactError('Contact opened, but the activity was not recorded.'));
+  }
 
   const currencies: Array<{ code: SupportedCurrency; label: string; symbol: string }> = [
     { code: 'INR', label: 'INR (₹)', symbol: '₹' },
@@ -572,14 +580,14 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
             <div className="lead-record-controls">
               <div className="lead-contact-row" role="group" aria-label="Contact lead">
                 <a aria-label="Call" data-tip="Call" aria-disabled={!phone} href={phone ? `tel:${phone}` : undefined}
-                  onClick={() => phone && logStudentActivity(student.studentId, 'Phone Call', `Outbound call initiated to ${phone}`)}><Phone size={17}/></a>
-                <a aria-disabled={!whatsApp} target="_blank" rel="noreferrer" href={whatsApp ? `https://wa.me/${whatsApp}?text=${encodeURIComponent(`Hi ${student.firstName}, this is ${currentUser.displayName} from HearthAway.`)}` : undefined}
-                  onClick={() => whatsApp && logStudentActivity(student.studentId, 'WhatsApp Outbound', `WhatsApp chat initiated to ${whatsApp}`)}>WhatsApp</a>
+                  onClick={() => phone && recordContact('Phone Call', `Outbound call initiated to ${phone}`)}><Phone size={17}/></a>
+                <a aria-disabled={!whatsApp} title={whatsApp ? 'Open WhatsApp chat' : 'No valid WhatsApp number'} target="_blank" rel="noreferrer" href={whatsApp ? `https://wa.me/${whatsApp}?text=${encodeURIComponent(`Hi ${student.firstName}, this is ${currentUser.displayName} from HearthAway.`)}` : undefined}
+                  onClick={() => whatsApp && recordContact('WhatsApp Outbound', `WhatsApp chat initiated to ${whatsApp}`)}>WhatsApp</a>
                 <a aria-label="Email" data-tip="Email" aria-disabled={!student.email} href={student.email ? `mailto:${student.email}?subject=HearthAway%20Accommodation%20Update%20-${student.studentId}` : undefined}
-                  onClick={() => student.email && logStudentActivity(student.studentId, 'Email Outbound', `Email client opened for ${student.email}`)}><Mail size={17}/></a>
+                  onClick={() => student.email && recordContact('Email Outbound', `Email client opened for ${student.email}`)}><Mail size={17}/></a>
               </div>
-              <p className="lead-phone-text">{phone || 'Correct the phone number in Edit lead to call.'}
-                {!whatsApp && ' Enter an international WhatsApp number in Edit lead to chat.'}</p>
+              <p className="lead-phone-text">{phone || 'No valid phone number'}</p>
+              {contactError && <p role="alert" className="text-xs text-rose-700">{contactError}</p>}
               <div className="lead-assignment-fields mt-3 grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg border border-ha-line bg-white p-3">
                 {(() => {
                   const salesUsers = leadOwnerOptions.length ? leadOwnerOptions : availableUsers.filter((u) => u.role === 'sales');
@@ -677,13 +685,13 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                   <div>
                     <h3 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5">
                       <Building className="h-4 w-4 text-[#00319D]" />
-                      Property Booking Records
+                      Bookings
                     </h3>
                     <p className="text-xs text-[#6B6860] mt-0.5">
-                      Structured tenancy and accommodation details booked specifically for {student.fullName}.
+                      {studentBookings.length} {studentBookings.length === 1 ? 'booking' : 'bookings'}
                     </p>
                   </div>
-
+                  {!showBookingForm && <button type="button" className="ha-primary-action" onClick={() => { setBookingFormError(null); setShowBookingForm(true); }}><Plus size={16} aria-hidden="true" /> Add booking</button>}
                 </div>
 
                 {/* Form: Record or Edit Property Booking */}
@@ -702,10 +710,14 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                       event.preventDefault();
                       if (savingBooking.current) return;
                       savingBooking.current = true;
+                      setBookingSaving(true);
                       try {
                         await handleSaveBooking(event);
+                      } catch {
+                        setBookingFormError('Booking could not be saved. Your changes are still here. Try again.');
                       } finally {
                         savingBooking.current = false;
+                        setBookingSaving(false);
                       }
                     }}>
                       {bookingFormError && (
@@ -1035,7 +1047,9 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                       <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E8E6E1]">
                         <button
                           type="button"
+                          disabled={bookingSaving}
                           onClick={() => {
+                            if (bookingDirty && !window.confirm('Discard unsaved booking details?')) return;
                             setShowBookingForm(false);
                             setEditingBookingId(null);
                             setBookingDirty(false);
@@ -1046,9 +1060,10 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                         </button>
                         <button
                           type="submit"
+                          disabled={bookingSaving}
                           className="rounded-lg bg-[#00319D] px-4 py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] shadow-xs transition-colors"
                         >
-                          {editingBookingId ? 'Save Booking Changes' : 'Record Property Booking & Calculate Revenue'}
+                          {bookingSaving ? 'Saving…' : editingBookingId ? 'Save changes' : 'Record booking'}
                         </button>
                       </div>
                     </form>
@@ -1057,6 +1072,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
 
                 {/* Structured List of Bookings */}
                 <div className="space-y-4">
+                  {!showBookingForm && studentBookings.length === 0 && <div className="ha-empty-state"><Building size={24} aria-hidden="true" /><strong>No bookings yet</strong><p>Recorded accommodation bookings will appear here.</p></div>}
                   {studentBookings.map((b) => {
                     const bookingPayments = payments.filter((p) => p.bookingId === b.bookingId);
                     const totalPaidAmount = bookingPayments
@@ -1106,7 +1122,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                           {/* Action Buttons */}
                           <div className="flex items-center gap-1.5 self-end sm:self-start">
                             <button
-                              onClick={() => handleStartEditBooking(b)}
+                              disabled={bookingSaving} onClick={() => { if (!bookingDirty || window.confirm('Discard unsaved booking details?')) handleStartEditBooking(b); }}
                               className="flex items-center gap-1 rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-1 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] transition-colors"
                             >
                               <Edit2 className="h-3 w-3 text-[#00319D]" />
@@ -1717,6 +1733,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                     id="activity-note"
                     rows={2}
                     value={newNote}
+                    disabled={noteSaving}
                     onChange={(e) => setNewNote(e.target.value)}
                     placeholder="Add a note about this lead..."
                     className="w-full resize-none overflow-hidden rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-3 text-xs text-[#1A1A1A] placeholder:text-[#6B6860] focus:outline-none focus:border-[#00319D]"
@@ -1727,10 +1744,12 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                   />
                   <button
                     type="submit"
+                    disabled={noteSaving || !newNote.trim()}
                     className="rounded-lg bg-[#00319D] px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors"
                   >
-                    Add Note
+                    {noteSaving ? 'Saving…' : 'Add note'}
                   </button>
+                  {noteError && <p role="alert" className="text-xs text-rose-700">{noteError}</p>}
                 </form>
               </div>
             )}
@@ -1741,6 +1760,8 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
       </div>
 
     </LeadDetailSurface>
+
+      {cancelBookingId && <ConfirmActionDialog title="Cancel booking?" description="The booking will remain in the ledger with a Cancelled status. Its audit history will be retained." action="Cancel booking" onClose={() => setCancelBookingId(null)} onConfirm={() => updatePropertyBooking(cancelBookingId, { bookingStatus: 'Cancelled' })} />}
 
       {/* ========================================================= */}
       {editingLeadId === student.studentId && (

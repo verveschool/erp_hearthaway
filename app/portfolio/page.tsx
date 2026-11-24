@@ -1,5 +1,8 @@
 'use client';
 
+import { WorkspaceSearch } from '@/components/WorkspaceSearch';
+import { matchesSearch } from '@/lib/utils';
+
 import { useWorkspaceView } from '@/hooks/use-workspace-view';
 
 import { WorkspaceMetric } from '@/components/WorkspaceMetric';
@@ -138,12 +141,7 @@ export default function PortfolioPage() {
   // Selected portfolio owner for inspection:
   // If user is a Portfolio Owner, they ONLY see their own portfolio!
   // If user is Management, they can pick a Portfolio Owner or view "all"
-  const [selectedOwnerId, setSelectedOwnerId] = useState<string>(() => {
-    if (currentUser.role === 'portfolio_owner') {
-      return currentUser.uid;
-    }
-    return 'all';
-  });
+  const [selectedOwnerId, setSelectedOwnerId] = useWorkspaceView<string>(currentUser.uid, 'selectedOwnerId', currentUser.role === 'portfolio_owner' ? currentUser.uid : 'all');
 
   // Effective Owner ID: strictly enforce that portfolio_owner role cannot inspect others
   const effectiveOwnerId = currentUser.role === 'portfolio_owner' ? currentUser.uid : selectedOwnerId;
@@ -180,7 +178,7 @@ export default function PortfolioPage() {
   const [reassignModalPartnerId, setReassignModalPartnerId] = useState<string | null>(null);
 
   // Global Lead Search across all portfolios (independent of active owner)
-  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [globalSearchQuery, setGlobalSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'globalSearch', '');
   const [isGlobalSearchFocused, setIsGlobalSearchFocused] = useState(false);
   const globalSearchRef = useRef<HTMLDivElement>(null);
 
@@ -208,12 +206,7 @@ export default function PortfolioPage() {
   const globalMatchingLeads = useMemo(() => {
     const q = globalSearchQuery.trim().toLowerCase();
     if (!q) return [];
-    return students.filter((s) => {
-      const matchName = s.fullName && s.fullName.toLowerCase().includes(q);
-      const matchId = s.studentId && s.studentId.toLowerCase().includes(q);
-      const matchEmail = s.email && s.email.toLowerCase().includes(q);
-      return matchName || matchId || matchEmail;
-    });
+    return students.filter(s => matchesSearch(q, [s.fullName, s.studentId, s.email]));
   }, [students, globalSearchQuery]);
 
   // View mode for leads listing: 'table' or 'cards' (toggle in Portfolio header)
@@ -396,21 +389,10 @@ export default function PortfolioPage() {
       // Global Search Filter (by student name or student ID)
       if (globalSearchQuery.trim() !== '') {
         const gq = globalSearchQuery.trim().toLowerCase();
-        const matchName = lead.fullName && lead.fullName.toLowerCase().includes(gq);
-        const matchId = lead.studentId && lead.studentId.toLowerCase().includes(gq);
-        const matchEmail = lead.email && lead.email.toLowerCase().includes(gq);
-        if (!matchName && !matchId && !matchEmail) return false;
+        if (!matchesSearch(gq, [lead.fullName, lead.studentId, lead.email])) return false;
       }
 
-      const matchSearch =
-        searchQuery === '' ||
-        lead.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.university.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.destinationCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (lead.partnerName && lead.partnerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        getLeadOwner(lead).name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (lead.salesOwnerName || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchSearch = matchesSearch(searchQuery, [lead.fullName, lead.studentId, lead.university, lead.destinationCity, lead.partnerName, getLeadOwner(lead).name, lead.salesOwnerName]);
 
       const matchPartner = filterPartner === 'All' || lead.partnerId === filterPartner;
       const matchLeadStatus = filterLeadStatus === 'All' || lead.leadStatus === filterLeadStatus;
@@ -447,13 +429,7 @@ export default function PortfolioPage() {
   const filteredActivities = useMemo(() => {
     const result = activities.filter((act) => {
       const q = auditSearchQuery.trim().toLowerCase();
-      const matchSearch =
-        q === '' ||
-        act.description.toLowerCase().includes(q) ||
-        act.activityType.toLowerCase().includes(q) ||
-        (act.performedBy?.name && act.performedBy.name.toLowerCase().includes(q)) ||
-        (act.studentId && act.studentId.toLowerCase().includes(q)) ||
-        (act.activityId && act.activityId.toLowerCase().includes(q));
+      const matchSearch = matchesSearch(q, [act.description, act.activityType, act.performedBy?.name, act.studentId, act.activityId]);
 
       let matchType = true;
       if (auditFilterType !== 'All') {
@@ -621,7 +597,7 @@ export default function PortfolioPage() {
           </div>
 
           {/* DEDICATED GLOBAL LEAD SEARCH INPUT IN HEADER (Cross-Portfolio) */}
-          <div className="mt-5 relative z-40" ref={globalSearchRef}>
+          <div className="mt-5 relative z-40" ref={globalSearchRef} onKeyDown={event => { if (event.key === 'Escape' && isGlobalSearchFocused) { event.preventDefault(); setIsGlobalSearchFocused(false); } }}>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-[#F7F6F3] p-2 sm:p-2.5 rounded-xl border border-[#E8E6E1] shadow-2xs">
               <div className="relative min-w-0 flex-1">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -648,6 +624,7 @@ export default function PortfolioPage() {
                     }}
                     className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#6B6860] hover:text-[#1A1A1A] cursor-pointer"
                     title="Clear global search"
+                    aria-label="Clear global search"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -1171,17 +1148,7 @@ export default function PortfolioPage() {
             {/* Search, Filter & CSV Export Toolbar */}
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3">
               <div className="flex flex-col xl:flex-row gap-3">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
-                  <input
-                    aria-label="Search portfolio leads"
-                    type="text"
-                    placeholder="Search by student name, ID, university, city, partner, or lead owner..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-none"
-                  />
-                </div>
+                <WorkspaceSearch label="Search portfolio leads" placeholder="Search leads" value={searchQuery} onChange={setSearchQuery} />
 
                 <div className="flex max-w-full flex-wrap items-center gap-2">
                   {/* Sourcing Partner Filter */}
@@ -1841,17 +1808,7 @@ export default function PortfolioPage() {
             {/* Audit Search, Filter & CSV Export Toolbar */}
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3">
               <div className="flex flex-col xl:flex-row gap-3">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
-                  <input
-                    aria-label="Search audit trail"
-                    type="text"
-                    placeholder="Search audit trail by description, action, actor, target ID..."
-                    value={auditSearchQuery}
-                    onChange={(e) => setAuditSearchQuery(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-none"
-                  />
-                </div>
+                <WorkspaceSearch label="Search audit trail" value={auditSearchQuery} onChange={setAuditSearchQuery} />
 
                 <div className="flex max-w-full flex-wrap items-center gap-2">
                   {/* Category Filter */}

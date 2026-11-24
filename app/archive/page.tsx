@@ -1,5 +1,8 @@
 'use client';
 
+import { WorkspaceSearch } from '@/components/WorkspaceSearch';
+import { Archive, ChevronDown } from 'lucide-react';
+
 import { useWorkspaceView } from '@/hooks/use-workspace-view';
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
@@ -39,17 +42,15 @@ function ArchivedLeads() {
         <h1 className="ha-title">Data archive</h1>
         <p className="ha-summary">Inactive leads and their archival reasons.</p>
       </header>
-      <label className="mt-5 block max-w-md text-sm font-medium">Search archived leads
-        <input type="search" className="mt-1 w-full rounded-lg border border-ha-line bg-white px-3 py-2" value={search} onChange={(event) => setSearch(event.target.value)} />
-      </label>
+      <div className="mt-4 max-w-md"><WorkspaceSearch label="Search archived leads" value={search} onChange={setSearch} /></div>
       {error ? <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p> :
         !visible ? <p role="status" className="mt-4 text-sm">Loading archive…</p> :
-        visible.length === 0 ? <p className="mt-4 text-sm text-ha-secondary">{term ? 'No archived leads match this search.' : 'Archived leads will appear here.'}</p> :
+        visible.length === 0 ? <div className="ha-empty-state mt-4"><Archive size={24} aria-hidden="true" /><strong>{term ? 'No matching leads' : 'No archived leads'}</strong><p>{term ? 'Try another name or clear your search.' : 'Archived leads will appear here.'}</p>{term && <button className="ha-text-action" onClick={() => setSearch('')}>Clear search</button>}</div> :
         <ul className="archive-list mt-4">
           {visible.map((lead) => (
             <li key={lead.id} className="rounded-lg border border-ha-line bg-white p-3">
               <details>
-                <summary className="cursor-pointer py-2 font-semibold">{lead.fullName} <span className="ml-2 text-xs font-normal text-ha-secondary">{lead.studentId}</span></summary>
+                <summary className="ha-disclosure"><span className="min-w-0 break-words font-semibold">{lead.fullName} <span className="ml-2 text-xs font-normal text-ha-secondary">{lead.studentId}</span></span><ChevronDown size={16} aria-hidden="true" className="ha-disclosure-chevron" /></summary>
                 <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 [&_dt]:font-semibold [&_dd]:break-words">
                   <div><dt>Email</dt><dd>{lead.email}</dd></div>
                   <div><dt>Phone</dt><dd>{lead.phone}</dd></div>

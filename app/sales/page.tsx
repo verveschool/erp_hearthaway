@@ -1,5 +1,8 @@
 'use client';
 
+import { WorkspaceSearch } from '@/components/WorkspaceSearch';
+import { matchesSearch } from '@/lib/utils';
+
 import { useWorkspaceView } from '@/hooks/use-workspace-view';
 
 import { LeadFieldSelect } from '@/components/LeadFieldSelect';
@@ -107,14 +110,7 @@ export default function SalesPage() {
     const phoneDigits = parseLeadPhone(query)?.digits;
     const matchingStudents = visibleStudents.filter((student) => {
       const matchSearch =
-        query === '' ||
-        student.fullName.toLowerCase().includes(query) ||
-        student.studentId.toLowerCase().includes(query) ||
-        student.destinationCity.toLowerCase().includes(query) ||
-        student.university.toLowerCase().includes(query) ||
-        (student.partnerName && student.partnerName.toLowerCase().includes(query)) ||
-        getLeadOwner(student).name.toLowerCase().includes(query) ||
-        (student.salesOwnerName || '').toLowerCase().includes(query) ||
+        matchesSearch(query, [student.fullName, student.studentId, student.destinationCity, student.university, student.partnerName, getLeadOwner(student).name, student.salesOwnerName]) ||
         (phoneDigits !== undefined && parseLeadPhone(student.phone)?.digits.includes(phoneDigits));
 
       const matchStage = filterStage === 'All' || (student.pipelineStage || 'New') === filterStage;
@@ -253,17 +249,7 @@ export default function SalesPage() {
 
         <div className="sales-filter-bar">
           <div className="sales-toolbar-fields">
-            <div className="sales-lead-search relative min-w-0">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
-              <input
-                ref={search} aria-label="Search sales leads"
-                type="text"
-                placeholder="Search leads by name or phone"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-full w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-none"
-              />
-            </div>
+            <WorkspaceSearch inputRef={search} label="Search sales leads" placeholder="Search leads by name or phone" value={searchQuery} onChange={setSearchQuery} />
 
             <div id="sales-filter-fields" data-open={filtersOpen} className="sales-filter-fields">
               {[

@@ -1,6 +1,7 @@
 'use client';
 
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
+import { PasswordField } from '@/components/PasswordField';
 
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
@@ -55,6 +56,7 @@ export function LoginModal() {
   const [signinEmail, setSigninEmail] = useState('');
   const [signinPassword, setSigninPassword] = useState('');
   const [signinError, setSigninError] = useState('');
+  const [signinSaving, setSigninSaving] = useState(false);
 
   // Password recovery state
   const [isForgotPassword, setIsForgotPassword] = useState(false);
@@ -85,14 +87,18 @@ export function LoginModal() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (signinSaving) return;
     const cleanEmail = signinEmail.toLowerCase().trim();
     if (!cleanEmail) return;
 
     setSigninError('');
+    setSigninSaving(true);
     try {
       await loginWithEmailPassword(cleanEmail, signinPassword);
     } catch (error) {
       setSigninError(error instanceof Error ? error.message : 'Invalid email or password.');
+    } finally {
+      setSigninSaving(false);
     }
   };
 
@@ -220,11 +226,12 @@ export function LoginModal() {
     .toUpperCase();
 
   return (
-    <WorkspaceDialog label="Account access and profile" onDismiss={() => setIsLoginModalOpen(false)}>
+    <WorkspaceDialog label="Account access and profile" onDismiss={() => { if (!signinSaving && !profileSaving && !resetLoading) setIsLoginModalOpen(false); }}>
       <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 sm:p-7 shadow-2xl relative animate-in zoom-in-95 duration-150">
         {/* Close Button */}
         <button
           aria-label="Close dialog"
+          disabled={signinSaving || profileSaving || resetLoading}
           onClick={() => setIsLoginModalOpen(false)}
           className="absolute top-5 right-5 rounded-lg p-1 text-[#6B6860] hover:bg-[#F7F6F3] hover:text-[#1A1A1A] transition-colors focus:outline-none cursor-pointer"
         >
@@ -311,25 +318,17 @@ export function LoginModal() {
                       Forgot Password?
                     </button>
                   </div>
-                  <div className="relative">
-                    <Key className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
-                    <input
-                      id="loginmodal-signin-password"
-                      type="password"
-                      value={signinPassword}
-                      onChange={(e) => setSigninPassword(e.target.value)}
-                      className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-hidden"
-                    />
-                  </div>
+                  <PasswordField id="loginmodal-signin-password" autoComplete="current-password" required disabled={signinSaving} value={signinPassword} onChange={e => setSigninPassword(e.target.value)} />
                 </div>
                 {signinError && <p className="text-xs font-medium text-red-600" role="alert">{signinError}</p>}
 
                 <button
                   type="submit"
+                  disabled={signinSaving}
                   className="w-full rounded-lg bg-[#00319D] py-2.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-2"
                 >
                   <LogIn className="h-4 w-4" />
-                  <span>Sign In to System</span>
+                  <span>{signinSaving ? 'Signing in…' : 'Sign in'}</span>
                 </button>
               </form>
             ) : (

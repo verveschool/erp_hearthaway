@@ -1,5 +1,7 @@
 'use client';
 
+import { persistLeadActivity, persistNewBooking, persistBookingEdit } from './crm-record-writes';
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { FirebaseError } from 'firebase/app';
 import {
@@ -878,23 +880,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     studentId: string, activityType: string, description: string, oldValue?: string, newValue?: string
   ): Promise<void> => {
     const newActivity = buildActivity(studentId, activityType, description, oldValue, newValue);
-    const { id: actId, timestamp: formattedTimestamp } = newActivity;
-    await setDoc(doc(db, 'activities', actId), newActivity).catch((err) => {
-      handleFirestoreError(err, OperationType.WRITE, `activities/${actId}`);
-      throw err;
-    });
-
     const relatedStudent = students.find((student) => student.studentId === studentId || student.id === studentId);
-    const isQualifyingActivity = !/(status|stage|priority|owner reassigned|lead updated)/i.test(activityType);
-    if (relatedStudent && isQualifyingActivity) {
-      const studentDocId = relatedStudent.id || `std-${relatedStudent.studentId.toLowerCase()}`;
-      await updateDoc(doc(db, 'students', studentDocId), {
-        lastActivityAt: formattedTimestamp,
-      }).catch((err) => {
-        handleFirestoreError(err, OperationType.WRITE, `students/${studentDocId}`);
-        throw err;
-      });
-    }
+    await persistLeadActivity(db, newActivity, relatedStudent);
   };
 
   const reassignPartnerPortfolioOwner = async (partnerId: string, newOwnerId: string, newOwnerName: string) => {
@@ -1375,26 +1362,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       totalPaid: 0,
     };
 
-    setDoc(doc(db, 'bookings', docId), newBooking).catch((err) => {
-      handleFirestoreError(err, OperationType.WRITE, `bookings/${docId}`);
-    });
-
-    if (bookingData.bookingStatus === 'Confirmed') {
-      updateStudentDecoupledStatus(bookingData.studentId, {
-        bookingStatus: 'Booked',
-        commissionStatus: 'Due',
-      });
-    } else if (bookingData.bookingStatus === 'Pending Confirmation') {
-      updateStudentDecoupledStatus(bookingData.studentId, {
-        bookingStatus: 'Processing',
-      });
-    }
-
-    logStudentActivity(
+    if (!student) throw new Error('This lead is no longer active.');
+    const activity = buildActivity(
       bookingData.studentId,
       'Property Booking Recorded',
       `Property booking ${bookingId} (${bookingData.propertyName}) recorded by ${currentUser.displayName}. Rent: ${bookingData.rentCurrency} ${bookingData.rentAmount} / ${bookingData.rentFrequency}, Deposit: ${bookingData.depositCurrency} ${bookingData.depositAmount}, Expected Revenue: ${bookingData.commissionableCurrency} ${expectedRevenue.toFixed(2)} (${bookingData.commissionRate}%). Status: ${bookingData.bookingStatus}.`
     );
+    await persistNewBooking(db, newBooking, student, activity, buildActivity);
 
     return newBooking;
   };
@@ -1404,7 +1378,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     updates: Partial<Booking>
   ): Promise<void> => {
     const booking = bookings.find((b) => b.bookingId === bookingId || b.id === bookingId);
-    if (!booking) return;
+    if (!booking) throw new Error('This booking is no longer available.');
 
     const docId = booking.id || `bk-${booking.bookingId.toLowerCase()}`;
     const now = new Date();
@@ -1429,15 +1403,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       updatedAt: formattedTimestamp,
     };
 
-    updateDoc(doc(db, 'bookings', docId), fieldsToUpdate).catch((err) => {
-      handleFirestoreError(err, OperationType.WRITE, `bookings/${docId}`);
-    });
-
-    logStudentActivity(
+    const activity = buildActivity(
       booking.studentId,
       'Property Booking Updated',
       `Property booking ${bookingId} (${updates.propertyName || booking.propertyName}) updated by ${currentUser.displayName}. Status: ${updates.bookingStatus || booking.bookingStatus}. Expected Revenue: ${updates.commissionableCurrency || booking.commissionableCurrency} ${expectedRevenue.toFixed(2)}.`
     );
+    const student = students.find(entry => entry.studentId === booking.studentId);
+    await persistBookingEdit(db, booking, fieldsToUpdate, activity, student);
   };
 
   const uploadPaymentTransaction = async (data: {
@@ -1541,7 +1513,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     remarks?: string
   ): Promise<void> => {
     const payment = payments.find((p) => p.paymentId === paymentId || p.id === paymentId);
-    if (!payment) return;
+    if (!payment) throw new Error('This payment is no longer available.');
 
     const docId = payment.id || `pay-${payment.paymentId.toLowerCase()}`;
     const now = new Date();

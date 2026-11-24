@@ -253,15 +253,9 @@ export function ProfilePhotoModal({
 
         {/* Header */}
         <div className="mb-4">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1 rounded bg-[#00319D]/10 px-2 py-0.5 text-[10px] font-bold text-[#00319D]">
-              <Camera className="h-3 w-3" />
-              Account Indicator Photo
-            </span>
-          </div>
-          <h3 className="text-lg font-bold text-[#1A1A1A]">Update Profile Picture</h3>
+          <h3 className="text-lg font-semibold text-[#1A1A1A]">Profile photo</h3>
           <p className="text-xs text-[#6B6860] mt-0.5">
-            Personalize the avatar shown in your top-right account indicator.
+            This photo appears beside your name in the workspace.
           </p>
         </div>
 
@@ -284,9 +278,6 @@ export function ProfilePhotoModal({
                   {userInitials}
                 </span>
               )}
-            </div>
-            <div className="absolute bottom-0 right-0 h-5 w-5 rounded-full bg-emerald-500 ring-2 ring-white flex items-center justify-center">
-              <Check className="h-3 w-3 text-white" />
             </div>
           </div>
 

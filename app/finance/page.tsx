@@ -1,5 +1,8 @@
 'use client';
 
+import { WorkspaceSearch } from '@/components/WorkspaceSearch';
+import { matchesSearch } from '@/lib/utils';
+
 import { WorkspaceNotice } from '@/components/WorkspaceNotice';
 import { useWorkspaceView } from '@/hooks/use-workspace-view';
 
@@ -44,6 +47,8 @@ export default function FinancePage() {
   const [activeTab, setActiveTab] = useWorkspaceView<'payments' | 'bookings' | 'commissions'>(currentUser.uid, 'activeTab', 'payments');
   const [searchQuery, setSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'searchQuery', '');
   const [filterPaymentStatus, setFilterPaymentStatus] = useWorkspaceView<string>(currentUser.uid, 'filterPaymentStatus', 'All');
+  const [bookingSearch, setBookingSearch] = useWorkspaceView<string>(currentUser.uid, 'bookingSearch', '');
+  const [commissionSearch, setCommissionSearch] = useWorkspaceView<string>(currentUser.uid, 'commissionSearch', '');
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [recordingPayment, setRecordingPayment] = useState(false);
   const [notice, setNotice] = useState('');
@@ -88,12 +93,7 @@ export default function FinancePage() {
   // Filtered Payments
   const filteredPayments = useMemo(() => {
     return payments.filter((p) => {
-      const matchSearch =
-        searchQuery === '' ||
-        p.paymentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.studentName && p.studentName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        p.uploadedBy.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchSearch = matchesSearch(searchQuery, [p.paymentId, p.studentId, p.studentName, p.uploadedBy]);
 
       const matchStatus = filterPaymentStatus === 'All' || p.paymentStatus === filterPaymentStatus;
 
@@ -119,6 +119,9 @@ export default function FinancePage() {
       };
     });
   }, [partners, bookings]);
+
+  const visibleBookings = bookings.filter(booking => matchesSearch(bookingSearch, [booking.bookingId, booking.bookingReference, booking.studentName, booking.studentId, booking.partnerName, booking.propertyName, booking.bookingStatus]));
+  const visibleCommissions = partnerCommissionLedger.filter(partner => matchesSearch(commissionSearch, [partner.companyName, partner.partnerId, partner.portfolioOwnerName]));
 
   const closeRecordModal = () => {
     if (recordingPayment) return;
@@ -206,7 +209,7 @@ export default function FinancePage() {
         { header: 'Tenancy End', accessor: (b) => b.tenancyEndDate },
         { header: 'Booking Status', accessor: (b) => b.bookingStatus },
       ],
-      bookings
+      visibleBookings
     );
   };
 
@@ -223,7 +226,7 @@ export default function FinancePage() {
         { header: 'Partner Payable (£)', accessor: (p) => p.partnerPayable },
         { header: 'Commission Rate (%)', accessor: (p) => `${p.commissionRate}%` },
       ],
-      partnerCommissionLedger
+      visibleCommissions
     );
   };
 
@@ -304,17 +307,7 @@ export default function FinancePage() {
         {activeTab === 'payments' && (
           <div className="space-y-4">
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs flex flex-col xl:flex-row gap-3">
-              <div className="relative min-w-0 flex-1">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
-                <input
-                  aria-label="Search payments"
-                  type="text"
-                  placeholder="Search by Payment ID, Student Name, Student ID, or Uploader..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-none"
-                />
-              </div>
+              <WorkspaceSearch label="Search payments" placeholder="Search payments by ID, student or uploader" value={searchQuery} onChange={setSearchQuery} />
 
               <div className="flex flex-wrap items-center gap-2">
                 <select
@@ -328,6 +321,7 @@ export default function FinancePage() {
                   <option value="Verified">Verified</option>
                   <option value="Rejected">Rejected</option>
                 </select>
+                {filterPaymentStatus !== 'All' && <button type="button" className="ha-text-action" onClick={() => setFilterPaymentStatus('All')}>Clear filter</button>}
 
                 <button
                   onClick={handleExportPaymentsCSV}
@@ -435,17 +429,15 @@ export default function FinancePage() {
         {activeTab === 'bookings' && (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
-              <span className="text-xs text-[#6B6860]">
-                Showing <strong>{bookings.length}</strong> tenancies booked across partner accommodations
-              </span>
+              <WorkspaceSearch label="Search bookings" placeholder="Search student, booking or property" value={bookingSearch} onChange={setBookingSearch} />
               <button
                 onClick={handleExportBookingsCSV}
-                disabled={bookings.length === 0}
+                disabled={visibleBookings.length === 0}
                 className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-1.5 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs self-start sm:self-auto"
                 title="Download bookings table as CSV"
               >
                 <Download className="h-3.5 w-3.5" />
-                <span>Export Bookings CSV ({bookings.length})</span>
+                <span>Export CSV ({visibleBookings.length})</span>
               </button>
             </div>
 
@@ -464,12 +456,12 @@ export default function FinancePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E8E6E1]">
-                  {bookings.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-ha-secondary">No bookings recorded yet.</td></tr>}
-                  {bookings.map((booking) => (
+                  {visibleBookings.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-ha-secondary">{bookingSearch ? 'No bookings match this search.' : 'No bookings recorded yet.'}</td></tr>}
+                  {visibleBookings.map((booking) => (
                     <tr key={booking.id} className="hover:bg-[#F7F6F3]/50">
                       <td className="py-3.5 px-4 font-mono font-bold text-[#00319D]">{booking.bookingId}</td>
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-[#1A1A1A]">{booking.studentName}</div>
+                        <button type="button" className="font-semibold text-ha-blue hover:underline text-left" onClick={() => setSelectedStudentId(booking.studentId)}>{booking.studentName}</button>
                         <span className="font-mono text-xs text-[#6B6860]">{booking.studentId}</span>
                       </td>
                       <td className="py-3.5 px-4">
@@ -488,7 +480,7 @@ export default function FinancePage() {
                         £{(booking.partnerPayoutAmount || 0).toLocaleString()} ({booking.partnerPayoutPercent}%)
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className="rounded bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-bold">
+                        <span className={`rounded px-2 py-0.5 text-xs font-semibold ${booking.bookingStatus === 'Confirmed' ? 'bg-emerald-100 text-emerald-800' : booking.bookingStatus === 'Cancelled' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-800'}`}>
                           {booking.bookingStatus}
                         </span>
                       </td>
@@ -505,17 +497,15 @@ export default function FinancePage() {
         {activeTab === 'commissions' && (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
-              <span className="text-xs text-[#6B6860]">
-                Showing commission ledgers for <strong>{partnerCommissionLedger.length}</strong> active partners
-              </span>
+              <WorkspaceSearch label="Search commissions" placeholder="Search partner or portfolio owner" value={commissionSearch} onChange={setCommissionSearch} />
               <button
                 onClick={handleExportCommissionsCSV}
-                disabled={partnerCommissionLedger.length === 0}
+                disabled={visibleCommissions.length === 0}
                 className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-1.5 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs self-start sm:self-auto"
                 title="Download partner commission ledger as CSV"
               >
                 <Download className="h-3.5 w-3.5" />
-                <span>Export Commissions CSV ({partnerCommissionLedger.length})</span>
+                <span>Export CSV ({visibleCommissions.length})</span>
               </button>
             </div>
 
@@ -533,8 +523,8 @@ export default function FinancePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E8E6E1]">
-                  {partnerCommissionLedger.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-ha-secondary">No partner commissions to display.</td></tr>}
-                  {partnerCommissionLedger.map((partner) => (
+                  {visibleCommissions.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-ha-secondary">{commissionSearch ? 'No partners match this search.' : 'No partner commissions to display.'}</td></tr>}
+                  {visibleCommissions.map((partner) => (
                     <tr key={partner.id} className="hover:bg-[#F7F6F3]/50">
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-[#1A1A1A]">{partner.companyName}</div>
@@ -543,7 +533,7 @@ export default function FinancePage() {
                       <td className="py-3.5 px-4">
                         <span className="inline-flex items-center gap-1 font-semibold text-[#1A1A1A]">
                           <Layers className="h-3 w-3 text-[#00319D]" />
-                          {partner.portfolioOwnerName || 'Beatrice Vance'}
+                          {partner.portfolioOwnerName || 'Unassigned'}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 font-bold text-[#1A1A1A]">{partner.bookedCount}</td>

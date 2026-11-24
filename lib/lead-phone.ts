@@ -33,6 +33,12 @@ export function leadPhoneCsv(value: unknown): string {
 
 export function leadWhatsAppTarget(value: unknown): string | null {
   const phone = normalizeLeadPhone(value);
-  if (!phone || !/^(?:\+|00)[1-9]/.test(phone)) return null;
-  return phone.replace(/^(?:\+|00)/, '');
+  if (!phone) return null;
+  // Indian mobile numbers are commonly stored without a country code. Infer
+  // it only for a complete, valid-looking 10-digit mobile, never a damaged
+  // number or an explicitly international number.
+  if (/^[6-9]\d{9}$/.test(phone)) return `91${phone}`;
+  if (!/^(?:\+|00)[1-9]/.test(phone)) return null;
+  const international = phone.replace(/^(?:\+|00)/, '');
+  return /^\d{6,15}$/.test(international) ? international : null;
 }

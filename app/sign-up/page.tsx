@@ -1,5 +1,7 @@
 'use client';
 
+import { PasswordField } from '@/components/PasswordField';
+
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -58,6 +60,7 @@ export default function SignUpPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage('');
 
     if (!passcode) {
@@ -226,16 +229,7 @@ export default function SignUpPage() {
                 <label htmlFor="sign-up-password" className="block text-xs font-semibold text-[#1A1A1A] mb-1">
                   Password
                 </label>
-                <div className="relative">
-                  <Key className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B6860]" />
-                  <input
-                    id="sign-up-password" autoComplete="new-password" minLength={6} required
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden transition-all"
-                  />
-                </div>
+                <PasswordField id="sign-up-password" autoComplete="new-password" minLength={6} required value={password} disabled={isSubmitting} onChange={e => setPassword(e.target.value)} />
               </div>
             </div>
 

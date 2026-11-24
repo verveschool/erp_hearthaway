@@ -15,8 +15,14 @@ export function WorkspaceDialog({ label, onDismiss, drawer, children }: Workspac
   useLayoutEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     dialog.showModal();
-    return () => dialog.close();
+    return () => {
+      dialog.close();
+      // Native dialogs restore focus normally; a detached nested action can
+      // leave it on the body. Restore a surviving trigger without scrolling.
+      if (trigger?.isConnected && document.activeElement === document.body) trigger.focus({ preventScroll: true });
+    };
   }, []);
 
   return (
