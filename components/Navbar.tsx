@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useHearthAway } from '@/lib/context';
 import {
-  Layers,
+  Activity,
   Users,
   Briefcase,
   CreditCard,
@@ -34,6 +34,7 @@ export function Navbar() {
   const {
     currentUser,
     leadOperationsRole,
+    internalRole,
     isAuthenticated,
     logout,
     openAuthModal,
@@ -80,60 +81,21 @@ export function Navbar() {
   const flaggedBookings = bookings.filter((b) => b.isTestRecord || b.archivalStatus === 'Flagged For Archival').length;
   const totalFlagged = flaggedStudents + flaggedPayments + flaggedBookings;
 
-  const isManagement = currentUser.role === 'management' || currentUser.role === 'admin';
-
-  // Determine role-based visible navigation items
-  // Management also gets the Users administration link.
+  const isInternal = internalRole === 'admin' || internalRole === 'management';
   const navItems = [];
-
-  if (isManagement) {
-    // Management users see all four navigation items in exact order
+  if (isInternal) {
     navItems.push(
-      { name: 'Portfolio', href: '/portfolio', icon: Layers, active: pathname.startsWith('/portfolio') },
       { name: 'Partners', href: '/partners', icon: Users, active: pathname.startsWith('/partners') },
       { name: 'Sales', href: '/sales', icon: Briefcase, active: pathname.startsWith('/sales') },
-      { name: 'Finance', href: '/finance', icon: CreditCard, active: pathname.startsWith('/finance') },
-      { name: 'Users', href: '/management', icon: Users, active: pathname.startsWith('/management') }
+      { name: 'Activity', href: '/activity', icon: Activity, active: pathname.startsWith('/activity') },
     );
-  } else if (currentUser.role === 'portfolio_owner') {
-    // Portfolio Owner sees only their permitted Portfolio module
-    navItems.push({
-      name: 'Portfolio',
-      href: '/portfolio',
-      icon: Layers,
-      active: pathname.startsWith('/portfolio'),
-    });
-  } else if (currentUser.role === 'partner') {
-    // Partner sees only their permitted Partners module
-    navItems.push({
-      name: 'Partners',
-      href: '/partners',
-      icon: Users,
-      active: pathname.startsWith('/partners') || pathname.startsWith('/partner'),
-    });
-  } else if (currentUser.role === 'sales') {
-    // Sales sees only their permitted Sales module
-    navItems.push({
-      name: 'Sales',
-      href: '/sales',
-      icon: Briefcase,
-      active: pathname.startsWith('/sales'),
-    });
-  } else if (currentUser.role === 'finance') {
-    // Finance sees only their permitted Finance module
-    navItems.push({
-      name: 'Finance',
-      href: '/finance',
-      icon: CreditCard,
-      active: pathname.startsWith('/finance'),
-    });
-  }
-
-  if (currentUser.role === 'portfolio_owner') {
-    navItems.push({ name: 'Partners', href: '/partners', icon: Users, active: pathname === '/partners' });
-  }
-  if (leadOperationsRole === 'management') {
+    if (internalRole === 'admin') navItems.push(
+      { name: 'Finance', href: '/finance', icon: CreditCard, active: pathname.startsWith('/finance') },
+      { name: 'Users', href: '/management', icon: Users, active: pathname.startsWith('/management') },
+    );
     navItems.push({ name: 'Data archive', href: '/archive', icon: Archive, active: pathname === '/archive' });
+  } else if (currentUser.role === 'partner') {
+    navItems.push({ name: 'Partners', href: '/partners', icon: Users, active: pathname.startsWith('/partner') });
   }
 
   const formatRoleLabel = (role: string) => {
@@ -297,7 +259,7 @@ export function Navbar() {
                         <p className="text-[11px] text-[#6B6860] truncate">{currentUser.email}</p>
                         <div className="mt-0.5 flex items-center gap-1 text-[10px] text-[#00319D] font-semibold">
                           <span className="h-1.5 w-1.5 rounded-full bg-[#FCC20A]" />
-                          <span>Role: <strong>{formatRoleLabel(currentUser.role)}</strong></span>
+                          <span>Role: <strong>{formatRoleLabel(internalRole || currentUser.role)}</strong></span>
                         </div>
                       </div>
                     </div>

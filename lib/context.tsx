@@ -1,6 +1,7 @@
 'use client';
 
 import { persistLeadActivity, persistNewBooking, persistBookingEdit } from './crm-record-writes';
+import { writeActivity } from './operational-activity';
 
 import { conversionText, validateConversion } from './payment-money';
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -129,6 +130,7 @@ interface HearthAwayContextType {
   bookings: Booking[];
   payments: Payment[];
   activities: Activity[];
+  activityError: boolean;
 
   // Workflows & Mutations with Audit Logs
   reassignPartnerPortfolioOwner: (partnerId: string, newOwnerId: string, newOwnerName: string) => Promise<void>;
@@ -137,6 +139,7 @@ interface HearthAwayContextType {
   editLeadDetails: (studentId: string, details: LeadDetails) => Promise<void>;
   archiveLead: (studentId: string, reason: string) => Promise<void>;
   leadOperationsRole: string;
+  internalRole: 'admin' | 'management' | '';
   leadOwnerOptions: Array<{ uid: string; displayName: string }>;
   portfolioOwnerOptions: Array<{ uid: string; displayName: string }>;
   setPartnerLeadTarget: (partnerId: string, season: string, promised: number) => Promise<void>;
@@ -267,10 +270,12 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [activityError, setActivityError] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [hideTestRecords, setHideTestRecords] = useState<boolean>(false);
-  const [operationsIdentity, setOperationsIdentity] = useState<{ uid: string; role: string } | null>(null);
-  const leadOperationsRole = operationsIdentity?.uid === currentUser.uid ? operationsIdentity?.role || '' : '';
+  const [operationsIdentity, setOperationsIdentity] = useState<{ uid: string; role: string; internalRole: 'admin' | 'management' | '' } | null>(null);
+  const internalRole = operationsIdentity?.uid === currentUser.uid ? operationsIdentity.internalRole : '';
+  const leadOperationsRole = internalRole ? 'management' : '';
   const [leadOwnerOptions, setLeadOwnerOptions] = useState<Array<{ uid: string; displayName: string }>>([]);
   const [portfolioOwnerOptions, setPortfolioOwnerOptions] = useState<Array<{ uid: string; displayName: string }>>([]);
 
@@ -284,7 +289,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       }
       void getIdTokenResult(user).then(({ claims }) => {
         if (revision === currentRevision && auth.currentUser?.uid === user.uid) {
-          setOperationsIdentity({ uid: user.uid, role: typeof claims.leadOperationsRole === 'string' ? claims.leadOperationsRole : '' });
+          setPayments([]); setAvailableUsers([]); setActivities([]);
+          setOperationsIdentity({ uid: user.uid, role: typeof claims.leadOperationsRole === 'string' ? claims.leadOperationsRole : '', internalRole: claims.internalRole === 'admin' || claims.internalRole === 'management' ? claims.internalRole : claims.internalRole === undefined ? (claims.leadOperationsRole === 'management' ? 'admin' : claims.leadOperationsRole === 'sales' || claims.leadOperationsRole === 'portfolio_owner' ? 'management' : '') : '' });
         }
       }).catch(() => {});
     });
@@ -292,19 +298,23 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    if (leadOperationsRole !== 'management' && leadOperationsRole !== 'sales') return;
-    const watch = (directory: string, setOptions: typeof setLeadOwnerOptions) =>
-      onSnapshot(collection(db, directory), (snapshot) => {
-        if (auth.currentUser?.uid !== currentUser.uid) return;
-        setOptions(snapshot.docs.flatMap((entry) => {
-          const name = entry.data().displayName;
-          return typeof name === 'string' && name.trim() ? [{ uid: entry.id, displayName: name }] : [];
-        }).sort((a, b) => a.displayName.localeCompare(b.displayName)));
-      }, () => setOptions([]));
-    const stopLeadOwners = watch('leadOwnerDirectory', setLeadOwnerOptions);
-    const stopPortfolioOwners = leadOperationsRole === 'management'
-      ? watch('portfolioOwnerDirectory', setPortfolioOwnerOptions) : null;
-    return () => { stopLeadOwners(); stopPortfolioOwners?.(); };
+    if (leadOperationsRole !== 'management') return;
+    const directories: Record<string, Array<{ uid: string; displayName: string }>> = {};
+    const watch = (directory: string) => onSnapshot(collection(db, directory), (snapshot) => {
+      if (auth.currentUser?.uid !== currentUser.uid) return;
+      directories[directory] = snapshot.docs.flatMap((entry) => {
+        const name = entry.data().displayName;
+        return typeof name === 'string' && name.trim() ? [{ uid: entry.id, displayName: name }] : [];
+      });
+      const combined = Array.from(new Map(Object.values(directories).flat().map(item => [item.uid, item])).values())
+        .sort((a, b) => a.displayName.localeCompare(b.displayName));
+      setLeadOwnerOptions(combined);
+      setPortfolioOwnerOptions(combined);
+    }, () => { directories[directory] = []; });
+    const stopLeadOwners = watch('leadOwnerDirectory');
+    const stopPortfolioOwners = watch('portfolioOwnerDirectory');
+    return () => { stopLeadOwners(); stopPortfolioOwners(); };
+
   }, [leadOperationsRole, currentUser.uid]);
 
   // Resolve the Firebase identity before subscribing to workspace data.
@@ -342,7 +352,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       if (fbUser) {
         try {
           const cleanEmail = (fbUser.email || '').toLowerCase().trim();
-          const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com';
           const userRef = doc(db, 'users', fbUser.uid);
           const snap = await getDoc(userRef);
           if (!isCurrent()) return;
@@ -358,11 +367,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
               isApproved: storedProfile.isApproved ?? true,
               status: storedProfile.status ?? 'approved',
             };
-            if (isSuperAdmin && profile.role !== 'partner') {
-              profile.role = 'management';
-              await setDoc(userRef, { role: 'management' }, { merge: true });
-              if (!isCurrent()) return;
-            }
             setCurrentUser(profile);
             setIsAuthenticated(true);
             try {
@@ -374,7 +378,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
               uid: fbUser.uid,
               email: cleanEmail,
               displayName: fbUser.displayName || cleanEmail.split('@')[0] || 'User',
-              role: isSuperAdmin ? 'management' : 'portfolio_owner',
+              role: 'partner',
               avatarUrl: fbUser.photoURL || undefined,
               isApproved: true,
               status: 'approved',
@@ -465,7 +469,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       }
     );
 
-    const unsubPayments = onSnapshot(
+    const unsubPayments = internalRole === 'admin' ? onSnapshot(
       collection(db, 'payments'),
       (snapshot) => {
         if (!isCurrent()) return;
@@ -475,21 +479,21 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       (err) => {
         console.warn('Payments listener status:', err.message);
       }
-    );
+    ) : () => {};
 
-    const unsubActivities = onSnapshot(
-      collection(db, 'activities'),
+    // Management receives only the sanitized projection. The mixed audit log is admin-only.
+    const unsubActivities = internalRole ? onSnapshot(
+      collection(db, internalRole === 'admin' ? 'activities' : 'operationalActivities'),
       (snapshot) => {
         if (!isCurrent()) return;
-        const list = snapshot.docs.map((docSnap) => docSnap.data() as Activity);
-        setActivities(list);
+        setActivityError(false);
+        setActivities(snapshot.docs.map((docSnap) => ({ description: '', ...docSnap.data(), id: docSnap.id } as Activity)));
       },
-      (err) => {
-        console.warn('Activities listener status:', err.message);
-      }
-    );
+      (err) => { setActivities([]); setActivityError(true); console.warn('Activities listener status:', err.message); }
+    ) : () => { setActivities([]); };
 
-    const unsubUsers = onSnapshot(
+
+    const unsubUsers = internalRole === 'admin' ? onSnapshot(
       collection(db, 'users'),
       (snapshot) => {
         if (!isCurrent()) return;
@@ -501,7 +505,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       (err) => {
         console.warn('Users listener status:', err.message);
       }
-    );
+    ) : () => {};
 
     return () => {
       active = false;
@@ -512,7 +516,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       unsubActivities();
       unsubUsers();
     };
-  }, [firebaseSessionUid]);
+  }, [firebaseSessionUid, internalRole]);
 
   const openAuthModal = (tab: 'signin' | 'signup' | 'manage' = 'signin') => {
     setAuthModalTab(tab);
@@ -528,17 +532,16 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     university?: string;
     avatarUrl?: string;
   }): AppUser => {
-    const isPartner = data.role === 'partner';
+    const isPartner = true;
     const partnerId = isPartner ? `PART-${Math.floor(10000 + Math.random() * 90000)}` : undefined;
     // Use the Firebase Auth UID so Firestore ownership rules can authorize the write.
     const uid = auth.currentUser?.uid || `user-${Date.now()}`;
     const cleanEmail = data.email.toLowerCase().trim();
-    const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com' || data.role === 'management' || data.role === 'admin';
     const newUser: AppUser = {
       uid,
       email: cleanEmail,
       displayName: data.displayName,
-      role: data.role,
+      role: 'partner',
       isApproved: true,
       status: 'approved',
       ...(isPartner ? {
@@ -615,14 +618,12 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const updateUserRole = async (uid: string, role: UserRole) => {
-    if (uid === currentUser.uid) return;
-    await setDoc(doc(db, 'users', uid), { role }, { merge: true });
-    setAvailableUsers((previous) => previous.map((user) => user.uid === uid ? { ...user, role } : user));
+  const updateUserRole = async (_uid: string, _role: UserRole) => {
+    throw new Error('Access must be provisioned by an administrator.');
   };
 
   const deleteUser = async (uid: string) => {
-    if (!uid || uid === currentUser.uid || currentUser.role !== 'management' && currentUser.role !== 'admin') return;
+    if (!uid || uid === currentUser.uid || internalRole !== 'admin') return;
     await setDoc(doc(db, 'users', uid), {
       status: 'deleted',
       deletedAt: new Date().toISOString(),
@@ -677,14 +678,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   };
 
-  const loginWithUser = (user: AppUser) => {
-    setCurrentUser(user);
-    setIsAuthenticated(true);
-    try {
-      localStorage.setItem('hearthaway_auth_uid', user.uid);
-      localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(user));
-    } catch (e) {}
-    setIsLoginModalOpen(false);
+  const loginWithUser = (_user: AppUser) => {
+    throw new Error('Sign in with your Firebase account.');
   };
 
   const loginWithGoogle = async () => {
@@ -701,23 +696,21 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         if (snap.exists()) {
           profile = snap.data() as AppUser;
         } else {
-          const isSuperAdmin = userEmail === 'tribeverve@gmail.com';
           profile = {
             uid: user.uid,
             email: userEmail,
             displayName: user.displayName || 'Authenticated User',
-            role: isSuperAdmin ? 'management' : 'portfolio_owner',
+            role: 'partner',
             avatarUrl: user.photoURL || undefined,
           };
           await setDoc(userRef, profile);
         }
       } catch {
-        const isSuperAdmin = userEmail === 'tribeverve@gmail.com';
         profile = {
           uid: user.uid,
           email: userEmail,
           displayName: user.displayName || 'Authenticated User',
-          role: isSuperAdmin ? 'management' : 'portfolio_owner',
+          role: 'partner',
           avatarUrl: user.photoURL || undefined,
         };
       }
@@ -749,12 +742,11 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         if (snap.exists()) {
           profile = snap.data() as AppUser;
         } else {
-          const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com';
           profile = {
             uid: fbUser.uid,
             email: cleanEmail,
             displayName: fbUser.displayName || cleanEmail.split('@')[0],
-            role: isSuperAdmin ? 'management' : 'portfolio_owner',
+            role: 'partner',
           };
           await setDoc(userRef, profile);
         }
@@ -799,49 +791,25 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       return { allowed: true, requiredRoles: [] };
     }
 
-    if (!isAuthenticated || !currentUser?.uid) {
+    if (!isAuthenticated || !currentUser?.uid || auth.currentUser?.uid !== currentUser.uid || firebaseSessionUid !== currentUser.uid) {
       return { allowed: false, requiredRoles: [], reason: 'unauthenticated' };
     }
 
-    const cleanEmail = (currentUser.email || '').toLowerCase().trim();
-    const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com' || currentUser.role === 'admin' || currentUser.role === 'management';
-
     const role = currentUser.role;
 
-    if (path === '/archive') {
-      const allowed = leadOperationsRole === 'management';
-      return { allowed, requiredRoles: ['management'], reason: allowed ? undefined : 'insufficient_role' };
+    const isInternal = internalRole === 'admin' || internalRole === 'management';
+    if (path.startsWith('/finance') || path.startsWith('/internal/finance') || path.startsWith('/management')) {
+      const allowed = internalRole === 'admin';
+      return { allowed, requiredRoles: ['admin'], reason: allowed ? undefined : 'insufficient_role' };
     }
-
-    if (role === 'admin' || role === 'management') {
-      return { allowed: true, requiredRoles: [] };
+    if (path.startsWith('/activity') || path.startsWith('/sales') || path.startsWith('/internal/sales') || path.startsWith('/archive') || path.startsWith('/portfolio') || path.startsWith('/internal/management')) {
+      return { allowed: isInternal, requiredRoles: ['admin', 'management'], reason: isInternal ? undefined : 'insufficient_role' };
     }
-
-    if (path.startsWith('/portfolio') || path.startsWith('/internal/management')) {
-      const requiredRoles: UserRole[] = ['admin', 'management', 'portfolio_owner'];
-      const allowed = requiredRoles.includes(role);
-      return { allowed, requiredRoles, reason: allowed ? undefined : 'insufficient_role' };
-    }
-
     if (path.startsWith('/partners') || path.startsWith('/partner')) {
-      const requiredRoles: UserRole[] = ['admin', 'management', 'portfolio_owner', 'partner'];
-      const allowed = requiredRoles.includes(role);
-      return { allowed, requiredRoles, reason: allowed ? undefined : 'insufficient_role' };
+      const allowed = isInternal || role === 'partner';
+      return { allowed, requiredRoles: ['admin', 'management', 'partner'], reason: allowed ? undefined : 'insufficient_role' };
     }
-
-    if (path.startsWith('/sales') || path.startsWith('/internal/sales')) {
-      const requiredRoles: UserRole[] = ['admin', 'management', 'sales'];
-      const allowed = requiredRoles.includes(role);
-      return { allowed, requiredRoles, reason: allowed ? undefined : 'insufficient_role' };
-    }
-
-    if (path.startsWith('/finance') || path.startsWith('/internal/finance')) {
-      const requiredRoles: UserRole[] = ['admin', 'management', 'finance'];
-      const allowed = requiredRoles.includes(role);
-      return { allowed, requiredRoles, reason: allowed ? undefined : 'insufficient_role' };
-    }
-
-    return { allowed: true, requiredRoles: [] };
+    return { allowed: false, requiredRoles: [], reason: 'insufficient_role' };
   };
 
   const buildActivity = (
@@ -868,8 +836,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       timestamp: formattedTimestamp,
       performedBy: {
         userId: currentUser.uid || 'system',
-        name: currentUser.displayName || 'System User',
-        role: currentUser.role || 'management',
+        name: (internalRole && leadOwnerOptions.find((owner) => owner.uid === currentUser.uid)?.displayName) || currentUser.displayName || '',
+        role: internalRole && leadOwnerOptions.some((owner) => owner.uid === currentUser.uid) ? internalRole : (['admin', 'management'].includes(currentUser.role) ? 'unverified' : currentUser.role),
       },
       activityType,
       description,
@@ -906,7 +874,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         portfolioOwnerId: newOwnerId, portfolioOwnerName: newOwnerName,
         assignedManagerId: newOwnerId, assignedManagerName: newOwnerName,
       });
-      transaction.set(doc(db, 'activities', activity.id), activity);
+      writeActivity(transaction, db, activity);
     });
   };
 
@@ -929,7 +897,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         assignedSalesExecutiveId: ownerId, assignedSalesExecutiveName: nextName,
       };
       transaction.update(reference, { ...changes, updatedAt: activity.timestamp });
-      transaction.set(doc(db, 'activities', activity.id), activity);
+      writeActivity(transaction, db, activity);
     });
   };
 
@@ -1071,7 +1039,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       studentId = `HA-${year}-${Math.floor(100000 + Math.random() * 900000)}`;
     } while (usedIds.has(studentId));
     const [firstName, ...names] = details.fullName.split(/\s+/);
-    const activity = buildActivity(studentId, 'Lead Submitted', bulk ? 'Lead imported from CSV.' : 'Lead created individually.');
+    const activity = buildActivity(studentId, 'Lead Submitted', `${bulk ? 'Lead imported from CSV' : 'Lead created individually'}. Source: ${partner.companyName} (${partner.partnerId}).`);
     const record: Student = {
       id, studentId, firstName, lastName: names.join(' '), fullName: details.fullName,
       email: details.email, phone: details.phone, whatsApp: details.whatsApp || details.phone,
@@ -1116,7 +1084,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
             if (leadConflictMessage(leadContactConflicts(parsed.data, existing))) { duplicates++; continue; }
             const { record, activity } = makeLead(parsed.data, partner, existing, true);
             transaction.set(doc(db, 'students', record.id), record);
-            transaction.set(doc(db, 'activities', activity.id), activity);
+            writeActivity(transaction, db, activity);
             existing.push(record);
             saved.push(record);
           }
@@ -1146,7 +1114,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       if (conflict) throw new Error(conflict);
       const { record, activity } = makeLead(details, partner, existing, false);
       transaction.set(doc(db, 'students', record.id), record);
-      transaction.set(doc(db, 'activities', activity.id), activity);
+      writeActivity(transaction, db, activity);
       transaction.set(intakeLock, { updatedAt: serverTimestamp() });
       return record;
     });
@@ -1196,7 +1164,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       if (!Object.keys(changed).length) return;
       const activity = buildActivity(studentId, 'Lead Details Updated', `Edited fields: ${Object.keys(changed).join(', ')}.`);
       transaction.update(reference, { ...changed, updatedAt: activity.timestamp });
-      transaction.set(doc(db, 'activities', activity.id), activity);
+      writeActivity(transaction, db, activity);
       transaction.set(intakeLock, { updatedAt: serverTimestamp() });
     });
   };
@@ -1215,7 +1183,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         archivalReason: reason.trim(), archivedAt: new Date().toISOString(), archivedBy: currentUser.uid,
       });
       transaction.delete(source);
-      transaction.set(doc(db, 'activities', activity.id), activity);
+      writeActivity(transaction, db, activity);
       transaction.set(intakeLock, { updatedAt: serverTimestamp() });
     });
     setSelectedStudentId(null);
@@ -1223,8 +1191,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   const setPartnerLeadTarget = async (partnerId: string, season: string, promised: number) => {
     const partner = partners.find((entry) => entry.partnerId === partnerId);
-    if (!partner || (leadOperationsRole !== 'management' &&
-        !(leadOperationsRole === 'portfolio_owner' && partner.portfolioOwnerId === currentUser.uid))) {
+    if (!partner || leadOperationsRole !== 'management') {
       throw new Error('You cannot edit this target.');
     }
     if (!intakeKey(season) || !Number.isSafeInteger(promised) || promised < 0) throw new Error('Enter a season and a whole number of leads.');
@@ -1282,7 +1249,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           student.studentId, `${label} Change`,
           `Changed ${description} from "${previous}" to "${next}"`, previous, next
         );
-        transaction.set(doc(db, 'activities', activity.id), activity);
+        writeActivity(transaction, db, activity);
       }
       transaction.update(reference, { ...updates, updatedAt: new Date().toISOString() });
     });
@@ -1541,7 +1508,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       const audit = buildActivity(stored.studentId, `Payment ${decision}`,
         `Payment ${stored.paymentId} (${stored.currency} ${stored.amount}, ${conversionText(stored)}) was ${decision.toLowerCase()} by ${currentUser.displayName}. ${remarks || ''}`,
         stored.paymentStatus, decision);
-      transaction.set(doc(db, 'activities', audit.id), audit);
+      writeActivity(transaction, db, audit);
       transaction.update(paymentRef, {
         paymentStatus: decision, verifiedBy: `${currentUser.displayName} (${currentUser.role})`,
         verificationTimestamp: formattedTimestamp, remarks: remarks ? [stored.remarks, remarks].filter(Boolean).join(' | ') : stored.remarks || '',
@@ -1550,7 +1517,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         for (const [label, previous, next] of [['Booking Status', lead.bookingStatus, 'Booked'], ['Commission Status', lead.commissionStatus, 'Due']]) {
           if (previous === next) continue;
           const change = buildActivity(stored.studentId, label + ' Change', `Changed ${label} from "${previous || 'Unset'}" to "${next}"`, previous, next);
-          transaction.set(doc(db, 'activities', change.id), change);
+          writeActivity(transaction, db, change);
         }
         transaction.update(studentRef, { bookingStatus: 'Booked', commissionStatus: 'Due', updatedAt: formattedTimestamp, lastActivityAt: formattedTimestamp });
       } else if (student) {
@@ -1641,12 +1608,14 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         bookings,
         payments,
         activities,
+        activityError,
         reassignPartnerPortfolioOwner,
         reassignLeadOwner,
         assignSalesOwner,
         editLeadDetails,
         archiveLead,
         leadOperationsRole,
+        internalRole,
         leadOwnerOptions,
         portfolioOwnerOptions,
         setPartnerLeadTarget,

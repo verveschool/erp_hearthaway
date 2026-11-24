@@ -26,22 +26,7 @@ import {
   Clock,
 } from 'lucide-react';
 
-function getDashboardForRole(role: UserRole): string {
-  switch (role) {
-    case 'partner':
-      return '/partners';
-    case 'portfolio_owner':
-      return '/portfolio';
-    case 'sales':
-      return '/sales';
-    case 'finance':
-      return '/finance';
-    case 'management':
-    case 'admin':
-    default:
-      return '/portfolio';
-  }
-}
+function getDashboardForRole(_role: UserRole): string { return '/partners'; }
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -51,7 +36,7 @@ export default function SignUpPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passcode, setPasscode] = useState('');
-  const [selectedRole, setSelectedRole] = useState<UserRole>('portfolio_owner');
+  const [selectedRole, setSelectedRole] = useState<UserRole>('partner');
   const [partnerOrg, setPartnerOrg] = useState('');
 
   const [errorMessage, setErrorMessage] = useState('');
@@ -163,13 +148,7 @@ export default function SignUpPage() {
 
             </div>
 
-            <label className="block text-sm font-medium">Account role
-              <select className="mt-1 w-full rounded-lg border border-ha-line bg-white px-3 py-2" value={selectedRole}
-                onChange={event => setSelectedRole(event.target.value as UserRole)}>
-                <option value="portfolio_owner">Portfolio owner</option><option value="partner">Partner</option>
-                <option value="sales">Sales</option><option value="finance">Finance</option><option value="management">Management</option>
-              </select>
-            </label>
+            <p className="text-sm text-ha-secondary">This creates a partner account. Internal access is provisioned by an administrator.</p>
 
             {/* User Details */}
             <div className="space-y-3">
