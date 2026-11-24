@@ -55,7 +55,6 @@ export default function SalesPage() {
     students,
     partners,
     activities,
-    availableUsers,
     leadOwnerOptions,
     currentUser,
     leadOperationsRole,
@@ -123,8 +122,8 @@ export default function SalesPage() {
   }
 
   const salesUsers = useMemo(() => {
-    return leadOwnerOptions.length ? leadOwnerOptions : availableUsers.filter((u) => u.role === 'sales');
-  }, [availableUsers, leadOwnerOptions]);
+    return leadOwnerOptions;
+  }, [leadOwnerOptions]);
 
   const visibleStudents = useMemo(() => students.filter((student) => (
     !hideTestRecords || (!student.isTestRecord && student.archivalStatus !== 'Flagged For Archival')
