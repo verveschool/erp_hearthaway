@@ -18,7 +18,6 @@ import {
   Layers,
   Users,
   Search,
-  Filter,
   ArrowUpDown,
   Building,
   CheckCircle2,
@@ -41,8 +40,6 @@ import {
   CreditCard,
   User,
   BarChart3,
-  ChevronDown,
-  ChevronUp,
   Calendar,
   Zap,
   Globe,
@@ -149,8 +146,7 @@ export default function PortfolioPage() {
     effectiveOwnerId === 'all'
       ? {
           uid: 'all',
-          displayName: 'All Portfolio Owners (Organization Wide)',
-          email: 'Organization-wide partner & lead rollups',
+          displayName: 'All portfolios',
           role: 'management',
         }
       : portfolioOwners.find((po) => po.uid === effectiveOwnerId) || {
@@ -161,6 +157,7 @@ export default function PortfolioPage() {
         };
 
   // State for search, filters, and active tab
+  const [leadFiltersOpen, setLeadFiltersOpen] = useState(false);
   const [activeTab, setActiveTab] = useWorkspaceView<'leads' | 'partners' | 'audit'>(currentUser.uid, 'activeTab', 'leads');
   const [searchQuery, setSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'searchQuery', '');
   const [filterPartner, setFilterPartner] = useWorkspaceView<string>(currentUser.uid, 'filterPartner', 'All');
@@ -180,6 +177,11 @@ export default function PortfolioPage() {
   // Global Lead Search across all portfolios (independent of active owner)
   const [globalSearchQuery, setGlobalSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'globalSearch', '');
   const [isGlobalSearchFocused, setIsGlobalSearchFocused] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(() => Boolean(globalSearchQuery));
+  const globalSearchInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (globalSearchOpen) globalSearchInput.current?.focus();
+  }, [globalSearchOpen]);
   const globalSearchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -562,30 +564,41 @@ export default function PortfolioPage() {
   const reassignPartner = partners.find((partner) => partner.partnerId === reassignModalPartnerId);
 
   return (
-    <div className="ha-workspace">
+    <div className="ha-workspace workspace-compact portfolio-workspace">
       {/* Top Header */}
       <div className="ha-page-header">
         <div>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="ha-title">
-                Portfolio overview
-              </h1>
-            </div>
+          <div className="workspace-heading">
+            <h1 className="ha-title">Portfolio</h1>
+            <div className="workspace-heading-actions">
+              <button type="button" className="workspace-icon-button" aria-expanded={globalSearchOpen}
+                aria-controls="portfolio-global-search" aria-label="Search across portfolios" title="Search across portfolios"
+                data-active={Boolean(globalSearchQuery.trim())}
+                onClick={() => {
+                  if (globalSearchOpen) {
+                    setGlobalSearchQuery('');
+                    setIsGlobalSearchFocused(false);
+                  }
+                  setGlobalSearchOpen(!globalSearchOpen);
+                }}>
+                <Search size={21} aria-hidden="true" />
+              </button>
+              <button type="button" className="workspace-icon-button" aria-expanded={isChartExpanded}
+                aria-controls="portfolio-growth" aria-label="Portfolio growth" title="Portfolio growth"
+                onClick={() => setIsChartExpanded(!isChartExpanded)}>
+                <TrendingUp size={21} aria-hidden="true" />
+              </button>
 
             {/* Management View Selector: Inspect different Portfolio Owners */}
             {isManagement && (
-              <div className="flex items-center gap-2 bg-[#F7F6F3] p-1.5 rounded-xl border border-[#E8E6E1]">
-                <span className="text-xs font-bold text-[#6B6860] pl-2 hidden sm:inline">
-                  Portfolio Scope:
-                </span>
+              <div className="workspace-scope">
                 <select
                   aria-label="Portfolio scope"
                   value={selectedOwnerId}
                   onChange={(e) => setSelectedOwnerId(e.target.value)}
                   className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs font-bold text-[#1A1A1A] focus:outline-none focus:border-[#00319D] cursor-pointer"
                 >
-                  <option value="all">All Portfolios ({partners.length} partners)</option>
+                  <option value="all">All portfolios</option>
                   {portfolioOwners.map((owner) => (
                     <option key={owner.uid} value={owner.uid}>
                       {owner.displayName} ({partners.filter((p) => p.portfolioOwnerId === owner.uid).length} partners)
@@ -594,16 +607,18 @@ export default function PortfolioPage() {
                 </select>
               </div>
             )}
+            </div>
           </div>
 
           {/* DEDICATED GLOBAL LEAD SEARCH INPUT IN HEADER (Cross-Portfolio) */}
-          <div className="mt-5 relative z-40" ref={globalSearchRef} onKeyDown={event => { if (event.key === 'Escape' && isGlobalSearchFocused) { event.preventDefault(); setIsGlobalSearchFocused(false); } }}>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-[#F7F6F3] p-2 sm:p-2.5 rounded-xl border border-[#E8E6E1] shadow-2xs">
+          <div className="relative mt-2 z-20" id="portfolio-global-search" hidden={!globalSearchOpen} ref={globalSearchRef} onKeyDown={event => { if (event.key === 'Escape' && isGlobalSearchFocused) { event.preventDefault(); setIsGlobalSearchFocused(false); } }}>
+            <div className="flex items-center gap-2">
               <div className="relative min-w-0 flex-1">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Globe className="h-4 w-4 text-[#00319D]" />
                 </div>
                 <input
+                  ref={globalSearchInput}
                   aria-label="Search all portfolios"
                   type="text"
                   value={globalSearchQuery}
@@ -612,7 +627,7 @@ export default function PortfolioPage() {
                     setIsGlobalSearchFocused(true);
                   }}
                   onFocus={() => setIsGlobalSearchFocused(true)}
-                  placeholder="Search all portfolios by student name or ID"
+                  placeholder="Search all portfolios"
                   className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-9 py-2 text-xs font-medium text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-none transition-all"
                 />
                 {globalSearchQuery && (
@@ -623,7 +638,7 @@ export default function PortfolioPage() {
                       setIsGlobalSearchFocused(false);
                     }}
                     className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#6B6860] hover:text-[#1A1A1A] cursor-pointer"
-                    title="Clear global search"
+                    title="Clear cross-portfolio search"
                     aria-label="Clear global search"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -631,19 +646,6 @@ export default function PortfolioPage() {
                 )}
               </div>
 
-              <div className="flex items-center justify-between sm:justify-end gap-2 px-1">
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#FFFFFF] border border-[#E8E6E1] px-2.5 py-1.5 text-xs font-bold text-[#6B6860]">
-                  <Users className="h-3.5 w-3.5 text-[#00319D]" />
-                  <span>
-                    Scope: <strong className="text-[#1A1A1A]">Cross-Portfolio ({students.length} Total Leads)</strong>
-                  </span>
-                </span>
-                {globalSearchQuery.trim() !== '' && (
-                  <span className="rounded-lg bg-[#00319D] px-2.5 py-1.5 text-xs font-bold text-[#FFFFFF] shadow-2xs whitespace-nowrap">
-                    {globalMatchingLeads.length} {globalMatchingLeads.length === 1 ? 'Match' : 'Matches'}
-                  </span>
-                )}
-              </div>
             </div>
 
             {/* Instant Global Search Results Dropdown */}
@@ -652,10 +654,7 @@ export default function PortfolioPage() {
                 <div className="bg-[#F7F6F3] px-4 py-2.5 flex items-center justify-between text-xs sticky top-0 z-10 border-b border-[#E8E6E1]">
                   <span className="font-bold text-[#1A1A1A] flex items-center gap-1.5">
                     <Globe className="h-3.5 w-3.5 text-[#00319D]" />
-                    Global Search Results ({globalMatchingLeads.length})
-                  </span>
-                  <span className="text-xs text-[#6B6860]">
-                    Searching across all portfolios without switching owners
+                    {globalMatchingLeads.length} {globalMatchingLeads.length === 1 ? 'match' : 'matches'} across portfolios
                   </span>
                 </div>
 
@@ -735,7 +734,7 @@ export default function PortfolioPage() {
                               className="rounded-lg bg-[#FFFFFF] border border-[#E8E6E1] text-[#1A1A1A] px-2.5 py-1.5 text-xs font-medium hover:bg-[#F7F6F3] transition-colors cursor-pointer"
                               title="Focus in Generated Leads Table"
                             >
-                              View in Table →
+                              View in leads
                             </button>
                           </div>
                         </div>
@@ -752,34 +751,16 @@ export default function PortfolioPage() {
             )}
           </div>
 
-          {/* Active Portfolio Owner Banner */}
-          <div className="mt-5">
-            <div className="flex items-center gap-3">
-              <div className="h-11 w-11 rounded-full bg-[#00319D] text-[#FFFFFF] flex items-center justify-center font-bold text-base shadow-xs shrink-0">
-                {activeOwner.displayName.charAt(0)}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-bold text-[#1A1A1A]">{activeOwner.displayName}</h2>
-                  <span className="rounded bg-[#00319D]/10 px-2 py-0.5 text-xs font-bold text-[#00319D]">
-                    {effectiveOwnerId === 'all' ? 'System Scope' : 'Portfolio Owner'}
-                  </span>
-                </div>
-                <p className="text-xs text-[#6B6860]">{activeOwner.email}</p>
-              </div>
-            </div>
-
             {/* Key Metrics */}
-            <dl className="ha-metrics mt-4">
-              <WorkspaceMetric label="Onboarded Partners">{metrics.totalPartners}</WorkspaceMetric>
-              <WorkspaceMetric label="Total Sourced Leads">{metrics.totalLeads}</WorkspaceMetric>
-              <WorkspaceMetric label="Booked Tenancies">{metrics.bookedLeads}</WorkspaceMetric>
-              <WorkspaceMetric label="Audit Events Logged">{auditMetrics.total}</WorkspaceMetric>
+            <dl className="ha-metrics workspace-metrics mt-2">
+              <WorkspaceMetric label="Partners">{metrics.totalPartners}</WorkspaceMetric>
+              <WorkspaceMetric label="Leads">{metrics.totalLeads}</WorkspaceMetric>
+              <WorkspaceMetric label="Tenancies">{metrics.bookedLeads}</WorkspaceMetric>
+              <WorkspaceMetric label="Activity">{auditMetrics.total}</WorkspaceMetric>
             </dl>
-          </div>
 
           {/* Recharts-based 6-Month Growth Trend: Lead Generation Volume vs Tenancy Conversions */}
-          <div className="portfolio-growth" data-expanded={isChartExpanded}>
+          <div className="portfolio-growth" id="portfolio-growth" hidden={!isChartExpanded}>
             {/* Header with Title, Stats & View Controls */}
             <div className="flex flex-col gap-3 border-b border-[#E8E6E1] pb-4">
               <div>
@@ -791,13 +772,10 @@ export default function PortfolioPage() {
                     Portfolio growth
                   </h3>
                 </div>
-                <p className="text-xs text-[#6B6860] mt-1">
-                  Lead volume and tenancy conversions over the past six months.
-                </p>
               </div>
 
               {/* Badges & Controls */}
-              <div className="flex max-w-full flex-wrap items-center gap-2.5">
+              <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2.5">
                 {/* 6M Summary Badges */}
                 <div className="flex flex-wrap items-center gap-2 text-xs tabular-nums sm:mr-auto">
                   <div className="px-2 py-1 flex items-center gap-1.5 font-bold text-[#00319D]">
@@ -865,16 +843,6 @@ export default function PortfolioPage() {
                 </div>
 
                 </>}
-                {/* Collapse / Expand Toggle */}
-                <button
-                  type="button"
-                  aria-expanded={isChartExpanded}
-                  onClick={() => setIsChartExpanded(!isChartExpanded)}
-                  className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-1.5 text-[#6B6860] hover:bg-[#F7F6F3] hover:text-[#1A1A1A] cursor-pointer"
-                  aria-label={isChartExpanded ? 'Collapse growth chart' : 'Expand growth chart'} title={isChartExpanded ? 'Collapse growth chart' : 'Expand growth chart'}
-                >
-                  {isChartExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
               </div>
             </div>
 
@@ -1034,8 +1002,8 @@ export default function PortfolioPage() {
           </div>
 
           {/* Sub-Tabs: Generated Leads, Onboarded Partners, and Audit Trail */}
-          <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#E8E6E1] gap-3">
-            <div className="ha-tabs text-sm font-semibold">
+          <div className="workspace-subnav">
+            <div className="ha-tabs workspace-tabs text-sm font-semibold">
               <button
                 aria-pressed={activeTab === 'leads'}
                 onClick={() => setActiveTab('leads')}
@@ -1045,7 +1013,7 @@ export default function PortfolioPage() {
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
                 }`}
               >
-                Leads ({metrics.totalLeads})
+                Leads
               </button>
               <button
                 aria-pressed={activeTab === 'partners'}
@@ -1056,7 +1024,7 @@ export default function PortfolioPage() {
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
                 }`}
               >
-                Partners ({metrics.totalPartners})
+                Partners
               </button>
               <button
                 aria-pressed={activeTab === 'audit'}
@@ -1067,14 +1035,13 @@ export default function PortfolioPage() {
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
                 }`}
               >
-                Activity log ({auditMetrics.total})
+                Activity log
               </button>
             </div>
 
             {/* Toggle switch between Card View and Table View for lead listings */}
             {activeTab === 'leads' && (
-              <div className="flex items-center gap-2 pb-2.5 sm:pb-3 self-end sm:self-auto shrink-0">
-                <span className="text-xs font-bold text-[#6B6860] hidden md:inline">Layout:</span>
+              <div className="workspace-view-switch">
                 <div className="flex items-center rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] p-0.5 shadow-2xs">
                   <button
                     aria-pressed={leadViewMode === 'table'}
@@ -1085,10 +1052,9 @@ export default function PortfolioPage() {
                         ? 'bg-[#FFFFFF] text-[#00319D] shadow-2xs'
                         : 'text-[#6B6860] hover:text-[#1A1A1A]'
                     }`}
-                    title="Table View (compact high-density rows)"
+                    title="Table view" aria-label="Table view"
                   >
-                    <LayoutList className="h-3.5 w-3.5" />
-                    <span>Table View</span>
+                    <LayoutList size={19} aria-hidden="true" />
                   </button>
                   <button
                     aria-pressed={leadViewMode === 'cards'}
@@ -1099,10 +1065,9 @@ export default function PortfolioPage() {
                         ? 'bg-[#FFFFFF] text-[#00319D] shadow-2xs'
                         : 'text-[#6B6860] hover:text-[#1A1A1A]'
                     }`}
-                    title="Card View (optimized visual cards)"
+                    title="Card view" aria-label="Card view"
                   >
-                    <LayoutGrid className="h-3.5 w-3.5" />
-                    <span>Card View</span>
+                    <LayoutGrid size={19} aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -1112,45 +1077,22 @@ export default function PortfolioPage() {
       </div>
 
       {/* Main Content Area */}
-      <div className="min-w-0 pt-5">
+      <div className="workspace-content">
         {/* TAB 1: GENERATED LEADS */}
         {activeTab === 'leads' && (
           <div className="space-y-4">
-            {/* Global Lead Search active banner */}
-            {globalSearchQuery.trim() !== '' && (
-              <div className="rounded-xl border border-[#00319D]/30 bg-[#00319D]/5 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#00319D] text-[#FFFFFF] shrink-0">
-                    <Globe className="h-3.5 w-3.5" />
-                  </span>
-                  <div>
-                    <span className="font-bold text-[#1A1A1A]">
-                      Global Lead Search Active:
-                    </span>{' '}
-                    <span className="text-[#6B6860]">
-                      Showing {filteredLeads.length} matching {filteredLeads.length === 1 ? 'lead' : 'leads'} across <strong>all portfolios</strong> for &ldquo;
-                      <strong className="text-[#00319D]">{globalSearchQuery}</strong>
-                      &rdquo; without needing to switch owners.
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setGlobalSearchQuery('')}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#00319D]/30 bg-[#FFFFFF] px-3 py-1.5 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/10 transition-colors shrink-0 cursor-pointer"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  Clear Global Search &amp; Return to Scoped View
-                </button>
-              </div>
-            )}
-
             {/* Search, Filter & CSV Export Toolbar */}
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3">
-              <div className="flex flex-col xl:flex-row gap-3">
+            <div className="workspace-toolbar">
+              <div className="workspace-filter-bar">
                 <WorkspaceSearch label="Search portfolio leads" placeholder="Search leads" value={searchQuery} onChange={setSearchQuery} />
 
-                <div className="flex max-w-full flex-wrap items-center gap-2">
+                <button type="button" className="workspace-icon-button workspace-filter-toggle"
+                  aria-label="Lead filters" title="Lead filters" aria-expanded={leadFiltersOpen} aria-controls="portfolio-filters"
+                  data-active={filterPartner !== 'All' || filterLeadStatus !== 'All' || filterBookingStatus !== 'All' || sortBy !== 'newest' || quickFilter !== 'all'}
+                  onClick={() => setLeadFiltersOpen(!leadFiltersOpen)}>
+                  <SlidersHorizontal size={20} aria-hidden="true" />
+                </button>
+                <div id="portfolio-filters" className="workspace-filter-fields" data-open={leadFiltersOpen}>
                   {/* Sourcing Partner Filter */}
                   <select
                     aria-label="Filter by partner"
@@ -1211,25 +1153,19 @@ export default function PortfolioPage() {
                   <button
                     onClick={handleExportLeadsCSV}
                     disabled={filteredLeads.length === 0}
-                    className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-2 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
-                    title="Download current leads table as CSV"
+                    className="workspace-icon-button"
+                    title="Export leads CSV" aria-label="Export leads CSV"
                   >
-                    <Download className="h-3.5 w-3.5" />
-                    <span>Export CSV ({filteredLeads.length})</span>
+                    <Download size={20} aria-hidden="true" />
                   </button>
                 </div>
               </div>
 
-              {/* Horizontal scrollable row of quick filter chips below the main search bar */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1.5 scrollbar-thin border-t border-[#E8E6E1]/70">
-                <span className="text-xs font-bold text-[#6B6860] uppercase tracking-wider shrink-0 flex items-center gap-1 pl-0.5">
-                  <Filter className="h-3 w-3 text-[#00319D]" />
-                  Quick Filters:
-                </span>
-
+              <div className="portfolio-quick-filters" data-open={leadFiltersOpen} aria-label="Quick filters">
                 {/* All Leads Chip */}
                 <button
                   type="button"
+                  aria-pressed={quickFilter === 'all'}
                   onClick={() => setQuickFilter('all')}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all cursor-pointer ${
                     quickFilter === 'all'
@@ -1252,6 +1188,7 @@ export default function PortfolioPage() {
                 {/* High Priority Chip */}
                 <button
                   type="button"
+                  aria-pressed={quickFilter === 'high_priority'}
                   onClick={() => setQuickFilter(quickFilter === 'high_priority' ? 'all' : 'high_priority')}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all cursor-pointer ${
                     quickFilter === 'high_priority'
@@ -1276,6 +1213,7 @@ export default function PortfolioPage() {
                 {/* Due Today Chip */}
                 <button
                   type="button"
+                  aria-pressed={quickFilter === 'due_today'}
                   onClick={() => setQuickFilter(quickFilter === 'due_today' ? 'all' : 'due_today')}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all cursor-pointer ${
                     quickFilter === 'due_today'
@@ -1300,6 +1238,7 @@ export default function PortfolioPage() {
                 {/* Awaiting Payment Chip */}
                 <button
                   type="button"
+                  aria-pressed={quickFilter === 'awaiting_payment'}
                   onClick={() =>
                     setQuickFilter(quickFilter === 'awaiting_payment' ? 'all' : 'awaiting_payment')
                   }
@@ -1326,6 +1265,7 @@ export default function PortfolioPage() {
                 {/* Qualified Leads Chip */}
                 <button
                   type="button"
+                  aria-pressed={quickFilter === 'qualified'}
                   onClick={() => setQuickFilter(quickFilter === 'qualified' ? 'all' : 'qualified')}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all cursor-pointer ${
                     quickFilter === 'qualified'
@@ -1350,6 +1290,7 @@ export default function PortfolioPage() {
                 {/* Booked Tenancies Chip */}
                 <button
                   type="button"
+                  aria-pressed={quickFilter === 'booked'}
                   onClick={() => setQuickFilter(quickFilter === 'booked' ? 'all' : 'booked')}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all cursor-pointer ${
                     quickFilter === 'booked'
@@ -1372,22 +1313,10 @@ export default function PortfolioPage() {
                 </button>
               </div>
 
-              <div className="flex items-center justify-between text-xs text-[#6B6860] pt-1 border-t border-[#E8E6E1]">
-                <span>
-                  {globalSearchQuery.trim() !== '' ? (
-                    <>
-                      Showing <strong>{filteredLeads.length}</strong> matching leads from <strong>all {students.length} company-wide leads</strong> (Global Lead Search)
-                    </>
-                  ) : (
-                    <>
-                      Showing <strong>{filteredLeads.length}</strong> of <strong>{portfolioLeads.length}</strong> leads rolled up into this portfolio
-                    </>
-                  )}
-                </span>
-                <span className="text-xs font-medium text-[#00319D]">
-                  Attribution updates automatically across live devices
-                </span>
-              </div>
+              <p className="workspace-result-count" role="status">
+                {filteredLeads.length} {filteredLeads.length === 1 ? 'lead' : 'leads'}
+                {globalSearchQuery.trim() ? ' across all portfolios' : ''}
+              </p>
             </div>
 
             {/* Leads Listing: Card View or Table View based on leadViewMode */}
@@ -1552,9 +1481,9 @@ export default function PortfolioPage() {
                         <button
                           type="button"
                           onClick={() => setSelectedStudentId(lead.studentId)}
-                          className="rounded-lg bg-[#00319D] text-[#FFFFFF] px-3 py-1.5 text-xs font-bold hover:bg-[#00257A] transition-colors shadow-2xs cursor-pointer"
+                          className="ha-primary-action"
                         >
-                          Inspect Dossier →
+                          Open lead
                         </button>
                       </div>
                     </div>
@@ -1565,17 +1494,16 @@ export default function PortfolioPage() {
               /* TABLE VIEW */
               <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
                 <div className="ha-table-scroll">
-                  <table className="ha-table">
+                  <table className="ha-table portfolio-leads-table">
                     <thead>
                       <tr>
-                        <th scope="col" className="py-3 px-4 font-bold">Student / Lead</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Student</th>
                         <th scope="col" className="py-3 px-4 font-bold">Sourcing Partner</th>
                         <th scope="col" className="py-3 px-4 font-bold">Lead Owner</th>
-                        <th scope="col" className="py-3 px-4 font-bold">University &amp; City</th>
+                        <th scope="col" className="py-3 px-4 font-bold"><span className="hidden md:inline">University &amp; </span>City</th>
                         <th scope="col" className="py-3 px-4 font-bold">Lead Status</th>
                         <th scope="col" className="py-3 px-4 font-bold">Booking Status</th>
                         <th scope="col" className="py-3 px-4 font-bold">Intake</th>
-                        <th scope="col" className="py-3 px-4 font-bold text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E8E6E1]">
@@ -1586,7 +1514,10 @@ export default function PortfolioPage() {
                           onClick={() => setSelectedStudentId(lead.studentId)}
                         >
                           <td className="py-3.5 px-4">
-                            <div className="font-bold text-[#1A1A1A]">{lead.fullName}</div>
+                            <button type="button" className="workspace-record-link" onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedStudentId(lead.studentId);
+                            }}>{lead.fullName}</button>
                             <div className="font-mono text-xs text-[#00319D]">{lead.studentId}</div>
                           </td>
 
@@ -1655,14 +1586,6 @@ export default function PortfolioPage() {
 
                           <td className="py-3.5 px-4 text-[#6B6860]">{lead.intake}</td>
 
-                          <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => setSelectedStudentId(lead.studentId)}
-                              className="rounded-lg bg-[#F7F6F3] border border-[#E8E6E1] px-2.5 py-1 text-xs font-bold text-[#00319D] hover:bg-[#E8E6E1] transition-colors"
-                            >
-                              Inspect →
-                            </button>
-                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1676,11 +1599,7 @@ export default function PortfolioPage() {
         {/* TAB 2: ONBOARDED PARTNERS */}
         {activeTab === 'partners' && (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <p className="text-xs text-[#6B6860]">
-                Education consultants and corporate referral partners onboarded under <strong>{activeOwner.displayName}</strong>.
-              </p>
-
+            <div className="flex justify-end">
               {/* CSV Export Button */}
               <button
                 onClick={handleExportPartnersCSV}
@@ -1786,22 +1705,18 @@ export default function PortfolioPage() {
               <div className="bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
                 <span className="text-xs uppercase font-bold text-[#6B6860] block">Total Audit Entries</span>
                 <span className="text-xl font-bold text-[#1A1A1A] mt-0.5 block">{auditMetrics.total}</span>
-                <span className="text-xs text-[#6B6860] mt-0.5 block">Synced live from Firestore</span>
               </div>
               <div className="bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
                 <span className="text-xs uppercase font-bold text-[#6B6860] block">Partner Reassignments</span>
                 <span className="text-xl font-bold text-[#00319D] mt-0.5 block">{auditMetrics.reassignments}</span>
-                <span className="text-xs text-[#6B6860] mt-0.5 block">Portfolio reallocations</span>
               </div>
               <div className="bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
                 <span className="text-xs uppercase font-bold text-[#6B6860] block">Lead Stage Changes</span>
                 <span className="text-xl font-bold text-blue-700 mt-0.5 block">{auditMetrics.statusUpdates}</span>
-                <span className="text-xs text-[#6B6860] mt-0.5 block">Pipeline transitions</span>
               </div>
               <div className="bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
                 <span className="text-xs uppercase font-bold text-[#6B6860] block">Payment Verifications</span>
                 <span className="text-xl font-bold text-emerald-700 mt-0.5 block">{auditMetrics.paymentVerifications}</span>
-                <span className="text-xs text-[#6B6860] mt-0.5 block">Verified finance receipts</span>
               </div>
             </div>
 
@@ -1890,7 +1805,7 @@ export default function PortfolioPage() {
             ) : (
               <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
                 <div className="ha-table-scroll">
-                  <table className="ha-table">
+                  <table className="ha-table responsive-records" role="table">
                     <thead>
                       <tr>
                         <th scope="col" className="py-3 px-4 font-bold">Timestamp &amp; Event ID</th>
@@ -1901,7 +1816,7 @@ export default function PortfolioPage() {
                         <th scope="col" className="py-3 px-4 font-bold">State Transition</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#E8E6E1]">
+                    <tbody role="rowgroup" className="divide-y divide-[#E8E6E1]">
                       {filteredActivities.map((act) => {
                         const isReassignment =
                           act.activityType.includes('Reassigned') || act.activityType.includes('Owner');
@@ -1913,8 +1828,8 @@ export default function PortfolioPage() {
                           act.activityType.includes('Lead');
 
                         return (
-                          <tr key={act.id} className="hover:bg-[#F7F6F3]/50 transition-colors">
-                            <td className="py-3.5 px-4 whitespace-nowrap">
+                          <tr role="row" key={act.id} className="hover:bg-[#F7F6F3]/50 transition-colors">
+                            <td role="cell" data-label="Time and event" className="py-3.5 px-4 whitespace-nowrap">
                               <div className="font-semibold text-[#1A1A1A] flex items-center gap-1.5">
                                 <Clock className="h-3.5 w-3.5 text-[#6B6860]" />
                                 <span>{act.timestamp}</span>
@@ -1922,7 +1837,7 @@ export default function PortfolioPage() {
                               <span className="font-mono text-xs text-[#6B6860]">{act.activityId}</span>
                             </td>
 
-                            <td className="py-3.5 px-4 whitespace-nowrap">
+                            <td role="cell" data-label="Action" className="py-3.5 px-4 whitespace-nowrap">
                               <span
                                 className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold ${
                                   isReassignment
@@ -1944,7 +1859,7 @@ export default function PortfolioPage() {
                               </span>
                             </td>
 
-                            <td className="py-3.5 px-4 whitespace-nowrap">
+                            <td role="cell" data-label="Performed by" className="py-3.5 px-4 whitespace-nowrap">
                               <div className="font-bold text-[#1A1A1A] flex items-center gap-1.5">
                                 <User className="h-3.5 w-3.5 text-[#00319D]" />
                                 <span>{act.performedBy?.name || 'System Operator'}</span>
@@ -1954,19 +1869,19 @@ export default function PortfolioPage() {
                               </span>
                             </td>
 
-                            <td className="py-3.5 px-4 whitespace-nowrap">
+                            <td role="cell" data-label="Record" className="py-3.5 px-4 whitespace-nowrap">
                               <span className="font-mono font-bold text-xs text-[#00319D] bg-[#00319D]/5 px-2 py-1 rounded border border-[#00319D]/20">
                                 {act.studentId || 'N/A'}
                               </span>
                             </td>
 
-                            <td className="py-3.5 px-4 max-w-md">
+                            <td role="cell" data-label="Description" className="py-3.5 px-4 max-w-md">
                               <p className="text-xs text-[#1A1A1A] leading-relaxed font-medium">
                                 {act.description}
                               </p>
                             </td>
 
-                            <td className="py-3.5 px-4 whitespace-nowrap">
+                            <td role="cell" data-label="Change" className="py-3.5 px-4 whitespace-nowrap">
                               {act.oldValue || act.newValue ? (
                                 <div className="inline-flex items-center gap-1 text-xs bg-[#F7F6F3] p-1.5 rounded-lg border border-[#E8E6E1]">
                                   {act.oldValue && (

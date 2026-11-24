@@ -29,7 +29,7 @@ export function PartnerLeadTargets({ partner, leads, canEdit, onSave }: {
 
   return (
     <div className="min-w-0 text-xs">
-      {targets.length === 0 && <span className="text-ha-secondary">No seasonal target</span>}
+      {targets.length === 0 && !canEdit && <span className="text-ha-secondary">No seasonal target</span>}
       {targets.length > 0 && (
         <ul className="space-y-1">
           {targets.map((target) => {
@@ -45,7 +45,7 @@ export function PartnerLeadTargets({ partner, leads, canEdit, onSave }: {
           })}
         </ul>
       )}
-      {canEdit && <button type="button" className="mt-1 font-semibold text-ha-blue hover:underline" onClick={() => edit()}>Set seasonal target</button>}
+      {canEdit && <button type="button" className="ha-text-action partner-target-action" onClick={() => edit()}>Set seasonal target</button>}
       {open && (
         <WorkspaceDialog label="Seasonal lead target" onDismiss={dismiss}>
           <form className="w-full max-w-md space-y-4 p-5" onSubmit={async (event) => {

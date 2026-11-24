@@ -1245,14 +1245,6 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                       </div>
                     );
                   })}
-
-                  {studentBookings.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-[#E8E6E1] p-8 text-center text-xs text-[#6B6860] space-y-2">
-                      <Building className="h-8 w-8 text-[#6B6860]/40 mx-auto" />
-                      <p className="font-semibold text-[#1A1A1A]">No property bookings recorded yet.</p>
-                      <p>Record accommodation property details, rent, deposit, and agreed expected revenue above.</p>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
