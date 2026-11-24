@@ -467,8 +467,8 @@ export default function FinancePage() {
                     <tr role="row" key={booking.id} className="hover:bg-[#F7F6F3]/50">
                       <td role="cell" data-label="Booking ID" className="py-3.5 px-4 font-mono font-bold text-[#00319D]">{booking.bookingId}</td>
                       <td role="cell" data-label="Student" className="py-3.5 px-4">
-                        <button type="button" className="font-semibold text-ha-blue hover:underline text-left" onClick={() => setSelectedStudentId(booking.studentId)}>{booking.studentName}</button>
-                        <span className="font-mono text-xs text-[#6B6860]">{booking.studentId}</span>
+                        <button type="button" className="font-semibold text-ha-blue hover:underline text-left" onClick={() => setSelectedStudentId(booking.studentId)}>{booking.studentName || booking.studentId}</button>
+                        {booking.studentName && <span className="block font-mono text-xs text-[#6B6860]">{booking.studentId}</span>}
                       </td>
                       <td role="cell" data-label="Partner" className="py-3.5 px-4">
                         <div className="font-semibold text-[#1A1A1A]">
@@ -477,13 +477,15 @@ export default function FinancePage() {
                         <span className="font-mono text-xs text-[#6B6860]">{booking.partnerId}</span>
                       </td>
                       <td role="cell" data-label="Booking value" className="py-3.5 px-4 font-bold text-[#1A1A1A]">
-                        £{booking.bookingValue.toLocaleString()}
+                        £{(booking.bookingValue ?? 0).toLocaleString()}
                       </td>
                       <td role="cell" data-label="Commission" className="py-3.5 px-4 font-bold text-[#00319D]">
-                        £{(booking.providerCommissionExpected || 0).toLocaleString()} ({booking.providerCommissionPercent}%)
+                        £{(booking.providerCommissionExpected ?? 0).toLocaleString()}
+                        {booking.providerCommissionPercent != null && ` (${booking.providerCommissionPercent}%)`}
                       </td>
                       <td role="cell" data-label="Partner payout" className="py-3.5 px-4 font-bold text-emerald-700">
-                        £{(booking.partnerPayoutAmount || 0).toLocaleString()} ({booking.partnerPayoutPercent}%)
+                        £{(booking.partnerPayoutAmount ?? 0).toLocaleString()}
+                        {booking.partnerPayoutPercent != null && ` (${booking.partnerPayoutPercent}%)`}
                       </td>
                       <td role="cell" data-label="Status" className="py-3.5 px-4">
                         <span className={`rounded px-2 py-0.5 text-xs font-semibold ${booking.bookingStatus === 'Confirmed' ? 'bg-emerald-100 text-emerald-800' : booking.bookingStatus === 'Cancelled' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-800'}`}>

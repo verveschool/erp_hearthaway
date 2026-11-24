@@ -287,7 +287,7 @@ export default function SalesPage() {
               <WorkspaceSearch inputRef={search} label="Search sales leads" placeholder="Search leads by name or phone" value={searchQuery} onChange={setSearchQuery} />
             </div>
             <button type="button" aria-label="Add Sales Lead" title="Add Sales Lead" onClick={() => setShowAddLeadModal(true)}
-              className="sales-desktop-add items-center justify-center rounded-lg border border-ha-blue bg-ha-blue/5 text-ha-blue hover:bg-ha-blue/15">
+              className="sales-desktop-add items-center justify-center rounded-lg">
               <Plus size={20} aria-hidden="true" />
             </button>
 
@@ -299,6 +299,7 @@ export default function SalesPage() {
                 <select
                   key={label}
                   aria-label={`Filter by ${label}`}
+                  data-active={value !== 'All'}
                   value={value}
                   onChange={(event) => setValue(event.target.value)}
                   className="rounded-lg border border-ha-line bg-white px-2.5 text-xs font-medium text-ha-ink focus:border-ha-blue"
@@ -312,6 +313,7 @@ export default function SalesPage() {
               {/* Lead Stage Filter */}
               <select
                 ref={stageControl} aria-label="Filter by pipeline stage"
+                data-active={filterStage !== 'All'}
                 value={filterStage}
                 onChange={(e) => setFilterStage(e.target.value as PipelineFilter)}
                 className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -327,6 +329,7 @@ export default function SalesPage() {
               {/* Priority Filter */}
               <select
                 aria-label="Filter by priority"
+                data-active={filterPriority !== 'All'}
                 value={filterPriority}
                 onChange={(e) => setFilterPriority(e.target.value)}
                 className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -339,10 +342,9 @@ export default function SalesPage() {
               </select>
               {filterStage !== 'All' && <button type="button" className="sales-mobile-clear-stage" onClick={clearStage}>Clear stage</button>}
             </div>
-            <button type="button" onClick={handleExportSalesLeadsCSV} disabled={filteredStudents.length === 0}
-              className="sales-desktop-export items-center justify-center gap-1.5 rounded-lg border border-ha-blue bg-ha-blue/5 px-3 py-2 text-xs font-bold text-ha-blue hover:bg-ha-blue/15 disabled:opacity-40">
-              <Download className="h-3.5 w-3.5" aria-hidden="true" />
-              Export CSV
+            <button type="button" aria-label="Export CSV" title="Export CSV" onClick={handleExportSalesLeadsCSV} disabled={filteredStudents.length === 0}
+              className="sales-desktop-export items-center justify-center rounded-lg disabled:opacity-40">
+              <Download size={20} aria-hidden="true" />
             </button>
           </div>
           <div className="sales-results">
