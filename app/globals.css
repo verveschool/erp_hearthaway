@@ -295,7 +295,7 @@ html:has(.ha-dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
 }
 
 .sales-leads-table :is(th, td) {
-  padding-inline: .5rem;
+  padding-inline: 12px;
   overflow-wrap: anywhere;
 }
 
@@ -303,35 +303,43 @@ html:has(.ha-dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
 .sales-leads-table select { width: 100%; min-width: 0; }
 .sales-leads-table tbody tr[data-selected] { background: var(--ha-selected); }
 .sales-leads-table tbody tr[data-selected] > :first-child { box-shadow: inset 3px 0 var(--ha-blue); }
-.sales-leads-table th[data-column="student"] { width: 59%; }
-.sales-leads-table [data-column]:where(:not([data-column="student"], [data-column="city"])),
-.sales-leads-table .sales-university { display: none; }
+.sales-leads-table th[data-column="student"] { width: 62%; }
+.sales-leads-table [data-column]:where(:not([data-column="student"], [data-column="city"])) { display: none; }
 
 @container sales-queue (min-width: 29rem) {
-  .sales-leads-table th[data-column="student"] { width: 42%; }
+  .sales-leads-table th[data-column="student"] { width: 44%; }
+  .sales-leads-table th[data-column="city"] { width: 24%; }
   .sales-leads-table [data-column="lead-owner"] { display: table-cell; }
 }
 
 @container sales-queue (min-width: 32rem) {
-  .sales-leads-table th[data-column="student"] { width: 32%; }
+  .sales-leads-table th[data-column="student"] { width: 34%; }
+  .sales-leads-table th[data-column="city"] { width: 20%; }
   .sales-leads-table [data-column="pipeline"] { display: table-cell; }
 }
 
 @container sales-queue (min-width: 40rem) {
-  .sales-leads-table th[data-column="student"] { width: 23%; }
+  .sales-leads-table th[data-column="student"] { width: 24.5%; }
+  .sales-leads-table th[data-column="city"] { width: 13%; }
+  .sales-leads-table th[data-column="priority"] { width: 14%; }
   .sales-leads-table [data-column="sales-owner"],
   .sales-leads-table [data-column="priority"] { display: table-cell; }
-  .sales-leads-table .sales-university { display: revert; }
-  .sales-leads-table .sales-city-label { display: none; }
 }
 
 @container sales-queue (min-width: 49rem) {
-  .sales-leads-table th[data-column="student"] { width: 19%; }
+  .sales-leads-table th[data-column="student"] { width: 20%; }
+  .sales-leads-table th[data-column="partner"] { width: 16%; }
+  .sales-leads-table th[data-column="city"] { width: 11%; }
+  .sales-leads-table th[data-column="priority"] { width: 12%; }
   .sales-leads-table [data-column="partner"] { display: table-cell; }
 }
 
 @container sales-queue (min-width: 59rem) {
-  .sales-leads-table th[data-column="student"] { width: 15%; }
+  .sales-leads-table th[data-column="student"] { width: 16%; }
+  .sales-leads-table th[data-column="partner"] { width: 14%; }
+  .sales-leads-table th[data-column="city"] { width: 8%; }
+  .sales-leads-table th[data-column="pipeline"] { width: 12%; }
+  .sales-leads-table th[data-column="priority"] { width: 9%; }
   .sales-leads-table [data-column="created"],
   .sales-leads-table [data-column="activity"] { display: table-cell; }
 }
@@ -343,7 +351,7 @@ html:has(.ha-dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
   }
 
   .sales-lead-workspace:not(:has(.sales-lead-divider)) .sales-leads-table [data-column] { display: table-cell; }
-  .sales-lead-workspace:not(:has(.sales-lead-divider)) th[data-column="student"] { width: 15%; }
+  .sales-lead-workspace:not(:has(.sales-lead-divider)) th[data-column="student"] { width: 16%; }
 
   .sales-lead-scroll, .sales-lead-panel {
     min-height: 0;
