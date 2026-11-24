@@ -238,12 +238,12 @@ export default function FinancePage() {
   };
 
   return (
-    <div className="ha-workspace">
+    <div className="ha-workspace workspace-compact finance-workspace">
       <WorkspaceNotice message={notice} clear={setNotice} />
       {/* Top Header */}
       <div className="ha-page-header">
         <div>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="workspace-heading">
             <div>
               <h1 className="ha-title">
                 Finance
@@ -255,23 +255,23 @@ export default function FinancePage() {
                 setRecordStudentId((id) => students.some((student) => student.studentId === id) ? id : students[0]?.studentId || '');
                 setShowRecordModal(true);
               }}
-              className="ha-primary-action"
+              className="ha-primary-action workspace-primary" title="Record payment" aria-label="Record payment"
             >
-              <Plus className="h-3.5 w-3.5" />
-              Record Payment
+              <Plus size={21} aria-hidden="true" />
+              <span className="workspace-action-text">Record payment</span>
             </button>
           </div>
 
           {/* Metrics Ribbon */}
-          <dl className="ha-metrics mt-5">
+          <dl className="ha-metrics workspace-metrics mt-2">
             <WorkspaceMetric label="Verified Receipts">{metrics.totalPaymentsReceived.rupees}<small className="block text-xs">{metrics.totalPaymentsReceived.native}</small></WorkspaceMetric>
-            <WorkspaceMetric label="Pending Verification">{metrics.pendingVerificationCount} Transactions</WorkspaceMetric>
+            <WorkspaceMetric label="Pending Verification">{metrics.pendingVerificationCount}</WorkspaceMetric>
             <WorkspaceMetric label="Gross Commission">£{metrics.totalCommissionsExpected.toLocaleString()}</WorkspaceMetric>
             <WorkspaceMetric label="Partner Payouts Payable">£{metrics.totalPartnerPayouts.toLocaleString()}</WorkspaceMetric>
           </dl>
 
           {/* Sub-Tabs */}
-          <div className="ha-tabs mt-5 border-b border-ha-line text-sm font-semibold">
+          <div className="ha-tabs workspace-tabs mt-2 text-sm font-semibold">
             <button
               aria-pressed={activeTab === 'payments'}
               onClick={() => setActiveTab('payments')}
@@ -281,7 +281,7 @@ export default function FinancePage() {
                   : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
               }`}
             >
-              Payments ({payments.length})
+              Payments
             </button>
             <button
               aria-pressed={activeTab === 'bookings'}
@@ -292,7 +292,7 @@ export default function FinancePage() {
                   : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
               }`}
             >
-              Bookings ({bookings.length})
+              Bookings
             </button>
             <button
               aria-pressed={activeTab === 'commissions'}
@@ -303,18 +303,18 @@ export default function FinancePage() {
                   : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
               }`}
             >
-              Partner Commissions ({partners.length})
+              Commissions
             </button>
           </div>
         </div>
       </div>
 
-      <div className="min-w-0 pt-5">
+      <div className="workspace-content">
         {/* TAB 1: PAYMENTS LEDGER */}
         {activeTab === 'payments' && (
           <div className="space-y-4">
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs flex flex-col xl:flex-row gap-3">
-              <WorkspaceSearch label="Search payments" placeholder="Search payments by ID, student or uploader" value={searchQuery} onChange={setSearchQuery} />
+            <div className="workspace-toolbar finance-toolbar">
+              <WorkspaceSearch label="Search payments" placeholder="Search payments" value={searchQuery} onChange={setSearchQuery} />
 
               <div className="flex flex-wrap items-center gap-2">
                 <select
@@ -333,18 +333,17 @@ export default function FinancePage() {
                 <button
                   onClick={handleExportPaymentsCSV}
                   disabled={filteredPayments.length === 0}
-                  className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-2 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+                  className="workspace-icon-button" aria-label="Export CSV"
                   title="Download payments table as CSV"
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  <span>Export CSV ({filteredPayments.length})</span>
+                  <Download size={20} aria-hidden="true" />
                 </button>
               </div>
             </div>
 
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
               <div className="ha-table-scroll">
-                <table className="ha-table">
+                <table className="ha-table finance-ledger" role="table">
                   <thead>
                     <tr>
                       <th scope="col" className="py-3 px-4 font-bold">Payment ID</th>
@@ -356,22 +355,22 @@ export default function FinancePage() {
                       <th scope="col" className="py-3 px-4 font-bold text-right">Verification Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#E8E6E1]">
+                  <tbody role="rowgroup" className="divide-y divide-[#E8E6E1]">
                     {filteredPayments.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-ha-secondary">{searchQuery || filterPaymentStatus !== 'All' ? 'No payments match these filters.' : 'No payments recorded yet.'}</td></tr>}
                   {filteredPayments.map((payment) => (
-                      <tr key={payment.id} className="hover:bg-[#F7F6F3]/50">
-                        <td className="py-3.5 px-4 font-mono font-bold text-[#00319D]">
+                      <tr role="row" key={payment.id} className="hover:bg-[#F7F6F3]/50">
+                        <td role="cell" data-label="Payment ID" className="py-3.5 px-4 font-mono font-bold text-[#00319D]">
                           {payment.paymentId}
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <td role="cell" data-label="Student" className="py-3.5 px-4">
                           <div className="font-bold text-[#1A1A1A]">
                             {payment.studentName || payment.studentId}
                           </div>
                           <span className="font-mono text-xs text-[#6B6860]">{payment.studentId}</span>
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <td role="cell" data-label="Amount" className="py-3.5 px-4">
                           <span className="whitespace-nowrap tabular-nums font-semibold text-sm text-ha-ink">
                             {money(payment.amount, payment.currency)}
                           </span>
@@ -379,14 +378,14 @@ export default function FinancePage() {
                           <small className="block text-xs">{conversionText(payment)}</small>
                         </td>
 
-                        <td className="py-3.5 px-4 text-[#6B6860]">{payment.paymentMethod}</td>
+                        <td role="cell" data-label="Method" className="py-3.5 px-4 text-[#6B6860]">{payment.paymentMethod}</td>
 
-                        <td className="py-3.5 px-4 text-[#6B6860]">
+                        <td role="cell" data-label="Date and uploader" className="py-3.5 px-4 text-[#6B6860]">
                           <div>{payment.paymentDate}</div>
                           <div className="text-xs">{payment.uploadedBy}</div>
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <td role="cell" data-label="Status" className="py-3.5 px-4">
                           <span
                             className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
                               payment.paymentStatus === 'Verified'
@@ -400,7 +399,7 @@ export default function FinancePage() {
                           </span>
                         </td>
 
-                        <td className="py-3.5 px-4 text-right">
+                        <td role="cell" data-label="Verification" className="py-3.5 px-4 text-right">
                           {payment.paymentStatus === 'Pending Verification' ? (
                             <div className="flex items-center justify-end gap-1.5">
                               {reviewing.includes(payment.paymentId) && <span role="status">Saving…</span>}
@@ -436,22 +435,21 @@ export default function FinancePage() {
         {/* TAB 2: BOOKINGS LEDGER */}
         {activeTab === 'bookings' && (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
-              <WorkspaceSearch label="Search bookings" placeholder="Search student, booking or property" value={bookingSearch} onChange={setBookingSearch} />
+            <div className="workspace-toolbar finance-toolbar">
+              <WorkspaceSearch label="Search bookings" placeholder="Search bookings" value={bookingSearch} onChange={setBookingSearch} />
               <button
                 onClick={handleExportBookingsCSV}
                 disabled={visibleBookings.length === 0}
-                className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-1.5 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs self-start sm:self-auto"
+                className="workspace-icon-button" aria-label="Export CSV"
                 title="Download bookings table as CSV"
               >
-                <Download className="h-3.5 w-3.5" />
-                <span>Export CSV ({visibleBookings.length})</span>
+                <Download size={20} aria-hidden="true" />
               </button>
             </div>
 
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
               <div className="ha-table-scroll">
-                <table className="ha-table">
+                <table className="ha-table finance-ledger" role="table">
                 <thead>
                   <tr>
                     <th scope="col" className="py-3 px-4 font-bold">Booking ID</th>
@@ -463,31 +461,31 @@ export default function FinancePage() {
                     <th scope="col" className="py-3 px-4 font-bold">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E8E6E1]">
+                <tbody role="rowgroup" className="divide-y divide-[#E8E6E1]">
                   {visibleBookings.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-ha-secondary">{bookingSearch ? 'No bookings match this search.' : 'No bookings recorded yet.'}</td></tr>}
                   {visibleBookings.map((booking) => (
-                    <tr key={booking.id} className="hover:bg-[#F7F6F3]/50">
-                      <td className="py-3.5 px-4 font-mono font-bold text-[#00319D]">{booking.bookingId}</td>
-                      <td className="py-3.5 px-4">
+                    <tr role="row" key={booking.id} className="hover:bg-[#F7F6F3]/50">
+                      <td role="cell" data-label="Booking ID" className="py-3.5 px-4 font-mono font-bold text-[#00319D]">{booking.bookingId}</td>
+                      <td role="cell" data-label="Student" className="py-3.5 px-4">
                         <button type="button" className="font-semibold text-ha-blue hover:underline text-left" onClick={() => setSelectedStudentId(booking.studentId)}>{booking.studentName}</button>
                         <span className="font-mono text-xs text-[#6B6860]">{booking.studentId}</span>
                       </td>
-                      <td className="py-3.5 px-4">
+                      <td role="cell" data-label="Partner" className="py-3.5 px-4">
                         <div className="font-semibold text-[#1A1A1A]">
                           {booking.partnerName || booking.partnerId}
                         </div>
                         <span className="font-mono text-xs text-[#6B6860]">{booking.partnerId}</span>
                       </td>
-                      <td className="py-3.5 px-4 font-bold text-[#1A1A1A]">
+                      <td role="cell" data-label="Booking value" className="py-3.5 px-4 font-bold text-[#1A1A1A]">
                         £{booking.bookingValue.toLocaleString()}
                       </td>
-                      <td className="py-3.5 px-4 font-bold text-[#00319D]">
+                      <td role="cell" data-label="Commission" className="py-3.5 px-4 font-bold text-[#00319D]">
                         £{(booking.providerCommissionExpected || 0).toLocaleString()} ({booking.providerCommissionPercent}%)
                       </td>
-                      <td className="py-3.5 px-4 font-bold text-emerald-700">
+                      <td role="cell" data-label="Partner payout" className="py-3.5 px-4 font-bold text-emerald-700">
                         £{(booking.partnerPayoutAmount || 0).toLocaleString()} ({booking.partnerPayoutPercent}%)
                       </td>
-                      <td className="py-3.5 px-4">
+                      <td role="cell" data-label="Status" className="py-3.5 px-4">
                         <span className={`rounded px-2 py-0.5 text-xs font-semibold ${booking.bookingStatus === 'Confirmed' ? 'bg-emerald-100 text-emerald-800' : booking.bookingStatus === 'Cancelled' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-800'}`}>
                           {booking.bookingStatus}
                         </span>
@@ -504,22 +502,21 @@ export default function FinancePage() {
         {/* TAB 3: PARTNER COMMISSIONS */}
         {activeTab === 'commissions' && (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
-              <WorkspaceSearch label="Search commissions" placeholder="Search partner or portfolio owner" value={commissionSearch} onChange={setCommissionSearch} />
+            <div className="workspace-toolbar finance-toolbar">
+              <WorkspaceSearch label="Search commissions" placeholder="Search commissions" value={commissionSearch} onChange={setCommissionSearch} />
               <button
                 onClick={handleExportCommissionsCSV}
                 disabled={visibleCommissions.length === 0}
-                className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-1.5 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs self-start sm:self-auto"
+                className="workspace-icon-button" aria-label="Export CSV"
                 title="Download partner commission ledger as CSV"
               >
-                <Download className="h-3.5 w-3.5" />
-                <span>Export CSV ({visibleCommissions.length})</span>
+                <Download size={20} aria-hidden="true" />
               </button>
             </div>
 
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
               <div className="ha-table-scroll">
-                <table className="ha-table">
+                <table className="ha-table finance-ledger" role="table">
                 <thead>
                   <tr>
                     <th scope="col" className="py-3 px-4 font-bold">Partner Agency</th>
@@ -530,28 +527,28 @@ export default function FinancePage() {
                     <th scope="col" className="py-3 px-4 font-bold">Partner Payout Due</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E8E6E1]">
+                <tbody role="rowgroup" className="divide-y divide-[#E8E6E1]">
                   {visibleCommissions.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-ha-secondary">{commissionSearch ? 'No partners match this search.' : 'No partner commissions to display.'}</td></tr>}
                   {visibleCommissions.map((partner) => (
-                    <tr key={partner.id} className="hover:bg-[#F7F6F3]/50">
-                      <td className="py-3.5 px-4">
+                    <tr role="row" key={partner.id} className="hover:bg-[#F7F6F3]/50">
+                      <td role="cell" data-label="Partner" className="py-3.5 px-4">
                         <div className="font-bold text-[#1A1A1A]">{partner.companyName}</div>
                         <span className="font-mono text-xs text-[#00319D]">{partner.partnerId}</span>
                       </td>
-                      <td className="py-3.5 px-4">
+                      <td role="cell" data-label="Portfolio owner" className="py-3.5 px-4">
                         <span className="inline-flex items-center gap-1 font-semibold text-[#1A1A1A]">
                           <Layers className="h-3 w-3 text-[#00319D]" />
                           {partner.portfolioOwnerName || 'Unassigned'}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 font-bold text-[#1A1A1A]">{partner.bookedCount}</td>
-                      <td className="py-3.5 px-4 font-bold text-[#1A1A1A]">
+                      <td role="cell" data-label="Tenancies" className="py-3.5 px-4 font-bold text-[#1A1A1A]">{partner.bookedCount}</td>
+                      <td role="cell" data-label="Booking value" className="py-3.5 px-4 font-bold text-[#1A1A1A]">
                         £{partner.grossValue.toLocaleString()}
                       </td>
-                      <td className="py-3.5 px-4 font-bold text-[#00319D]">
+                      <td role="cell" data-label="Expected revenue" className="py-3.5 px-4 font-bold text-[#00319D]">
                         £{partner.expectedHearthAwayCommission.toLocaleString()}
                       </td>
-                      <td className="py-3.5 px-4 font-bold text-emerald-700">
+                      <td role="cell" data-label="Payout due" className="py-3.5 px-4 font-bold text-emerald-700">
                         £{partner.partnerPayable.toLocaleString()}
                       </td>
                     </tr>

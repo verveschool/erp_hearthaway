@@ -13,7 +13,7 @@ import { PartnerLeadTargets } from '@/components/PartnerLeadTargets';
 import { getLeadOwner, leadContactConflicts, leadConflictMessage, leadDetailsSchema, parseLeadCsv } from '@/lib/lead-details';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useHearthAway, type BulkLeadImportResult } from '@/lib/context';
 import { AgreementStatusSchema, type Partner, type Student, type AgreementStatus } from '@/lib/types';
 import { leadPhoneCsv, normalizeLeadPhone } from '@/lib/lead-phone';
@@ -49,6 +49,15 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react';
+
+const compactDirectory = '(max-width: 63.99rem)';
+function subscribeToDirectoryWidth(onChange: () => void) {
+  const query = window.matchMedia(compactDirectory);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+const isCompactDirectory = () => window.matchMedia(compactDirectory).matches;
+const isServerDirectory = () => false;
 
 const MAX_AGREEMENT_BYTES = 768 * 1024;
 
@@ -105,7 +114,10 @@ export default function PartnersPage() {
   const [filterState, setFilterState] = useWorkspaceView<string>(currentUser.uid, 'filterState', 'All');
   const [filterCity, setFilterCity] = useWorkspaceView<string>(currentUser.uid, 'filterCity', 'All');
   const [filterAgreement, setFilterAgreement] = useWorkspaceView<string>(currentUser.uid, 'filterAgreement', 'All');
-  const [viewMode, setViewMode] = useWorkspaceView<'directory' | 'bifurcated'>(currentUser.uid, 'viewMode', 'bifurcated');
+  const [desktopView, setViewMode] = useWorkspaceView<'directory' | 'bifurcated'>(currentUser.uid, 'viewMode', 'bifurcated');
+
+  const compact = useSyncExternalStore(subscribeToDirectoryWidth, isCompactDirectory, isServerDirectory);
+  const viewMode = compact ? 'bifurcated' : desktopView;
 
   // Selected partner for inspecting their leads
   const [inspectPartnerId, setInspectPartnerId] = useState<string | null>(null);
@@ -677,12 +689,12 @@ export default function PartnersPage() {
   };
 
   return (
-    <div className="ha-workspace">
+    <div className="ha-workspace workspace-compact partners-workspace">
       <WorkspaceNotice message={notice} clear={setNotice} />
       {/* Top Header */}
       <div className="ha-page-header">
         <div>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="workspace-heading">
             <div>
               <h1 className="ha-title">
                 Partners
@@ -690,33 +702,31 @@ export default function PartnersPage() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex max-w-full flex-wrap items-center gap-2.5">
+            <div className="workspace-heading-actions">
               {/* View Switcher: Directory vs Bifurcated */}
-              {!isPartner && (
+              {!isPartner && !compact && (
                 <div className="inline-flex items-center rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] p-1 text-xs">
                   <button
-                    aria-pressed={viewMode === 'directory'}
+                    aria-pressed={viewMode === 'directory'} aria-label="Table view" title="Table view"
                     onClick={() => setViewMode('directory')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold transition-all cursor-pointer ${
+                    className={`workspace-icon-button rounded-md transition-all cursor-pointer ${
                       viewMode === 'directory'
                         ? 'bg-[#FFFFFF] text-[#00319D] shadow-xs'
                         : 'text-[#6B6860] hover:text-[#1A1A1A]'
                     }`}
                   >
-                    <List className="h-3.5 w-3.5" />
-                    Table View
+                    <List size={19} aria-hidden="true" />
                   </button>
                   <button
-                    aria-pressed={viewMode === 'bifurcated'}
+                    aria-pressed={viewMode === 'bifurcated'} aria-label="Group by location" title="Group by location"
                     onClick={() => setViewMode('bifurcated')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold transition-all cursor-pointer ${
+                    className={`workspace-icon-button rounded-md transition-all cursor-pointer ${
                       viewMode === 'bifurcated'
                         ? 'bg-[#FFFFFF] text-[#00319D] shadow-xs'
                         : 'text-[#6B6860] hover:text-[#1A1A1A]'
                     }`}
                   >
-                    <Grid className="h-3.5 w-3.5" />
-                    Group by location
+                    <Grid size={19} aria-hidden="true" />
                   </button>
                 </div>
               )}
@@ -724,10 +734,10 @@ export default function PartnersPage() {
               {isManagement && (
                 <button
                   onClick={openNewPartner}
-                  className="ha-primary-action"
+                  aria-label="Onboard partner" title="Onboard partner" className="ha-primary-action workspace-primary"
                 >
-                  <Plus className="h-3.5 w-3.5" />
-                  Onboard Partner
+                  <Plus size={21} aria-hidden="true" />
+                  <span className="workspace-action-text">Onboard partner</span>
                 </button>
               )}
 
@@ -736,21 +746,18 @@ export default function PartnersPage() {
                   setBulkStep(1);
                   setShowBulkUploadModal(true);
                 }}
-                className="flex items-center gap-1.5 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3.5 py-2 text-xs font-bold text-[#1A1A1A] hover:bg-[#F7F6F3] transition-colors shadow-2xs cursor-pointer"
+                className="workspace-icon-button" aria-label="Import student leads" title="Import student leads"
               >
-                <FileSpreadsheet className="h-3.5 w-3.5 text-[#00319D]" />
-                Bulk CSV Upload
+                <FileSpreadsheet size={20} aria-hidden="true" />
               </button>
 
               {!isPartner && (
                 <button
                   onClick={handleExportPartnerListCSV}
                   disabled={filteredPartners.length === 0}
-                  className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3.5 py-2 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all shadow-2xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Download partner directory as CSV"
+                  className="workspace-icon-button" aria-label="Export partners CSV" title="Export partners CSV"
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  Export Partner List ({filteredPartners.length})
+                  <Download size={20} aria-hidden="true" />
                 </button>
               )}
 
@@ -768,7 +775,7 @@ export default function PartnersPage() {
         </div>
       </div>
 
-      <div className="min-w-0 pt-5">
+      <div className="workspace-content">
         {/* VIEW 1: PARTNER USER VIEW (Their agency dashboard) */}
         {isPartner && (
           <div className="space-y-6">
@@ -876,7 +883,7 @@ export default function PartnersPage() {
                   <Users className="h-8 w-8 text-[#6B6860] mx-auto" />
                   <h4 className="text-xs font-bold text-[#1A1A1A]">No Leads Submitted Yet</h4>
                   <p className="text-xs text-[#6B6860]">
-                    Use &quot;Submit Single Lead&quot; or &quot;Bulk CSV Upload&quot; to send student requirements to the team.
+                    Use &quot;Submit Single Lead&quot; or &quot;Import student leads&quot; to send student requirements to the team.
                   </p>
                 </div>
               ) : (
@@ -944,14 +951,14 @@ export default function PartnersPage() {
         {!isPartner && (
           <div className="space-y-5">
             {/* Multi-Dimensional Filters Bar (State, City, Agreement, PO, Type) */}
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3">
-              <div className="flex flex-col xl:flex-row gap-3">
+            <div className="workspace-toolbar">
+              <div className="workspace-filter-bar">
                 <WorkspaceSearch label="Search partners" value={searchQuery} onChange={setSearchQuery} />
 
-                <button type="button" className="partner-filter-toggle" aria-expanded={filtersOpen} aria-controls="partner-filters" onClick={() => setFiltersOpen(!filtersOpen)}>
-                  Filters{filterCount ? ` (${filterCount})` : ''}
+                <button type="button" className="workspace-icon-button workspace-filter-toggle" aria-label="Partner filters" title="Partner filters" data-active={filterCount > 0} aria-expanded={filtersOpen} aria-controls="partner-filters" onClick={() => setFiltersOpen(!filtersOpen)}>
+                  <Filter size={20} aria-hidden="true" />
                 </button>
-                <div id="partner-filters" data-open={filtersOpen} className="flex max-w-full flex-wrap items-center gap-2">
+                <div id="partner-filters" data-open={filtersOpen} className="workspace-filter-fields">
                   {/* Bifurcate by State Filter */}
                   <div className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5 text-[#00319D]" />
@@ -1074,14 +1081,11 @@ export default function PartnersPage() {
                             </div>
                             <div>
                               <h3 className="text-sm font-bold text-[#1A1A1A] flex items-center gap-2">
-                                State: {stateName}
+                                {stateName}
                                 <span className="rounded bg-[#00319D]/10 px-2 py-0.5 text-xs font-bold text-[#00319D]">
                                   {stateTotalPartners} {stateTotalPartners === 1 ? 'Partner' : 'Partners'}
                                 </span>
                               </h3>
-                              <p className="text-xs text-[#6B6860]">
-                                Across {Object.keys(cityDict).length} {Object.keys(cityDict).length === 1 ? 'city hub' : 'city hubs'}
-                              </p>
                             </div>
                           </div>
                         </div>
@@ -1093,7 +1097,7 @@ export default function PartnersPage() {
                               <div className="flex items-center gap-2">
                                 <span className="h-2 w-2 rounded-full bg-[#FCC20A]" />
                                 <h4 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wide">
-                                  City: {cityName}
+                                  {cityName}
                                 </h4>
                                 <span className="text-xs text-[#6B6860] font-semibold">
                                   ({cityPartners.length} {cityPartners.length === 1 ? 'agency' : 'agencies'})
@@ -1122,7 +1126,7 @@ export default function PartnersPage() {
                                           </div>
                                           <div className="flex shrink-0 flex-col items-end gap-1">
                                             {isManagement && <button type="button" onClick={() => openPartnerOnboarding(partner)}
-                                              className="rounded-md p-2 text-ha-blue hover:bg-ha-canvas" title="Edit partner" aria-label={`Edit ${partner.companyName}`}>
+                                              className="workspace-icon-button" title="Edit partner" aria-label={`Edit ${partner.companyName}`}>
                                               <Pencil className="h-4 w-4" aria-hidden="true" />
                                             </button>}
                                             <button type="button" onClick={() => handleOpenAgreementModal(partner)} disabled={!isManagement}
@@ -1150,7 +1154,7 @@ export default function PartnersPage() {
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                           <span className="text-xs text-ha-secondary">Bookings <strong className="text-ha-ink">{bookingsCount}</strong></span>
                                           <button type="button" onClick={() => setInspectPartnerId(partner.partnerId)}
-                                            className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md bg-ha-blue px-3 py-1.5 text-xs font-semibold text-white">
+                                            className="ha-text-action partner-leads-action">
                                             Leads ({leadsCount})
                                           </button>
                                         </div>
