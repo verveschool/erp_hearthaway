@@ -290,7 +290,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       void getIdTokenResult(user).then(({ claims }) => {
         if (revision === currentRevision && auth.currentUser?.uid === user.uid) {
           setPayments([]); setAvailableUsers([]); setActivities([]);
-          setOperationsIdentity({ uid: user.uid, role: typeof claims.leadOperationsRole === 'string' ? claims.leadOperationsRole : '', internalRole: claims.internalRole === 'admin' || claims.internalRole === 'management' ? claims.internalRole : claims.internalRole === undefined ? (claims.leadOperationsRole === 'management' ? 'admin' : claims.leadOperationsRole === 'sales' || claims.leadOperationsRole === 'portfolio_owner' ? 'management' : '') : '' });
+          setOperationsIdentity({ uid: user.uid, role: typeof claims.leadOperationsRole === 'string' ? claims.leadOperationsRole : '', internalRole: claims.internalRole === 'admin' || claims.internalRole === 'management' ? claims.internalRole : (claims.internalRole === undefined || claims.internalRole === '') ? (claims.leadOperationsRole === 'management' ? 'admin' : claims.leadOperationsRole === 'sales' || claims.leadOperationsRole === 'portfolio_owner' ? 'management' : '') : '' });
         }
       }).catch(() => {});
     });
@@ -358,7 +358,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
           if (snap.exists()) {
             const storedProfile = snap.data() as AppUser;
-            if (storedProfile.status === 'deleted' || storedProfile.deletedAt) {
+            if (storedProfile.status === 'deleted' || storedProfile.status === 'disabled' || storedProfile.deletedAt) {
               await signOut(auth);
               return;
             }
@@ -795,6 +795,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       return { allowed: false, requiredRoles: [], reason: 'unauthenticated' };
     }
 
+    if (currentUser.status === 'disabled' || currentUser.status === 'deleted' || currentUser.deletedAt || currentUser.status === 'pending' || currentUser.isApproved === false) {
+      return { allowed: false, requiredRoles: [], reason: 'pending_approval' };
+    }
     const role = currentUser.role;
 
     const isInternal = internalRole === 'admin' || internalRole === 'management';
@@ -880,7 +883,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   const updateLeadOwner = async (studentId: string, kind: 'lead' | 'sales', ownerId: string, ownerName: string) => {
     const student = students.find((entry) => entry.studentId === studentId);
-    if (!student || !['admin', 'management', 'sales'].includes(currentUser.role)) throw new Error('You cannot assign this lead.');
+    if (!student || !internalRole) throw new Error('You cannot assign this lead.');
     const nextName = ownerId ? ownerName : 'Unassigned';
     const label = kind === 'sales' ? 'Sales Owner' : 'Lead Owner';
     await runTransaction(db, async (transaction) => {
@@ -1010,12 +1013,11 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const intakeLock = doc(db, 'leadOperations', 'intake');
 
   function resolveLeadPartner(partnerId?: string) {
-    if (currentUser.role === 'partner') {
+    if (!internalRole) {
       if (!currentUser.partnerId) throw new Error('Your account has no linked partner.');
       return partners.find((partner) => partner.partnerId === currentUser.partnerId) ??
         { partnerId: currentUser.partnerId, companyName: currentUser.partnerName || 'Partner agency' };
     }
-    if (!['management', 'admin', 'sales'].includes(currentUser.role)) throw new Error('You cannot submit new leads.');
     if (!partnerId || partnerId === 'direct') return { partnerId: 'direct', companyName: 'Direct lead' };
     const partner = partners.find((entry) => entry.partnerId === partnerId);
     if (!partner) throw new Error('The selected partner is no longer available.');
@@ -1131,11 +1133,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       const snapshot = await transaction.get(reference);
       if (!snapshot.exists()) throw new Error('This lead is no longer active.');
       const current = snapshot.data() as Student;
-      const partner = partners.find((entry) => entry.partnerId === current.partnerId);
-      const role = currentUser.role;
-      if (!['admin', 'management', 'sales'].includes(role) &&
-          !(role === 'partner' && currentUser.partnerId === current.partnerId) &&
-          !(role === 'portfolio_owner' && partner?.portfolioOwnerId === currentUser.uid)) {
+      if (!internalRole && (!currentUser.partnerId || currentUser.partnerId !== current.partnerId)) {
         throw new Error('You cannot edit this lead.');
       }
       const changedEmail = fields.email !== (current.email || '').trim().toLowerCase();
@@ -1581,7 +1579,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   return (
     <HearthAwayContext.Provider
       value={{
-        currentUser,
+        currentUser: { ...currentUser, role: internalRole || 'partner' },
         setCurrentUser,
         availableUsers,
     isAuthenticated,
