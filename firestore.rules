@@ -29,12 +29,21 @@ service cloud.firestore {
         : legacy in ['sales', 'portfolio_owner'] ? 'management' : '';
     }
 
+    // A revoked, pending, or deleted profile must lose access without waiting
+    // for the next token refresh. Missing legacy approval fields stay compatible.
+    function isActiveInternal() {
+      return hasUserDoc()
+        && getUserDoc().get('status', 'approved') == 'approved'
+        && getUserDoc().get('isApproved', true) == true
+        && getUserDoc().get('deletedAt', null) == null;
+    }
+
     function isInternal() {
-      return isSignedIn() && internalRole() in ['admin', 'management'];
+      return isSignedIn() && internalRole() in ['admin', 'management'] && isActiveInternal();
     }
 
     function isAdmin() {
-      return isSignedIn() && internalRole() == 'admin';
+      return isSignedIn() && internalRole() == 'admin' && isActiveInternal();
     }
 
     function ownsPartner() {
@@ -103,7 +112,8 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/users/$(uid))
         && get(/databases/$(database)/documents/users/$(uid)).data.get('role', '') in ['admin', 'management', 'sales', 'portfolio_owner']
         && get(/databases/$(database)/documents/users/$(uid)).data.get('status', 'approved') == 'approved'
-        && get(/databases/$(database)/documents/users/$(uid)).data.get('isApproved', true) == true;
+        && get(/databases/$(database)/documents/users/$(uid)).data.get('isApproved', true) == true
+        && get(/databases/$(database)/documents/users/$(uid)).data.get('deletedAt', null) == null;
     }
 
     // Students master collection
