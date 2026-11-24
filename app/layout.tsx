@@ -1,25 +1,32 @@
-import type {Metadata} from 'next';
+import type {Metadata, Viewport} from 'next';
 import './fonts/lato.css';
 import './globals.css'; // Global styles
 import { ClientShell } from '@/components/ClientShell';
 
 export const metadata: Metadata = {
-  title: 'HearthAway - Master Accommodation CRM Platform',
+  title: 'Shinrabansho',
   description: 'Unified master accommodation marketplace CRM with role-isolated workspaces for Students, B2B Partners, and Internal Sales & Management operations.',
+  applicationName: 'Shinrabansho',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, title: 'Shinrabansho', statusBarStyle: 'default' },
   icons: {
     icon: { url: '/favicon.png', type: 'image/png', sizes: '48x48' },
     apple: { url: '/apple-touch-icon.png', type: 'image/png', sizes: '180x180' },
   },
   openGraph: {
-    title: 'HearthAway - Master Accommodation CRM Platform',
+    title: 'Shinrabansho',
     description: 'Unified master accommodation marketplace CRM with role-isolated workspaces for Students, B2B Partners, and Internal Sales & Management operations.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'HearthAway - Master Accommodation CRM Platform',
+    title: 'Shinrabansho',
     description: 'Unified master accommodation marketplace CRM with role-isolated workspaces for Students, B2B Partners, and Internal Sales & Management operations.',
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#00319D',
 };
 
 export default function RootLayout({children}: {children: React.ReactNode}) {

@@ -1,0 +1,31 @@
+{
+  "id": "/",
+  "name": "Shinrabansho",
+  "short_name": "Shinrabansho",
+  "description": "Hearthaway CRM",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#00319D",
+  "background_color": "#FFFFFF",
+  "icons": [
+    {
+      "src": "/pwa-icon/192",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon/512",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon/maskable",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
