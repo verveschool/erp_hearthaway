@@ -1,14 +1,15 @@
 'use client';
 
+import { LeadFieldSelect } from '@/components/LeadFieldSelect';
 import { LeadDetailsDialog } from '@/components/LeadDetailsDialog';
 import { getLeadOwner } from '@/lib/lead-details';
-import { parseLeadPhone } from '@/lib/lead-phone';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useHearthAway } from '@/lib/context';
 import { ArrowUpDown, Download, ListFilter, Plus, Search } from 'lucide-react';
 import { SalesLeadWorkspace } from '@/components/SalesLeadWorkspace';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { parseLeadPhone, leadPhoneCsv } from '@/lib/lead-phone';
 import { exportToCSV } from '@/lib/export-csv';
 import type { PipelineStage } from '@/lib/types';
 
@@ -69,7 +70,9 @@ export default function SalesPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterToggle = useRef<HTMLButtonElement>(null);
-  const [ownerError, setOwnerError] = useState('');
+  const search = useRef<HTMLInputElement>(null);
+  const stageControl = useRef<HTMLSelectElement>(null);
+  const activeFilters = [filterLeadOwner, filterSalesOwner, filterStage, filterPriority].filter(value => value !== 'All').length;
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const leaveGuard = useRef<(() => boolean) | null>(null);
@@ -86,7 +89,7 @@ export default function SalesPage() {
 
   function closeStudent() {
     setSelectedStudentId(null);
-    requestAnimationFrame(() => selectedTrigger.current?.focus({ preventScroll: true }));
+    requestAnimationFrame(() => (selectedTrigger.current?.isConnected ? selectedTrigger.current : search.current)?.focus({ preventScroll: true }));
   }
 
   const salesUsers = useMemo(() => {
@@ -167,7 +170,7 @@ export default function SalesPage() {
         { header: 'Student ID', accessor: (s) => s.studentId },
         { header: 'Full Name', accessor: (s) => s.fullName },
         { header: 'Email', accessor: (s) => s.email },
-        { header: 'Phone', accessor: (s) => s.phone },
+        { header: 'Phone', accessor: (s) => leadPhoneCsv(s.phone) },
         { header: 'Sourcing Partner', accessor: (s) => s.partnerName || s.partnerId },
         { header: 'Partner ID', accessor: (s) => s.partnerId },
         { header: 'Lead Owner', accessor: (s) => getLeadOwner(s).name },
@@ -221,7 +224,7 @@ export default function SalesPage() {
                 >
                   <span className="block text-lg font-semibold tabular-nums text-ha-blue">{count}</span>
                   <span className="block text-xs font-semibold">{stage.label}</span>
-                  <span className="mt-0.5 block text-xs text-ha-secondary">{stage.hint}</span>
+                  <span className="sr-only">{stage.hint}</span>
                 </button>
               );
             })}
@@ -231,13 +234,13 @@ export default function SalesPage() {
         <div className="sales-toolbar-actions">
           <button type="button" className="sales-compact-toggle" onClick={() => setShowAddLeadModal(true)}>
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            Add lead
+            Add Sales Lead
           </button>
           <button ref={filterToggle} type="button" className="sales-compact-toggle"
-            aria-expanded={filtersOpen} aria-controls="sales-filter-fields"
+            data-tip={`Filter leads (${activeFilters} active)`} aria-label={`Filter leads (${activeFilters} active)`} aria-expanded={filtersOpen} aria-controls="sales-filter-fields"
             onClick={() => setFiltersOpen(!filtersOpen)}>
             <ListFilter className="h-3.5 w-3.5" aria-hidden="true" />
-            Filter leads
+            {activeFilters > 0 && <span>{activeFilters}</span>}
           </button>
           <button type="button" onClick={handleExportSalesLeadsCSV} disabled={filteredStudents.length === 0}
             className="sales-export-action disabled:opacity-40">
@@ -251,7 +254,7 @@ export default function SalesPage() {
             <div className="sales-lead-search relative min-w-0">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
               <input
-                aria-label="Search sales leads"
+                ref={search} aria-label="Search sales leads"
                 type="text"
                 placeholder="Search leads by name or phone"
                 value={searchQuery}
@@ -280,7 +283,7 @@ export default function SalesPage() {
 
               {/* Lead Stage Filter */}
               <select
-                aria-label="Filter by pipeline stage"
+                ref={stageControl} aria-label="Filter by pipeline stage"
                 value={filterStage}
                 onChange={(e) => setFilterStage(e.target.value as PipelineFilter)}
                 className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
@@ -313,17 +316,21 @@ export default function SalesPage() {
               Export CSV
             </button>
           </div>
+          <div className="sales-results"><span>Stage totals precede filters. Export includes matching leads.</span>
+            <button type="button" style={{ visibility: filterStage === 'All' ? 'hidden' : 'visible' }} onClick={() => {
+              setFilterStage('All');
+              (stageControl.current?.offsetWidth ? stageControl.current : filterToggle.current)?.focus();
+            }}>Clear stage</button>
           <p role="status" data-filtered={filteredStudents.length !== visibleStudents.length}
             className="sales-lead-count text-xs text-ha-secondary">
             {filteredStudents.length === visibleStudents.length
               ? `${visibleStudents.length} leads`
               : `${filteredStudents.length} of ${visibleStudents.length} leads`}
-          </p>
+          </p></div>
         </div>
       </div>
 
       <div className="sales-page-content">
-        {ownerError && <p role="alert" className="text-sm text-rose-700">{ownerError}</p>}
         <SalesLeadWorkspace key={currentUser.uid} studentId={openStudentId} userId={currentUser.uid} onClose={closeStudent} registerLeaveGuard={registerLeaveGuard}>
           <div className="ha-table-scroll sales-lead-scroll" tabIndex={0} role="region" aria-label="Sales leads table">
             <table className="ha-table sales-leads-table">
@@ -385,13 +392,12 @@ export default function SalesPage() {
 
                       {/* Lead Owner with inline reassignment */}
                       <td data-column="lead-owner" className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
-                        <select
+                        <LeadFieldSelect
                           aria-label={`Lead owner for ${student.fullName}`}
                           value={getLeadOwner(student).id}
-                          onChange={(e) => {
-                            const newRep = salesUsers.find((su) => su.uid === e.target.value);
-                            setOwnerError('');
-                            void reassignLeadOwner(student.studentId, newRep?.uid || '', newRep?.displayName || '').catch(() => setOwnerError('Could not update the lead owner. Open the lead to try again.'));
+                          onSave={(value) => {
+                            const newRep = salesUsers.find((su) => su.uid === value);
+                            return reassignLeadOwner(student.studentId, newRep?.uid || '', newRep?.displayName || '');
                           }}
                           className="rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-xs font-bold text-[#00319D] focus:outline-none focus:border-[#00319D] cursor-pointer"
                         >
@@ -402,25 +408,24 @@ export default function SalesPage() {
                               {su.displayName}
                             </option>
                           ))}
-                        </select>
+                        </LeadFieldSelect>
                       </td>
 
                       <td data-column="sales-owner" className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
                         {['admin', 'management', 'sales'].includes(currentUser.role) && ['management', 'sales'].includes(leadOperationsRole) ? (
-                          <select
+                          <LeadFieldSelect
                             aria-label={`Sales owner for ${student.fullName}`}
                             value={student.salesOwnerId || ''}
-                            onChange={(e) => {
-                              const newOwner = leadOwnerOptions.find((user) => user.uid === e.target.value);
-                              setOwnerError('');
-                              void assignSalesOwner(student.studentId, newOwner?.uid || '', newOwner?.displayName || '').catch(() => setOwnerError('Could not update the sales owner. Open the lead to try again.'));
+                            onSave={(value) => {
+                              const newOwner = leadOwnerOptions.find((user) => user.uid === value);
+                              return assignSalesOwner(student.studentId, newOwner?.uid || '', newOwner?.displayName || '');
                             }}
                             className="rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-2 py-1 text-xs font-bold text-[#00319D] focus:outline-none focus:border-[#00319D] cursor-pointer"
                           >
                             <option value="">Unassigned</option>
                             {!!student.salesOwnerId && !leadOwnerOptions.some((user) => user.uid === student.salesOwnerId) && <option value={student.salesOwnerId}>{student.salesOwnerName || 'Unknown owner'}</option>}
                             {leadOwnerOptions.map((user) => <option key={user.uid} value={user.uid}>{user.displayName}</option>)}
-                          </select>
+                          </LeadFieldSelect>
                         ) : student.salesOwnerName || 'Unassigned'}
                       </td>
 
@@ -430,27 +435,27 @@ export default function SalesPage() {
                       </td>
 
                       <td data-column="pipeline" className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
-                        <select
+                        <LeadFieldSelect
                           aria-label={`Pipeline stage for ${student.fullName}`}
                           value={student.pipelineStage || 'New'}
-                          onChange={(e) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: e.target.value as PipelineStage })}
+                          onSave={(value) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: value as PipelineStage })}
                           className="rounded-md border border-[#E8E6E1] bg-white px-2 py-1 text-xs font-bold text-[#00319D] focus:border-[#00319D] focus:outline-none"
                         >
                           {PIPELINE_STAGES.map((stage) => <option key={stage.key} value={stage.key}>{stage.label}</option>)}
                           <option value="Disqualified">Disqualified</option>
                           <option value="Cancelled">Cancelled</option>
-                        </select>
+                        </LeadFieldSelect>
                       </td>
 
                       <td data-column="priority" className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
-                        <select
+                        <LeadFieldSelect
                           aria-label={`Priority for ${student.fullName}`}
                           value={student.priority || 'Medium'}
-                          onChange={(e) => updateStudentDecoupledStatus(student.studentId, { priority: e.target.value as 'Low' | 'Medium' | 'High' | 'Urgent' })}
+                          onSave={(value) => updateStudentDecoupledStatus(student.studentId, { priority: value as 'Low' | 'Medium' | 'High' | 'Urgent' })}
                           className="rounded-md border border-[#E8E6E1] bg-white px-2 py-1 text-xs font-bold text-[#1A1A1A] focus:border-[#00319D] focus:outline-none"
                         >
                           <option>Urgent</option><option>High</option><option>Medium</option><option>Low</option>
-                        </select>
+                        </LeadFieldSelect>
                       </td>
 
                       <td data-column="created" className="py-3.5 px-4 whitespace-normal text-[#1A1A1A]">

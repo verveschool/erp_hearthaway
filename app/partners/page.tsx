@@ -9,6 +9,7 @@ import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 import React, { useState, useMemo, useRef } from 'react';
 import { useHearthAway } from '@/lib/context';
 import { AgreementStatusSchema, type Partner, type Student, type AgreementStatus } from '@/lib/types';
+import { leadPhoneCsv, normalizeLeadPhone } from '@/lib/lead-phone';
 import { exportToCSV } from '@/lib/export-csv';
 import {
   Users,
@@ -237,7 +238,7 @@ export default function PartnersPage() {
         { header: 'Student ID', accessor: (s) => s.studentId },
         { header: 'Full Name', accessor: (s) => s.fullName },
         { header: 'Email', accessor: (s) => s.email },
-        { header: 'Phone', accessor: (s) => s.phone },
+        { header: 'Phone', accessor: (s) => leadPhoneCsv(s.phone) },
         { header: 'University', accessor: (s) => s.university },
         { header: 'Destination City', accessor: (s) => s.destinationCity },
         { header: 'Destination Country', accessor: (s) => s.destinationCountry },
@@ -456,9 +457,9 @@ export default function PartnersPage() {
   const handleDownloadTemplate = () => {
     const csvContent =
       'Full Name,Email,Phone,University,Destination City,Country,Intake,Budget,Move In Date,Notes,Currency\n' +
-      'Ananya Sharma,ananya.s@example.com,+91 98200 11223,University College London,London,United Kingdom,Sep 2026,380,2026-09-15,Prefers walking distance to Bloomsbury campus,GBP\n' +
-      'Zubair Khan,zubair.khan@example.com,+971 50 123 4567,University of Manchester,Manchester,United Kingdom,Sep 2026,320,2026-09-12,En-suite room requirement with student visa,GBP\n' +
-      'Mei Lin,mei.lin@example.com,+852 9123 4567,University of Edinburgh,Edinburgh,United Kingdom,Jan 2027,350,2027-01-08,Postgraduate student looking for quiet residence,GBP\n';
+      'Ananya Sharma,ananya.s@example.com,tel:+919820011223,University College London,London,United Kingdom,Sep 2026,380,2026-09-15,Prefers walking distance to Bloomsbury campus,GBP\n' +
+      'Zubair Khan,zubair.khan@example.com,tel:+971501234567,University of Manchester,Manchester,United Kingdom,Sep 2026,320,2026-09-12,En-suite room requirement with student visa,GBP\n' +
+      'Mei Lin,mei.lin@example.com,tel:+85291234567,University of Edinburgh,Edinburgh,United Kingdom,Jan 2027,350,2027-01-08,Postgraduate student looking for quiet residence,GBP\n';
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -498,7 +499,7 @@ export default function PartnersPage() {
 
     const nameIdx = findHeaderIdx('full name', 'name', 'student name', 'student');
     const emailIdx = findHeaderIdx('email', 'email address', 'mail');
-    const phoneIdx = findHeaderIdx('phone', 'mobile', 'whatsapp', 'contact');
+    const phoneIdx = headers.findIndex(header => !/whats\s*app/i.test(header) && /\b(phone|mobile|contact number|contact)\b/.test(header));
     const uniIdx = findHeaderIdx('university', 'uni', 'college', 'institution');
     const cityIdx = findHeaderIdx('destination city', 'city', 'location');
     const countryIdx = findHeaderIdx('country', 'destination country');
@@ -569,6 +570,12 @@ export default function PartnersPage() {
         isRowValid = false;
       }
 
+      const parsedPhone = normalizeLeadPhone(phone);
+      if (!parsedPhone) {
+        errors.push({ row: i, field: 'Phone', message: 'Enter a complete phone number. Check the original if digits were lost.' });
+        isRowValid = false;
+      }
+
       const conflict = leadConflictMessage(leadContactConflicts(rowObj, [...seen, ...valid]));
       if (conflict) {
         duplicates.push({ row: i, email, phone, reason: conflict });
@@ -578,7 +585,7 @@ export default function PartnersPage() {
         errors.push({ row: i, field: 'Lead details', message: 'Complete the fields in the CSV template.' });
         isRowValid = false;
       }
-      if (isRowValid) valid.push(rowObj);
+      if (isRowValid) valid.push({ ...rowObj, phone: parsedPhone });
     }
 
     setParsedRows(parsed);

@@ -27,6 +27,7 @@ import {
   INITIAL_PAYMENTS,
   INITIAL_ACTIVITIES,
 } from './mock-data';
+import { normalizeLeadPhone } from './lead-phone';
 import { getLeadOwner, intakeKey, leadConflictMessage, leadContactConflicts, leadDetailsSchema, leadEditSchema, type LeadDetails } from './lead-details';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import {
@@ -1170,24 +1171,30 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           !(role === 'portfolio_owner' && partner?.portfolioOwnerId === currentUser.uid)) {
         throw new Error('You cannot edit this lead.');
       }
-      const updates = { ...fields, fullName, firstName, lastName: names.join(' ') };
-      const changed = Object.fromEntries(Object.entries(updates).filter(([key, value]) =>
-        value !== undefined && value !== current[key as keyof Student]));
-      if (!Object.keys(changed).length) return;
-      // Legacy duplicates can still receive unrelated corrections.
       const changedEmail = fields.email !== (current.email || '').trim().toLowerCase();
-      const changedPhone = fields.phone.replace(/\D/g, '') !== (current.phone || '').replace(/\D/g, '');
+      const changedPhone = fields.phone !== String(current.phone ?? '').trim();
+      const changedWhatsApp = fields.whatsApp !== undefined && fields.whatsApp !== String(current.whatsApp ?? '').trim();
       if (changedEmail && !leadDetailsSchema.shape.email.safeParse(fields.email).success) {
         throw new Error('Enter a valid email address.');
       }
-      if (changedPhone && !leadDetailsSchema.shape.phone.safeParse(fields.phone).success) {
-        throw new Error('Enter a valid phone number.');
-      }
-      if (changedEmail || changedPhone) {
+      const phone = normalizeLeadPhone(fields.phone);
+      if (changedPhone && !phone) throw new Error('Enter a complete phone number using the original digits.');
+      const whatsApp = fields.whatsApp ? normalizeLeadPhone(fields.whatsApp) : '';
+      if (changedWhatsApp && whatsApp === null) throw new Error('Enter a complete WhatsApp number or leave it blank.');
+      if (changedEmail || (changedPhone && phone !== normalizeLeadPhone(current.phone))) {
         const conflicts = leadContactConflicts(fields, (await getActiveLeads()).filter((entry) => entry.id !== lead.id));
         const message = leadConflictMessage({ email: changedEmail && conflicts.email, phone: changedPhone && conflicts.phone });
         if (message) throw new Error(message);
       }
+      const updates = {
+        ...fields,
+        phone: changedPhone ? phone : undefined,
+        whatsApp: changedWhatsApp ? whatsApp : undefined,
+        fullName, firstName, lastName: names.join(' '),
+      };
+      const changed = Object.fromEntries(Object.entries(updates).filter(([key, value]) =>
+        value !== undefined && value !== current[key as keyof Student]));
+      if (!Object.keys(changed).length) return;
       const activity = buildActivity(studentId, 'Lead Details Updated', `Edited fields: ${Object.keys(changed).join(', ')}.`);
       transaction.update(reference, { ...changed, updatedAt: activity.timestamp });
       transaction.set(doc(db, 'activities', activity.id), activity);
@@ -1254,71 +1261,31 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     }
   ) => {
     const student = students.find((s) => s.studentId === studentId || s.id === studentId);
-    if (!student) return;
-
-    const docId = student.id || `std-${student.studentId.toLowerCase()}`;
-    const now = new Date();
-    const updatedTime = now.toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-    if (updates.pipelineStage && updates.pipelineStage !== student.pipelineStage) {
-      logStudentActivity(
-        student.studentId,
-        'Pipeline Stage Change',
-        `Changed pipeline from "${student.pipelineStage || 'New'}" to "${updates.pipelineStage}"`,
-        student.pipelineStage || 'New',
-        updates.pipelineStage
-      );
-    }
-
-    if (updates.accommodationStatus && updates.accommodationStatus !== student.accommodationStatus) {
-      logStudentActivity(
-        student.studentId,
-        'Accommodation Status Change',
-        `Changed Accommodation Status from "${student.accommodationStatus}" to "${updates.accommodationStatus}"`,
-        student.accommodationStatus,
-        updates.accommodationStatus
-      );
-    }
-    if (updates.bookingStatus && updates.bookingStatus !== student.bookingStatus) {
-      logStudentActivity(
-        student.studentId,
-        'Booking Status Change',
-        `Changed Booking Status from "${student.bookingStatus}" to "${updates.bookingStatus}"`,
-        student.bookingStatus,
-        updates.bookingStatus
-      );
-    }
-    if (updates.moveInStatus && updates.moveInStatus !== student.moveInStatus) {
-      logStudentActivity(
-        student.studentId,
-        'Move-in Status Change',
-        `Changed Move-in Status from "${student.moveInStatus}" to "${updates.moveInStatus}"`,
-        student.moveInStatus,
-        updates.moveInStatus
-      );
-    }
-    if (updates.commissionStatus && updates.commissionStatus !== student.commissionStatus) {
-      logStudentActivity(
-        student.studentId,
-        'Commission Status Change',
-        `Changed Commission Status from "${student.commissionStatus}" to "${updates.commissionStatus}"`,
-        student.commissionStatus,
-        updates.commissionStatus
-      );
-    }
-
-    await updateDoc(doc(db, 'students', docId), {
-      ...updates,
-      updatedAt: updatedTime,
-    }).catch((err) => {
-      handleFirestoreError(err, OperationType.WRITE, `students/${docId}`);
-      throw err;
+    if (!student) throw new Error('This lead is no longer active.');
+    const reference = doc(db, 'students', student.id || `std-${student.studentId.toLowerCase()}`);
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error('This lead is no longer active.');
+      const current = snapshot.data() as Student;
+      const auditFields = [
+        ['pipelineStage', 'Pipeline Stage', 'pipeline', 'New'],
+        ['priority', 'Priority', 'priority', 'Medium'],
+        ['accommodationStatus', 'Accommodation Status', 'Accommodation Status'],
+        ['bookingStatus', 'Booking Status', 'Booking Status'],
+        ['moveInStatus', 'Move-in Status', 'Move-in Status'],
+        ['commissionStatus', 'Commission Status', 'Commission Status'],
+      ] as const;
+      for (const [field, label, description, fallback] of auditFields) {
+        const previous = current[field] || fallback;
+        const next = updates[field];
+        if (!next || next === previous) continue;
+        const activity = buildActivity(
+          student.studentId, `${label} Change`,
+          `Changed ${description} from "${previous}" to "${next}"`, previous, next
+        );
+        transaction.set(doc(db, 'activities', activity.id), activity);
+      }
+      transaction.update(reference, { ...updates, updatedAt: new Date().toISOString() });
     });
   };
 

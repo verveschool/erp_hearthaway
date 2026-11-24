@@ -7,6 +7,7 @@ import { PartnerOwnerDialog } from '@/components/PartnerOwnerDialog';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useHearthAway } from '@/lib/context';
 import { AppUser, Student } from '@/lib/types';
+import { leadPhoneCsv, parseLeadPhone } from '@/lib/lead-phone';
 import { exportToCSV } from '@/lib/export-csv';
 import {
   Layers,
@@ -518,7 +519,7 @@ export default function PortfolioPage() {
         { header: 'Student ID', accessor: (s) => s.studentId },
         { header: 'Full Name', accessor: (s) => s.fullName },
         { header: 'Email', accessor: (s) => s.email },
-        { header: 'Phone', accessor: (s) => s.phone },
+        { header: 'Phone', accessor: (s) => leadPhoneCsv(s.phone) },
         { header: 'Sourcing Partner', accessor: (s) => s.partnerName || s.partnerId },
         { header: 'Partner ID', accessor: (s) => s.partnerId },
         { header: 'Lead Owner', accessor: (s) => getLeadOwner(s).name },
@@ -1558,9 +1559,9 @@ export default function PortfolioPage() {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="flex items-center gap-1.5">
-                          {lead.phone && (
+                          {parseLeadPhone(lead.phone) && (
                             <a
-                              href={`tel:${lead.phone}`}
+                              href={leadPhoneCsv(lead.phone)}
                               className="p-1.5 rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] text-[#6B6860] hover:text-[#00319D] hover:bg-[#FFFFFF] transition-colors"
                               title={`Call ${lead.phone}`}
                             >
