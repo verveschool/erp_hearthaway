@@ -1,5 +1,7 @@
 'use client';
 
+import { PaymentConversionFields } from '@/components/PaymentConversionFields';
+import { conversionText, money, paymentConversion, verifiedReceipts, validateConversion } from '@/lib/payment-money';
 import { WorkspaceSearch } from '@/components/WorkspaceSearch';
 import { matchesSearch } from '@/lib/utils';
 
@@ -59,15 +61,14 @@ export default function FinancePage() {
   // New Payment state
   const [recordStudentId, setRecordStudentId] = useState('');
   const [recordAmount, setRecordAmount] = useState('');
+  const [rate, setRate] = useState('');
   const [recordCurrency, setRecordCurrency] = useState('GBP');
   const [recordMethod, setRecordMethod] = useState<'Bank Transfer' | 'Credit Card' | 'Online Gateway' | 'Direct Debit' | 'UPI'>('Bank Transfer');
   const [recordRemarks, setRecordRemarks] = useState('');
 
   // Key Finance Metrics
   const metrics = useMemo(() => {
-    const totalPaymentsReceived = payments
-      .filter((p) => p.paymentStatus === 'Verified')
-      .reduce((sum, p) => sum + p.amount, 0);
+    const totalPaymentsReceived = verifiedReceipts(payments);
 
     const pendingVerificationCount = payments.filter((p) => p.paymentStatus === 'Pending Verification').length;
 
@@ -133,10 +134,13 @@ export default function FinancePage() {
     e.preventDefault();
     if (recordingPayment || !recordStudentId || !recordAmount) return;
 
+    const enteredInr = Number(new FormData(e.currentTarget as HTMLFormElement).get('amountInr'));
     setRecordingPayment(true);
     setRecordError('');
     try {
+      const conversion = validateConversion(Number(recordAmount), recordCurrency, Number(rate), enteredInr);
       await uploadPaymentTransaction({
+        ...conversion,
         studentId: recordStudentId,
         amount: Number(recordAmount),
         currency: recordCurrency,
@@ -145,10 +149,11 @@ export default function FinancePage() {
       });
       setShowRecordModal(false);
       setNotice('Payment recorded.');
+      setRate('');
       setRecordAmount('');
       setRecordRemarks('');
-    } catch {
-      setRecordError('Payment could not be recorded. Check the details and try again.');
+    } catch (error) {
+      setRecordError(error instanceof Error ? error.message : 'Payment could not be recorded. Try again.');
     } finally {
       setRecordingPayment(false);
     }
@@ -177,6 +182,8 @@ export default function FinancePage() {
         { header: 'Student Name', accessor: (p) => p.studentName || '' },
         { header: 'Amount', accessor: (p) => p.amount },
         { header: 'Currency', accessor: (p) => p.currency },
+        { header: 'INR per currency unit', accessor: (p) => paymentConversion(p).rateToInr },
+        { header: 'Amount in INR', accessor: (p) => paymentConversion(p).amountInr },
         { header: 'Payment Method', accessor: (p) => p.paymentMethod },
         { header: 'Payment Date', accessor: (p) => p.paymentDate },
         { header: 'Uploaded By', accessor: (p) => p.uploadedBy },
@@ -257,7 +264,7 @@ export default function FinancePage() {
 
           {/* Metrics Ribbon */}
           <dl className="ha-metrics mt-5">
-            <WorkspaceMetric label="Verified Receipts">£{metrics.totalPaymentsReceived.toLocaleString()}</WorkspaceMetric>
+            <WorkspaceMetric label="Verified Receipts">{metrics.totalPaymentsReceived.rupees}<small className="block text-xs">{metrics.totalPaymentsReceived.native}</small></WorkspaceMetric>
             <WorkspaceMetric label="Pending Verification">{metrics.pendingVerificationCount} Transactions</WorkspaceMetric>
             <WorkspaceMetric label="Gross Commission">£{metrics.totalCommissionsExpected.toLocaleString()}</WorkspaceMetric>
             <WorkspaceMetric label="Partner Payouts Payable">£{metrics.totalPartnerPayouts.toLocaleString()}</WorkspaceMetric>
@@ -366,9 +373,10 @@ export default function FinancePage() {
 
                         <td className="py-3.5 px-4">
                           <span className="whitespace-nowrap tabular-nums font-semibold text-sm text-ha-ink">
-                            £{payment.amount.toLocaleString()}
+                            {money(payment.amount, payment.currency)}
                           </span>
-                          <span className="text-xs text-[#6B6860] ml-1">{payment.currency}</span>
+                          <span className="text-xs text-[#6B6860] ml-1">{payment.currency.toUpperCase()}</span>
+                          <small className="block text-xs">{conversionText(payment)}</small>
                         </td>
 
                         <td className="py-3.5 px-4 text-[#6B6860]">{payment.paymentMethod}</td>
@@ -605,9 +613,11 @@ export default function FinancePage() {
                   <select
                     id="finance-record-currency"
                     value={recordCurrency}
-                    onChange={(e) => setRecordCurrency(e.target.value)}
+                    onChange={(e) => { setRecordCurrency(e.target.value); setRate(''); }}
                     className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
                   >
+                    <option value="INR">INR (₹)</option>
+                    <option value="AUD">AUD (A$)</option>
                     <option value="GBP">GBP (£)</option>
                     <option value="EUR">EUR (€)</option>
                     <option value="USD">USD ($)</option>
@@ -615,6 +625,7 @@ export default function FinancePage() {
                 </div>
               </div>
 
+              <PaymentConversionFields amount={recordAmount} currency={recordCurrency} rate={rate} onRate={setRate} />
               <div>
                 <label htmlFor="finance-record-method" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Payment Method</label>
                 <select

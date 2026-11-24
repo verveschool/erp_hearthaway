@@ -1,5 +1,6 @@
 'use client';
 
+import { conversionText } from '@/lib/payment-money';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
 import React, { useState } from 'react';
@@ -278,7 +279,7 @@ export function ArchivalControlModal({
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-[#1A1A1A]">
-                          {p.paymentId} - {p.currency} {p.amount}
+                          {p.paymentId} - {p.currency} {p.amount} · {conversionText(p)}
                         </span>
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
                           {p.archivalTag || 'Flagged Test Payment'}

@@ -7,6 +7,8 @@ import { getLeadOwner } from '@/lib/lead-details';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 import { ConfirmActionDialog } from '@/components/ConfirmActionDialog';
 
+import { PaymentConversionFields } from '@/components/PaymentConversionFields';
+import { conversionText, money, verifiedReceipts, validateConversion } from '@/lib/payment-money';
 import React, { useState, useRef, useMemo, useLayoutEffect, useCallback, type ReactNode } from 'react';
 import { useHearthAway } from '@/lib/context';
 import {
@@ -130,6 +132,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
   // PAYMENT FORM & PROOF UPLOAD STATE
   // ==========================================
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [rate, setRate] = useState('');
   const [paymentCurrency, setPaymentCurrency] = useState<SupportedCurrency>('GBP');
   const [paymentMethod, setPaymentMethod] = useState<'Bank Transfer' | 'Credit Card' | 'Online Gateway' | 'Direct Debit' | 'UPI'>('Bank Transfer');
   const [paymentAssociatedBookingId, setPaymentAssociatedBookingId] = useState('');
@@ -319,6 +322,15 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
       return;
     }
 
+    let conversion;
+    try {
+      const enteredInr = Number(new FormData(e.currentTarget as HTMLFormElement).get('amountInr'));
+      conversion = validateConversion(amountNum, paymentCurrency, Number(rate), enteredInr);
+    } catch (error) {
+      setPaymentUploadError(error instanceof Error ? error.message : 'Check the INR conversion.');
+      return;
+    }
+
     // Require at least one proof file unless an authorized management user bypassed
     if (selectedProofFiles.length === 0) {
       if (!allowBypassProof) {
@@ -365,6 +377,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
         bookingReference: studentBookings.find((b) => b.bookingId === paymentAssociatedBookingId)?.bookingReference,
         amount: amountNum,
         currency: paymentCurrency,
+        ...conversion,
         paymentMethod,
         attachments: uploadedAttachments,
         proofBypassReason: allowBypassProof ? bypassReason.trim() : undefined,
@@ -374,6 +387,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
 
       // Clear form
       setPaymentDirty(false);
+      setRate('');
       setPaymentAmount('');
       setPaymentRemarks('');
       setSelectedProofFiles([]);
@@ -1075,9 +1089,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                   {!showBookingForm && studentBookings.length === 0 && <div className="ha-empty-state"><Building size={24} aria-hidden="true" /><strong>No bookings yet</strong><p>Recorded accommodation bookings will appear here.</p></div>}
                   {studentBookings.map((b) => {
                     const bookingPayments = payments.filter((p) => p.bookingId === b.bookingId);
-                    const totalPaidAmount = bookingPayments
-                      .filter((p) => p.paymentStatus === 'Verified')
-                      .reduce((sum, p) => sum + p.amount, 0);
+                    const totalPaidAmount = verifiedReceipts(bookingPayments);
 
                     return (
                       <div
@@ -1201,7 +1213,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                             </span>
                             <span>•</span>
                             <span>
-                              Verified Payments: <strong className="text-[#00319D]">{CURRENCY_SYMBOLS[b.rentCurrency] || b.rentCurrency} {totalPaidAmount.toLocaleString()}</strong>
+                              Verified Payments: <strong className="text-[#00319D]">{[totalPaidAmount.native, totalPaidAmount.rupees].filter(Boolean).join(' · ')}</strong>
                             </span>
                           </div>
 
@@ -1289,7 +1301,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                         <select
                           id="studentdetaildrawer-payment-currency"
                           value={paymentCurrency}
-                          onChange={(e) => setPaymentCurrency(e.target.value as SupportedCurrency)}
+                          onChange={(e) => { setPaymentCurrency(e.target.value as SupportedCurrency); setRate(''); }}
                           className="w-full rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-1.5 text-xs text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
                         >
                           {currencies.map((c) => (
@@ -1318,6 +1330,8 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                         </select>
                       </div>
                     </div>
+
+                    <PaymentConversionFields amount={paymentAmount} currency={paymentCurrency} rate={rate} onRate={setRate} />
 
                     {/* Associated Booking Dropdown */}
                     <div>
@@ -1560,7 +1574,8 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                           </div>
 
                           <p className="text-lg font-bold text-[#1A1A1A] mt-1">
-                            {CURRENCY_SYMBOLS[pmt.currency] || pmt.currency} {pmt.amount.toLocaleString()}
+                            {money(pmt.amount, pmt.currency)}
+                            <small className="block text-xs">{conversionText(pmt)}</small>
                           </p>
                           <p className="text-xs text-[#6B6860] mt-0.5">
                             Method: {pmt.paymentMethod} • Date: {pmt.paymentDate}

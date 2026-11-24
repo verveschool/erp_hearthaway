@@ -2,6 +2,7 @@
 
 import { persistLeadActivity, persistNewBooking, persistBookingEdit } from './crm-record-writes';
 
+import { conversionText, validateConversion } from './payment-money';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { FirebaseError } from 'firebase/app';
 import {
@@ -198,6 +199,8 @@ interface HearthAwayContextType {
     bookingId?: string;
     bookingReference?: string;
     amount: number;
+    rateToInr: number;
+    amountInr: number;
     currency: string;
     paymentMethod: 'Bank Transfer' | 'Credit Card' | 'Online Gateway' | 'Direct Debit' | 'UPI';
     attachments?: PaymentProofAttachment[];
@@ -1417,6 +1420,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     bookingId?: string;
     bookingReference?: string;
     amount: number;
+    rateToInr: number;
+    amountInr: number;
     currency: string;
     paymentMethod: 'Bank Transfer' | 'Credit Card' | 'Online Gateway' | 'Direct Debit' | 'UPI';
     attachments?: PaymentProofAttachment[];
@@ -1447,6 +1452,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       studentName: student?.fullName || 'Student',
       bookingId,
       bookingReference: data.bookingReference || '',
+      ...validateConversion(data.amount, data.currency, data.rateToInr, data.amountInr),
       amount: data.amount,
       currency: (data.currency?.toUpperCase() || 'GBP') as any,
       paymentDate: now.toISOString().split('T')[0],
@@ -1494,14 +1500,14 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       void logStudentActivity(
         data.studentId,
         'Payment Proof Bypassed',
-        `Management proof requirement bypassed for payment ${paymentId} (${data.currency} ${data.amount}) by ${currentUser.displayName} (${currentUser.role}). Recorded Exception Reason: "${data.proofBypassReason}".`
+        `Management proof requirement bypassed for payment ${paymentId} (${data.currency} ${data.amount}, ${conversionText(newPayment)}) by ${currentUser.displayName} (${currentUser.role}). Recorded Exception Reason: "${data.proofBypassReason}".`
       ).catch(() => {});
     }
 
     void logStudentActivity(
       data.studentId,
       'Payment Uploaded',
-      `Payment proof ${paymentId} of ${data.currency} ${data.amount} recorded by ${currentUser.displayName} with ${data.attachments?.length || 0} file attachment(s). Status: Pending Verification.`
+      `Payment proof ${paymentId} of ${data.currency} ${data.amount}, ${conversionText(newPayment)} recorded by ${currentUser.displayName} with ${data.attachments?.length || 0} file attachment(s). Status: Pending Verification.`
     ).catch(() => {});
 
     return newPayment;
@@ -1533,7 +1539,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       if (!stored || stored.paymentStatus !== 'Pending Verification') throw new Error('Payment already reviewed or unavailable.');
       const lead = studentRef ? (await transaction.get(studentRef)).data() as Student | undefined : undefined;
       const audit = buildActivity(stored.studentId, `Payment ${decision}`,
-        `Payment ${stored.paymentId} (${stored.currency} ${stored.amount}) was ${decision.toLowerCase()} by ${currentUser.displayName}. ${remarks || ''}`,
+        `Payment ${stored.paymentId} (${stored.currency} ${stored.amount}, ${conversionText(stored)}) was ${decision.toLowerCase()} by ${currentUser.displayName}. ${remarks || ''}`,
         stored.paymentStatus, decision);
       transaction.set(doc(db, 'activities', audit.id), audit);
       transaction.update(paymentRef, {
