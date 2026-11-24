@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { FirebaseError } from 'firebase/app';
 import {
   Student,
   Partner,
@@ -56,6 +57,14 @@ import {
   serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
+
+export type BulkLeadImportResult = {
+  importedCount: number;
+  duplicatesCount: number;
+  invalidCount: number;
+  retryRows: LeadDetails[];
+  failureCodes: string[];
+};
 
 const getInitialPipelineStage = (student: Student): PipelineStage => {
   if (student.pipelineStage) return student.pipelineStage;
@@ -127,9 +136,7 @@ interface HearthAwayContextType {
   leadOwnerOptions: Array<{ uid: string; displayName: string }>;
   portfolioOwnerOptions: Array<{ uid: string; displayName: string }>;
   setPartnerLeadTarget: (partnerId: string, season: string, promised: number) => Promise<void>;
-  bulkImportPartnerLeads: (leads: LeadDetails[], partnerId?: string) => Promise<{
-    importedCount: number; duplicatesCount: number; errorsCount: number; importedLeads: Student[];
-  }>;
+  bulkImportPartnerLeads: (leads: LeadDetails[], partnerId?: string) => Promise<BulkLeadImportResult>;
   onboardNewPartner: (partnerData: any) => Promise<Partner>;
   updatePartner: (partnerId: string, updates: Partial<Partner>, agreementFile?: File) => Promise<void>;
   getPartnerAgreement: (partnerId: string) => Promise<{ name: string; bytes: ArrayBuffer } | null>;
@@ -1101,13 +1108,14 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   const bulkImportPartnerLeads = async (incoming: LeadDetails[], partnerId?: string) => {
     const partner = resolveLeadPartner(partnerId);
-    const importedLeads: Student[] = [];
-    let duplicatesCount = 0;
-    let errorsCount = 0;
+    const result: BulkLeadImportResult = {
+      importedCount: 0, duplicatesCount: 0, invalidCount: 0, retryRows: [], failureCodes: [],
+    };
+    const failureCodes = new Set<string>();
     for (let offset = 0; offset < incoming.length; offset += 100) {
       const chunk = incoming.slice(offset, offset + 100);
       try {
-        const result = await runTransaction(db, async (transaction) => {
+        const committed = await runTransaction(db, async (transaction) => {
           await transaction.get(intakeLock);
           const existing = await getActiveLeads();
           const saved: Student[] = [];
@@ -1126,14 +1134,17 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           if (saved.length) transaction.set(intakeLock, { updatedAt: serverTimestamp() });
           return { saved, duplicates, invalid };
         });
-        importedLeads.push(...result.saved);
-        duplicatesCount += result.duplicates;
-        errorsCount += result.invalid;
-      } catch {
-        errorsCount += chunk.length;
+        result.importedCount += committed.saved.length;
+        result.duplicatesCount += committed.duplicates;
+        result.invalidCount += committed.invalid;
+      } catch (cause) {
+        const code = cause instanceof FirebaseError ? cause.code : 'unexpected-error';
+        failureCodes.add(code);
+        result.retryRows.push(...chunk);
+        console.error('Lead CSV import batch failed', { code, rowCount: chunk.length });
       }
     }
-    return { importedLeads, importedCount: importedLeads.length, duplicatesCount, errorsCount };
+    return { ...result, failureCodes: [...failureCodes] };
   };
 
   const submitPartnerLead = async (lead: LeadDetails, partnerId?: string) => {
