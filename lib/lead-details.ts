@@ -3,8 +3,12 @@ import { normalizeLeadPhone } from './lead-phone';
 import { SupportedCurrencies, type Student } from './types';
 
 const requiredText = z.string().trim().min(1);
-export const contactEmail = (value = '') => value.trim().toLowerCase();
-const contactPhone = (value: unknown) => normalizeLeadPhone(value)?.replace(/^(\+|00)/, '');
+export const contactEmail = (value: unknown) => typeof value === 'string' ? value.trim().toLowerCase() : '';
+export const contactPhone = (value: unknown) => {
+  // Legacy numeric contacts are usable for duplicate detection only, not dialing or export.
+  const candidate = typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? String(value) : value;
+  return normalizeLeadPhone(candidate)?.replace(/^(\+|00)/, '') ?? '';
+};
 const phoneField = z.string().trim().transform((value, context) => {
   const phone = normalizeLeadPhone(value);
   if (phone) return phone;
