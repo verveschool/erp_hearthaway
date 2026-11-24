@@ -992,3 +992,21 @@ details[open] > .ha-disclosure > .ha-disclosure-chevron { transform: rotate(180d
     padding-inline: .375rem .15rem;
   }
 }
+
+.activity-metrics .ha-metric { min-width: 0; border: 1px solid var(--ha-mid-gray); border-radius: var(--ha-radius-panel); background: white; }
+.activity-metrics .ha-metric :is(dt, dd) { overflow-wrap: anywhere; }
+.activity-table :is(th, td) { padding: .75rem; vertical-align: top; }
+.activity-table td { overflow-wrap: anywhere; }
+.activity-table td[data-label="Audit description"] { max-width: 25rem; }
+.activity-badge { display: inline-block; border-radius: .375rem; background: #f3f3f4; padding: .2rem .45rem; font-weight: 600; }
+.activity-badge[data-tone="stage"] { background: #e6efff; color: #00319d; }
+.activity-badge[data-tone="owner"] { background: #f2e8ff; color: #6628a3; }
+.activity-badge[data-tone="payment"] { background: #e5f5ec; color: #17633d; }
+@media (max-width: 767px) {
+  .activity-table td:is([data-label="Audit description"], [data-label="State transition"]) { grid-column: 1 / -1; }
+  .activity-table :is(th, td) { padding: .5rem; }
+}
+
+@media (min-width: 768px) {
+  .partners-workspace .partner-performance-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}

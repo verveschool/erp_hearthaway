@@ -34,6 +34,12 @@ import {
 } from 'lucide-react';
 import { exportToCSV } from '@/lib/export-csv';
 
+const FINANCE_TABS = [
+  { id: 'payments', label: 'Payments' },
+  { id: 'bookings', label: 'Bookings' },
+  { id: 'commissions', label: 'Commissions' },
+] as const;
+
 export default function FinancePage() {
   const {
     bookings,
@@ -249,7 +255,6 @@ export default function FinancePage() {
                 Finance
               </h1>
             </div>
-
           </div>
 
           {/* Metrics Ribbon */}
@@ -260,46 +265,28 @@ export default function FinancePage() {
             <WorkspaceMetric label="Partner Payouts Payable">£{metrics.totalPartnerPayouts.toLocaleString()}</WorkspaceMetric>
           </dl>
 
-          {/* Sub-Tabs */}
-          <div className="ha-tabs workspace-tabs mt-2 text-sm font-semibold">
-            <button
-              aria-pressed={activeTab === 'payments'}
-              onClick={() => setActiveTab('payments')}
-              className={`pb-3 transition-colors border-b-2 flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'payments'
-                  ? 'border-[#00319D] text-[#00319D]'
-                  : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
-              }`}
-            >
-              Payments
-            </button>
-            <button
-              aria-pressed={activeTab === 'bookings'}
-              onClick={() => setActiveTab('bookings')}
-              className={`pb-3 transition-colors border-b-2 flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'bookings'
-                  ? 'border-[#00319D] text-[#00319D]'
-                  : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
-              }`}
-            >
-              Bookings
-            </button>
-            <button
-              aria-pressed={activeTab === 'commissions'}
-              onClick={() => setActiveTab('commissions')}
-              className={`pb-3 transition-colors border-b-2 flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'commissions'
-                  ? 'border-[#00319D] text-[#00319D]'
-                  : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
-              }`}
-            >
-              Commissions
-            </button>
+          <div role="tablist" aria-label="Finance" className="ha-tabs workspace-tabs mt-2 text-sm font-semibold"
+            onKeyDown={event => {
+              const index = FINANCE_TABS.findIndex(tab => tab.id === activeTab);
+              const count = FINANCE_TABS.length;
+              const next = { ArrowLeft: (index + count - 1) % count, ArrowRight: (index + 1) % count, Home: 0, End: count - 1 }[event.key];
+              if (next === undefined) return;
+              event.preventDefault();
+              setActiveTab(FINANCE_TABS[next].id);
+              event.currentTarget.querySelectorAll('button')[next]?.focus();
+            }}>
+            {FINANCE_TABS.map(({ id, label }) => (
+              <button key={id} id={`finance-tab-${id}`} type="button" role="tab" aria-selected={activeTab === id}
+                aria-controls="finance-panel" tabIndex={activeTab === id ? 0 : -1} onClick={() => setActiveTab(id)}
+                className={`pb-3 border-b-2 transition-colors ${activeTab === id ? 'border-ha-blue text-ha-blue' : 'border-transparent text-ha-secondary hover:text-ha-ink'}`}>
+                {label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      <div className="workspace-content">
+      <div id="finance-panel" role="tabpanel" aria-labelledby={`finance-tab-${activeTab}`} tabIndex={0} className="workspace-content">
         {/* TAB 1: PAYMENTS LEDGER */}
         {activeTab === 'payments' && (
           <div className="space-y-4">

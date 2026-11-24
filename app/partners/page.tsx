@@ -917,7 +917,7 @@ export default function PartnersPage() {
                       <option value={filterPortfolioOwner}>{portfolioLabel}</option>}
                   </select>
                 </div>
-                <dl aria-label={`Partner metrics for ${portfolioLabel}`} className="ha-metrics workspace-metrics sm:grid-cols-3 lg:grid-cols-5">
+                <dl aria-label={`Partner metrics for ${portfolioLabel}`} className="ha-metrics workspace-metrics partner-performance-metrics">
                   <WorkspaceMetric label="Partners">{portfolioMetrics.partners}</WorkspaceMetric>
                   <WorkspaceMetric label="Leads">{portfolioMetrics.leads}</WorkspaceMetric>
                   <WorkspaceMetric label="Qualified leads">{portfolioMetrics.qualified}</WorkspaceMetric>
