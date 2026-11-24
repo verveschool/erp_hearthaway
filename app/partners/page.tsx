@@ -13,7 +13,7 @@ import { PartnerLeadTargets } from '@/components/PartnerLeadTargets';
 import { getLeadOwner, leadContactConflicts, leadConflictMessage, leadDetailsSchema, parseLeadCsv } from '@/lib/lead-details';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
-import React, { useState, useMemo, useRef, useSyncExternalStore } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useHearthAway, type BulkLeadImportResult } from '@/lib/context';
 import { AgreementStatusSchema, type Partner, type Student, type AgreementStatus } from '@/lib/types';
 import { leadPhoneCsv, normalizeLeadPhone } from '@/lib/lead-phone';
@@ -42,22 +42,11 @@ import {
   MapPin,
   FileCheck,
   Calendar,
-  Grid,
-  List,
   Shield,
   FileCode,
   Pencil,
   Trash2,
 } from 'lucide-react';
-
-const compactDirectory = '(max-width: 63.99rem)';
-function subscribeToDirectoryWidth(onChange: () => void) {
-  const query = window.matchMedia(compactDirectory);
-  query.addEventListener('change', onChange);
-  return () => query.removeEventListener('change', onChange);
-}
-const isCompactDirectory = () => window.matchMedia(compactDirectory).matches;
-const isServerDirectory = () => false;
 
 const MAX_AGREEMENT_BYTES = 768 * 1024;
 
@@ -97,7 +86,7 @@ export default function PartnersPage() {
   const activePartnerId = isPartner ? currentUser.partnerId : undefined;
   const currentPartnerRecord = partners.find((p) => p.partnerId === activePartnerId);
 
-  // Search, Filter & View state for Partners
+  // Search & Filter state for Partners
   const [searchQuery, setSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'searchQuery', '');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filterType, setFilterType] = useWorkspaceView<string>(currentUser.uid, 'filterType', 'All');
@@ -106,11 +95,6 @@ export default function PartnersPage() {
   const [filterState, setFilterState] = useWorkspaceView<string>(currentUser.uid, 'filterState', 'All');
   const [filterCity, setFilterCity] = useWorkspaceView<string>(currentUser.uid, 'filterCity', 'All');
   const [filterAgreement, setFilterAgreement] = useWorkspaceView<string>(currentUser.uid, 'filterAgreement', 'All');
-  const [desktopView, setViewMode] = useWorkspaceView<'directory' | 'bifurcated'>(currentUser.uid, 'viewMode', 'bifurcated');
-
-  const compact = useSyncExternalStore(subscribeToDirectoryWidth, isCompactDirectory, isServerDirectory);
-  const viewMode = compact ? 'bifurcated' : desktopView;
-
   // Selected partner for inspecting their leads
   const [inspectPartnerId, setInspectPartnerId] = useState<string | null>(null);
 
@@ -676,34 +660,6 @@ export default function PartnersPage() {
 
             {/* Action Buttons */}
             <div className="workspace-heading-actions">
-              {/* View Switcher: Directory vs Bifurcated */}
-              {!isPartner && !compact && (
-                <div className="inline-flex items-center rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] p-1 text-xs">
-                  <button
-                    aria-pressed={viewMode === 'directory'} aria-label="Table view" title="Table view"
-                    onClick={() => setViewMode('directory')}
-                    className={`workspace-icon-button rounded-md transition-all cursor-pointer ${
-                      viewMode === 'directory'
-                        ? 'bg-[#FFFFFF] text-[#00319D] shadow-xs'
-                        : 'text-[#6B6860] hover:text-[#1A1A1A]'
-                    }`}
-                  >
-                    <List size={19} aria-hidden="true" />
-                  </button>
-                  <button
-                    aria-pressed={viewMode === 'bifurcated'} aria-label="Group by location" title="Group by location"
-                    onClick={() => setViewMode('bifurcated')}
-                    className={`workspace-icon-button rounded-md transition-all cursor-pointer ${
-                      viewMode === 'bifurcated'
-                        ? 'bg-[#FFFFFF] text-[#00319D] shadow-xs'
-                        : 'text-[#6B6860] hover:text-[#1A1A1A]'
-                    }`}
-                  >
-                    <Grid size={19} aria-hidden="true" />
-                  </button>
-                </div>
-              )}
-
               {isManagement && (
                 <button
                   onClick={() => setShowSingleLeadModal(true)}
@@ -1026,247 +982,128 @@ export default function PartnersPage() {
               </div>
             </div>
 
-            {/* MODE A: BIFURCATED BY STATE & CITY (Grouped View) */}
-            {viewMode === 'bifurcated' && (
-              <div className="space-y-6">
-                {Object.keys(partnersByStateAndCity).length === 0 ? (
-                  <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-12 text-center space-y-2">
-                    <Building className="h-8 w-8 text-[#6B6860] mx-auto" />
-                    <h3 className="text-sm font-bold text-[#1A1A1A]">No Partners Match Filters</h3>
-                    <p className="text-xs text-[#6B6860]">
-                      Try clearing city/state filters or onboard a partner in this territory.
-                    </p>
-                  </div>
-                ) : (
-                  Object.entries(partnersByStateAndCity).map(([stateName, cityDict]) => {
-                    const stateTotalPartners = Object.values(cityDict).reduce((acc, list) => acc + list.length, 0);
+            <div className="space-y-6">
+              {Object.keys(partnersByStateAndCity).length === 0 ? (
+                <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-12 text-center space-y-2">
+                  <Building className="h-8 w-8 text-[#6B6860] mx-auto" />
+                  <h3 className="text-sm font-bold text-[#1A1A1A]">No Partners Match Filters</h3>
+                  <p className="text-xs text-[#6B6860]">
+                    Try clearing city/state filters or onboard a partner in this territory.
+                  </p>
+                </div>
+              ) : (
+                Object.entries(partnersByStateAndCity).map(([stateName, cityDict]) => {
+                  const stateTotalPartners = Object.values(cityDict).reduce((acc, list) => acc + list.length, 0);
 
-                    return (
-                      <div
-                        key={stateName}
-                        className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden"
-                      >
-                        {/* State Group Header */}
-                        <div className="bg-[#F7F6F3] px-5 py-3.5 border-b border-[#E8E6E1] flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2.5">
-                            <div className="h-8 w-8 rounded-lg bg-[#00319D] text-[#FFFFFF] flex items-center justify-center font-bold text-xs shadow-xs">
-                              <MapPin className="h-4 w-4" />
-                            </div>
-                            <div>
-                              <h3 className="text-sm font-bold text-[#1A1A1A] flex items-center gap-2">
-                                {stateName}
-                                <span className="rounded bg-[#00319D]/10 px-2 py-0.5 text-xs font-bold text-[#00319D]">
-                                  {stateTotalPartners} {stateTotalPartners === 1 ? 'Partner' : 'Partners'}
-                                </span>
-                              </h3>
-                            </div>
+                  return (
+                    <div
+                      key={stateName}
+                      className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden"
+                    >
+                      {/* State Group Header */}
+                      <div className="bg-[#F7F6F3] px-5 py-3.5 border-b border-[#E8E6E1] flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-8 w-8 rounded-lg bg-[#00319D] text-[#FFFFFF] flex items-center justify-center font-bold text-xs shadow-xs">
+                            <MapPin className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-[#1A1A1A] flex items-center gap-2">
+                              {stateName}
+                              <span className="rounded bg-[#00319D]/10 px-2 py-0.5 text-xs font-bold text-[#00319D]">
+                                {stateTotalPartners} {stateTotalPartners === 1 ? 'Partner' : 'Partners'}
+                              </span>
+                            </h3>
                           </div>
                         </div>
+                      </div>
 
-                        {/* Cities and Partner Cards within this State */}
-                        <div className="p-5 space-y-6">
-                          {Object.entries(cityDict).map(([cityName, cityPartners]) => (
-                            <div key={cityName} className="space-y-3">
-                              <div className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-[#FCC20A]" />
-                                <h4 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wide">
-                                  {cityName}
-                                </h4>
-                                <span className="text-xs text-[#6B6860] font-semibold">
-                                  ({cityPartners.length} {cityPartners.length === 1 ? 'agency' : 'agencies'})
-                                </span>
-                              </div>
+                      {/* Cities and Partner Cards within this State */}
+                      <div className="p-5 space-y-6">
+                        {Object.entries(cityDict).map(([cityName, cityPartners]) => (
+                          <div key={cityName} className="space-y-3">
+                            <div className="flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full bg-[#FCC20A]" />
+                              <h4 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wide">
+                                {cityName}
+                              </h4>
+                              <span className="text-xs text-[#6B6860] font-semibold">
+                                ({cityPartners.length} {cityPartners.length === 1 ? 'agency' : 'agencies'})
+                              </span>
+                            </div>
 
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                                {cityPartners.map((partner) => {
-                                  const leadsCount = students.filter((s) => s.partnerId === partner.partnerId).length;
-                                  const bookingsCount = students.filter(
-                                    (s) =>
-                                      s.partnerId === partner.partnerId &&
-                                      (s.bookingStatus === 'Booked' || s.bookingStatus === 'Move-in Confirmed')
-                                  ).length;
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                              {cityPartners.map((partner) => {
+                                const leadsCount = students.filter((s) => s.partnerId === partner.partnerId).length;
+                                const bookingsCount = students.filter(
+                                  (s) =>
+                                    s.partnerId === partner.partnerId &&
+                                    (s.bookingStatus === 'Booked' || s.bookingStatus === 'Move-in Confirmed')
+                                ).length;
 
-                                  return (
-                                    <div
-                                      key={partner.id}
-                                      className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 hover:border-[#00319D]/40 transition-all shadow-2xs space-y-3 flex flex-col justify-between"
-                                    >
-                                      <div>
-                                        <div className="flex items-start justify-between gap-2">
-                                          <div className="min-w-0">
-                                            <h5 className="break-words text-sm font-semibold leading-snug">{partner.companyName}</h5>
-                                            <span className="font-mono text-xs text-ha-blue">{partner.partnerId}</span>
-                                          </div>
-                                          <div className="flex shrink-0 flex-col items-end gap-1">
-                                            {isManagement && <button type="button" onClick={() => openPartnerOnboarding(partner)}
-                                              className="workspace-icon-button" title="Edit partner" aria-label={`Edit ${partner.companyName}`}>
-                                              <Pencil className="h-4 w-4" aria-hidden="true" />
-                                            </button>}
-                                            <button type="button" onClick={() => handleOpenAgreementModal(partner)} disabled={!isManagement}
-                                              className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs ${formatAgreementBadge(partner.agreementStatus)}`}
-                                              aria-label={`Agreement for ${partner.companyName}`}>
-                                              <FileCheck className="h-3 w-3" aria-hidden="true" />{partner.agreementStatus || 'Active'}
-                                            </button>
-                                          </div>
+                                return (
+                                  <div
+                                    key={partner.id}
+                                    className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 hover:border-[#00319D]/40 transition-all shadow-2xs space-y-3 flex flex-col justify-between"
+                                  >
+                                    <div>
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <h5 className="break-words text-sm font-semibold leading-snug">{partner.companyName}</h5>
+                                          <span className="font-mono text-xs text-ha-blue">{partner.partnerId}</span>
                                         </div>
-
-                                        <p className="text-xs text-[#6B6860] mt-1.5 line-clamp-1">
-                                          Contact: {partner.contactPerson} ({partner.email})
-                                        </p>
-
-                                        <div className="mt-2.5 pt-2.5 border-t border-[#E8E6E1] text-xs flex items-center justify-between">
-                                          <span className="text-[#6B6860]">Portfolio Owner:</span>
-                                          <strong className="text-[#1A1A1A]">
-                                            {partner.portfolioOwnerName || 'Beatrice Vance'}
-                                          </strong>
-                                        </div>
-                                      </div>
-
-                                      <div className="space-y-2 border-t border-ha-line pt-2">
-                                        {seasonalTargets(partner)}
-                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                          <span className="text-xs text-ha-secondary">Bookings <strong className="text-ha-ink">{bookingsCount}</strong></span>
-                                          <button type="button" onClick={() => setInspectPartnerId(partner.partnerId)}
-                                            className="ha-text-action partner-leads-action">
-                                            Leads ({leadsCount})
+                                        <div className="flex shrink-0 flex-col items-end gap-1">
+                                          {isManagement && <button type="button" onClick={() => openPartnerOnboarding(partner)}
+                                            className="workspace-icon-button" title="Edit partner" aria-label={`Edit ${partner.companyName}`}>
+                                            <Pencil className="h-4 w-4" aria-hidden="true" />
+                                          </button>}
+                                          <button type="button" onClick={() => handleOpenAgreementModal(partner)} disabled={!isManagement}
+                                            className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs ${formatAgreementBadge(partner.agreementStatus)}`}
+                                            aria-label={`Agreement for ${partner.companyName}`}>
+                                            <FileCheck className="h-3 w-3" aria-hidden="true" />{partner.agreementStatus || 'Active'}
                                           </button>
                                         </div>
                                       </div>
+
+                                      <p className="text-xs text-[#6B6860] mt-1.5 line-clamp-1">
+                                        Contact: {partner.contactPerson} ({partner.email})
+                                      </p>
+
+                                      <div className="mt-2.5 pt-2.5 border-t border-[#E8E6E1] text-xs flex items-center justify-between">
+                                        <span className="text-[#6B6860]">Portfolio Owner:</span>
+                                        <strong className="text-[#1A1A1A]">
+                                          {partner.portfolioOwnerName || 'Beatrice Vance'}
+                                        </strong>
+                                      </div>
                                     </div>
-                                  );
-                                })}
-                              </div>
+
+                                    <div className="space-y-2 border-t border-ha-line pt-2">
+                                      {seasonalTargets(partner)}
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <span className="text-xs text-ha-secondary">Bookings <strong className="text-ha-ink">{bookingsCount}</strong></span>
+                                        <button type="button" onClick={() => setInspectPartnerId(partner.partnerId)}
+                                          className="ha-text-action partner-leads-action">
+                                          Leads ({leadsCount})
+                                        </button>
+                                        {isManagement && <div className="flex flex-wrap items-center gap-1">
+                                          <button type="button" onClick={() => setReassignPartnerTarget(partner)} className="ha-text-action"
+                                            aria-label={`Reassign owner for ${partner.companyName}`}>Reassign owner</button>
+                                          <button type="button" onClick={() => handleDeletePartner(partner)} className="workspace-icon-button text-rose-700"
+                                            title="Delete partner" aria-label={`Delete ${partner.companyName}`}><Trash2 size={16} aria-hidden="true" /></button>
+                                        </div>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
-
-            {/* MODE B: STANDARD DIRECTORY TABLE */}
-            {viewMode === 'directory' && (
-              <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
-                <div className="ha-table-scroll">
-                  <table className="ha-table min-w-[1450px] table-fixed">
-                    <colgroup><col className="w-[190px]" /><col className="w-[130px]" /><col className="w-[140px]" /><col className="w-[150px]" /><col className="w-[200px]" /><col className="w-[150px]" /><col className="w-[210px]" /><col className="w-[90px]" /><col className="w-[190px]" /></colgroup>
-                    <thead>
-                      <tr>
-                        <th scope="col" className="py-3 px-4 font-bold">Partner Agency</th>
-                        <th scope="col" className="py-3 px-4 font-bold">City &amp; State</th>
-                        <th scope="col" className="py-3 px-4 font-bold">Agreement</th>
-                        <th scope="col" className="py-3 px-4 font-bold">Type</th>
-                        <th scope="col" className="py-3 px-4 font-bold">Contact Person</th>
-                        <th scope="col" className="py-3 px-4 font-bold">Portfolio Owner</th>
-                        <th scope="col" className="py-3 px-4 font-bold">Leads / target</th>
-                        <th scope="col" className="py-3 px-4 font-bold">Bookings</th>
-                        <th scope="col" className="py-3 px-4 font-bold text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#E8E6E1]">
-                      {filteredPartners.length === 0 ? (
-                        <tr>
-                          <td colSpan={9} className="py-12 text-center text-[#6B6860]">
-                            No partners found matching the selected city, state, or search filters.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredPartners.map((partner) => {
-                          const leadsCount = students.filter((s) => s.partnerId === partner.partnerId).length;
-                          const bookingsCount = students.filter(
-                            (s) =>
-                              s.partnerId === partner.partnerId &&
-                              (s.bookingStatus === 'Booked' || s.bookingStatus === 'Move-in Confirmed')
-                          ).length;
-
-                          return (
-                            <tr
-                              key={partner.id}
-                              className="hover:bg-[#F7F6F3]/60 transition-colors"
-                            >
-                              <td className="py-3.5 px-4">
-                                <div className="font-bold text-[#1A1A1A]">{partner.companyName}</div>
-                                <div className="font-mono text-xs text-[#00319D]">{partner.partnerId}</div>
-                              </td>
-
-                              {/* City & State Location */}
-                              <td className="py-3.5 px-4">
-                                <div className="font-semibold text-[#1A1A1A] flex items-center gap-1">
-                                  <MapPin className="h-3 w-3 text-[#00319D]" />
-                                  {partner.city || 'Mumbai'}
-                                </div>
-                                <div className="text-xs text-[#6B6860] pl-4">{partner.state || 'Maharashtra'}</div>
-                              </td>
-
-                              {/* Agreement Status & Modal Action */}
-                              <td className="py-3.5 px-4">
-                                <button
-                                  onClick={() => handleOpenAgreementModal(partner)} disabled={!isManagement}
-                                  className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold border cursor-pointer ${formatAgreementBadge(partner.agreementStatus)}`}
-                                  title="View / Manage Contract Terms"
-                                >
-                                  <FileCheck className="h-3 w-3" />
-                                  {partner.agreementStatus || 'Active'}
-                                </button>
-                              </td>
-
-                              <td className="py-3.5 px-4 text-[#6B6860]">{partner.type}</td>
-
-                              <td className="py-3.5 px-4">
-                                <div className="font-medium text-[#1A1A1A]">{partner.contactPerson}</div>
-                                <div className="text-xs text-[#6B6860]">{partner.email}</div>
-                              </td>
-
-                              {/* Portfolio Owner & Reassignment Action */}
-                              <td className="py-3.5 px-4">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="h-2 w-2 rounded-full bg-[#00319D]" />
-                                  <strong className="text-[#1A1A1A]">
-                                    {partner.portfolioOwnerName || 'Beatrice Vance'}
-                                  </strong>
-                                </div>
-                                {isManagement && (
-                                <button
-                                  onClick={() => {
-                                    setReassignPartnerTarget(partner);
-                                  }}
-                                  className="text-xs text-[#00319D] hover:underline mt-0.5 block cursor-pointer"
-                                >
-                                  Reassign owner
-                                </button>
-                                )}
-                              </td>
-
-                              <td className="py-3.5 px-4">
-                                <span className="font-bold text-[#00319D]">{leadsCount}</span>
-                                {seasonalTargets(partner)}
-                              </td>
-
-                              <td className="py-3.5 px-4">
-                                <span className="font-bold text-emerald-700">{bookingsCount}</span>
-                              </td>
-
-                              <td className="py-3.5 px-4 text-right">
-                                <div className="flex items-center justify-end gap-1">
-                                  {isManagement && <>
-                                    <button type="button" onClick={() => openPartnerOnboarding(partner)} className="workspace-icon-button" title="Edit partner" aria-label={`Edit ${partner.companyName}`}><Pencil size={16} aria-hidden="true" /></button>
-                                    <button type="button" onClick={() => handleDeletePartner(partner)} className="workspace-icon-button text-rose-700" title="Delete partner" aria-label={`Delete ${partner.companyName}`}><Trash2 size={16} aria-hidden="true" /></button>
-                                    <button type="button" onClick={() => handleOpenAgreementModal(partner)} className="workspace-icon-button" title="Manage agreement" aria-label={`Manage agreement for ${partner.companyName}`}><FileCheck size={16} aria-hidden="true" /></button>
-                                  </>}
-                                  <button type="button" onClick={() => setInspectPartnerId(partner.partnerId)} className="workspace-icon-button" title="View leads" aria-label={`View ${leadsCount} leads for ${partner.companyName}`}><Users size={16} aria-hidden="true" /></button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         )}
       </div>
