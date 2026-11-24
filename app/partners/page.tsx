@@ -77,7 +77,6 @@ export default function PartnersPage() {
     setPartnerLeadTarget,
     partners,
     students,
-    availableUsers,
     portfolioOwnerOptions,
     reassignPartnerPortfolioOwner,
     bulkImportPartnerLeads,
@@ -89,17 +88,10 @@ export default function PartnersPage() {
     setSelectedStudentId,
   } = useHearthAway();
 
-  const isManagement = currentUser.role === 'management' || currentUser.role === 'admin';
-  const isPartner = currentUser.role === 'partner';
+  const isManagement = leadOperationsRole === 'management';
+  const isPartner = !isManagement && currentUser.role === 'partner';
 
-  // Portfolio Owners list for assignments
-  const portfolioOwners = useMemo(() => {
-    if (portfolioOwnerOptions.length) return portfolioOwnerOptions;
-    return availableUsers.filter((user) => user.uid && user.displayName?.trim() && user.role === 'portfolio_owner' &&
-      user.status !== 'rejected' && user.status !== 'pending' && user.isApproved !== false)
-      .map(({ uid, displayName }) => ({ uid, displayName }))
-      .sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [availableUsers, portfolioOwnerOptions]);
+  const portfolioOwners = portfolioOwnerOptions;
 
   // Active Partner context for Partner role
   const activePartnerId = isPartner ? currentUser.partnerId : undefined;
@@ -187,7 +179,6 @@ export default function PartnersPage() {
   // Filtered partners list
   const filteredPartners = useMemo(() => {
     return partners.filter((p) => {
-      if (currentUser.role === 'portfolio_owner' && p.portfolioOwnerId !== currentUser.uid) return false;
       const matchSearch = matchesSearch(searchQuery, [p.companyName, p.partnerId, p.contactPerson, p.email, p.city, p.state]);
 
       const matchType = filterType === 'All' || p.type === filterType;
@@ -199,7 +190,7 @@ export default function PartnersPage() {
 
       return matchSearch && matchType && matchPO && matchStatus && matchState && matchCity && matchAgreement;
     });
-  }, [partners, searchQuery, filterType, filterPortfolioOwner, filterStatus, filterState, filterCity, filterAgreement, currentUser.role, currentUser.uid]);
+  }, [partners, searchQuery, filterType, filterPortfolioOwner, filterStatus, filterState, filterCity, filterAgreement]);
 
   const filterCount = [filterState, filterCity, filterAgreement, filterType, filterPortfolioOwner].filter(value => value !== 'All').length;
 
@@ -1503,7 +1494,7 @@ export default function PartnersPage() {
                   value={bulkPartnerId} onChange={(event) => setBulkPartnerId(event.target.value)} disabled={importing}>
                   <option value="">Choose a partner</option>
                   {!isManagement && <option value="direct">Direct lead</option>}
-                  {partners.filter((partner) => currentUser.role !== 'portfolio_owner' || partner.portfolioOwnerId === currentUser.uid).map((partner) => <option key={partner.id} value={partner.partnerId}>{partner.companyName}</option>)}
+                  {partners.map((partner) => <option key={partner.id} value={partner.partnerId}>{partner.companyName}</option>)}
                 </select>
               </label>
             )}
