@@ -250,16 +250,6 @@ export default function FinancePage() {
               </h1>
             </div>
 
-            <button
-              onClick={() => {
-                setRecordStudentId((id) => students.some((student) => student.studentId === id) ? id : students[0]?.studentId || '');
-                setShowRecordModal(true);
-              }}
-              className="ha-primary-action workspace-primary" title="Record payment" aria-label="Record payment"
-            >
-              <Plus size={21} aria-hidden="true" />
-              <span className="workspace-action-text">Record payment</span>
-            </button>
           </div>
 
           {/* Metrics Ribbon */}
@@ -314,7 +304,16 @@ export default function FinancePage() {
         {activeTab === 'payments' && (
           <div className="space-y-4">
             <div className="workspace-toolbar finance-toolbar">
-              <WorkspaceSearch label="Search payments" placeholder="Search payments" value={searchQuery} onChange={setSearchQuery} />
+              <div className="finance-payment-search">
+                <WorkspaceSearch label="Search payments" placeholder="Search payments" value={searchQuery} onChange={setSearchQuery} />
+                <button type="button" aria-label="Record payment" title="Record payment" className="workspace-icon-button finance-payment-add"
+                  onClick={() => {
+                    setRecordStudentId(id => students.some(student => student.studentId === id) ? id : students[0]?.studentId || '');
+                    setShowRecordModal(true);
+                  }}>
+                  <Plus size={20} aria-hidden="true" />
+                </button>
+              </div>
 
               <div className="flex flex-wrap items-center gap-2">
                 <select

@@ -460,7 +460,7 @@ html:has(.sales-page) { overflow: hidden; }
 .sales-desktop-add, .sales-desktop-export { display: none; }
 .sales-toolbar-fields, .sales-filter-fields { display: grid; gap: .5rem; min-width: 0; }
 .sales-search-field { display: flex; min-width: 0; }
-.sales-filter-fields { grid-template-columns: repeat(4, minmax(0, auto)); }
+.sales-filter-fields { grid-template-columns: repeat(3, minmax(0, auto)); }
 .sales-filter-fields > select { min-width: 0; min-height: 2.25rem; }
 .sales-lead-search > svg { top: 50%; transform: translateY(-50%); }
 .sales-lead-search input { min-height: 2.25rem; }
@@ -891,6 +891,10 @@ details[open] > .ha-disclosure > .ha-disclosure-chevron { transform: rotate(180d
   min-width: 0;
 }
 .workspace-filter-bar, .workspace-filter-fields { flex-wrap: wrap; }
+.finance-payment-search { display: flex; flex: 1 1 13rem; align-items: center; gap: .5rem; min-width: 0; }
+.finance-payment-search .ha-search { flex: 1; min-width: 0; }
+.finance-workspace .finance-payment-add { flex-shrink: 0; background: var(--ha-blue); color: white; }
+.finance-workspace .finance-payment-add:is(:hover, :active) { background: var(--ha-blue-hover); }
 .workspace-filter-bar .ha-search { min-width: min(100%, 12rem); }
 .workspace-filter-fields > select { min-width: 0; max-width: 15rem; }
 .workspace-compact .workspace-toolbar :is(input, select):not([type=checkbox]) { min-height: 44px; }

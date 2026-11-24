@@ -1,5 +1,6 @@
 'use client';
 
+import { WorkspaceMetric } from '@/components/WorkspaceMetric';
 import { WorkspaceSearch } from '@/components/WorkspaceSearch';
 import { matchesSearch } from '@/lib/utils';
 import { ConfirmActionDialog } from '@/components/ConfirmActionDialog';
@@ -63,6 +64,7 @@ export default function PartnersPage() {
   const {
     currentUser,
     leadOperationsRole,
+    hideTestRecords,
     setPartnerLeadTarget,
     partners,
     students,
@@ -175,6 +177,29 @@ export default function PartnersPage() {
       return matchSearch && matchType && matchPO && matchStatus && matchState && matchCity && matchAgreement;
     });
   }, [partners, searchQuery, filterType, filterPortfolioOwner, filterStatus, filterState, filterCity, filterAgreement]);
+
+  const portfolioMetrics = useMemo(() => {
+    if (!isManagement) return null;
+    const scopedPartners = partners.filter(partner =>
+      filterPortfolioOwner === 'All' || partner.portfolioOwnerId === filterPortfolioOwner
+    );
+    const partnerIds = new Set(scopedPartners.map(partner => partner.partnerId));
+    const leads = students.filter(student => student.partnerId && partnerIds.has(student.partnerId) &&
+      (!hideTestRecords || (!student.isTestRecord && student.archivalStatus !== 'Flagged For Archival'))
+    );
+    const qualified = leads.filter(student => student.leadStatus === 'Qualified').length;
+    const tenancies = leads.filter(student => student.bookingStatus === 'Booked' || student.bookingStatus === 'Move-in Confirmed').length;
+    return {
+      partners: scopedPartners.length,
+      leads: leads.length,
+      qualified,
+      tenancies,
+      conversion: leads.length ? (tenancies / leads.length * 100).toFixed(1) : '0.0',
+    };
+  }, [isManagement, partners, students, filterPortfolioOwner, hideTestRecords]);
+  const portfolioLabel = filterPortfolioOwner === 'All'
+    ? 'All portfolio owners'
+    : portfolioOwners.find(owner => owner.uid === filterPortfolioOwner)?.displayName || 'Selected portfolio owner';
 
   const filterCount = [filterState, filterCity, filterAgreement, filterType, filterPortfolioOwner].filter(value => value !== 'All').length;
 
@@ -879,6 +904,28 @@ export default function PartnersPage() {
         {/* VIEW 2: MANAGEMENT & DIRECTORY VIEW */}
         {!isPartner && (
           <div className="space-y-5">
+            {portfolioMetrics && (
+              <section aria-labelledby="partner-performance-heading" className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 id="partner-performance-heading" className="text-sm font-semibold">Partner performance</h2>
+                  <select aria-label="Portfolio owner for partner performance" value={filterPortfolioOwner}
+                    onChange={event => setFilterPortfolioOwner(event.target.value)}
+                    className="min-h-11 max-w-full rounded-lg border border-ha-line bg-white px-2.5 text-xs font-medium">
+                    <option value="All">All portfolio owners</option>
+                    {portfolioOwners.map(owner => <option key={owner.uid} value={owner.uid}>{owner.displayName}</option>)}
+                    {filterPortfolioOwner !== 'All' && !portfolioOwners.some(owner => owner.uid === filterPortfolioOwner) &&
+                      <option value={filterPortfolioOwner}>{portfolioLabel}</option>}
+                  </select>
+                </div>
+                <dl aria-label={`Partner metrics for ${portfolioLabel}`} className="ha-metrics workspace-metrics sm:grid-cols-3 lg:grid-cols-5">
+                  <WorkspaceMetric label="Partners">{portfolioMetrics.partners}</WorkspaceMetric>
+                  <WorkspaceMetric label="Leads">{portfolioMetrics.leads}</WorkspaceMetric>
+                  <WorkspaceMetric label="Qualified leads">{portfolioMetrics.qualified}</WorkspaceMetric>
+                  <WorkspaceMetric label="Tenancies">{portfolioMetrics.tenancies}</WorkspaceMetric>
+                  <WorkspaceMetric label="Lead conversion">{portfolioMetrics.conversion}%</WorkspaceMetric>
+                </dl>
+              </section>
+            )}
             {/* Multi-Dimensional Filters Bar (State, City, Agreement, PO, Type) */}
             <div className="workspace-toolbar">
               <div className="workspace-filter-bar">
@@ -957,8 +1004,7 @@ export default function PartnersPage() {
                     <option value="Referral Partner">Referral Partner</option>
                   </select>
 
-                  {/* Filter by Portfolio Owner */}
-                  <select
+                  {!isManagement && <select
                     aria-label="Filter by portfolio owner"
                     value={filterPortfolioOwner}
                     onChange={(e) => setFilterPortfolioOwner(e.target.value)}
@@ -970,7 +1016,7 @@ export default function PartnersPage() {
                         {po.displayName}
                       </option>
                     ))}
-                  </select>
+                  </select>}
                 </div>
               </div>
 

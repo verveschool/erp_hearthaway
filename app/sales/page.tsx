@@ -70,7 +70,8 @@ export default function SalesPage() {
   const [filterLeadOwner, setFilterLeadOwner] = useWorkspaceView<string>(currentUser.uid, 'filterLeadOwner', 'All');
   const [filterSalesOwner, setFilterSalesOwner] = useWorkspaceView<string>(currentUser.uid, 'filterSalesOwner', 'All');
   const [filterPriority, setFilterPriority] = useWorkspaceView<string>(currentUser.uid, 'filterPriority', 'All');
-  const [filterDestination, setFilterDestination] = useState<string>('All');
+  const [filterDestination, setFilterDestination] = useWorkspaceView<string>(currentUser.uid, 'filterDestination', 'All');
+  const [filterPartner, setFilterPartner] = useWorkspaceView<string>(currentUser.uid, 'filterPartner', 'All');
   const [sortColumn, setSortColumn] = useWorkspaceView<'createdAt' | 'lastActivity'>(currentUser.uid, 'sortColumn', 'lastActivity');
   const [sortDirection, setSortDirection] = useWorkspaceView<'asc' | 'desc'>(currentUser.uid, 'sortDirection', 'desc');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -79,7 +80,7 @@ export default function SalesPage() {
   const filterToggle = useRef<HTMLButtonElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const stageControl = useRef<HTMLSelectElement>(null);
-  const activeFilters = [filterLeadOwner, filterSalesOwner, filterStage, filterPriority].filter(value => value !== 'All').length;
+  const activeFilters = [filterLeadOwner, filterSalesOwner, filterStage, filterPriority, filterDestination, filterPartner].filter(value => value !== 'All').length;
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const leaveGuard = useRef<(() => boolean) | null>(null);
@@ -129,6 +130,12 @@ export default function SalesPage() {
     !hideTestRecords || (!student.isTestRecord && student.archivalStatus !== 'Flagged For Archival')
   )), [hideTestRecords, students]);
 
+  const destinationOptions = Array.from(new Set(visibleStudents.map(student => student.destinationCity?.trim()).filter(Boolean))).sort();
+  const partnerOptions = new Map(visibleStudents.filter(student => student.partnerId).map(student =>
+    [student.partnerId!, student.partnerName || student.partnerId!] as const
+  ));
+  partners.forEach(partner => partnerOptions.set(partner.partnerId, partner.companyName));
+
   const filteredStudents = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     const phoneDigits = parseLeadPhone(query)?.digits;
@@ -143,9 +150,10 @@ export default function SalesPage() {
       const matchLeadOwner = filterLeadOwner === 'All' || leadOwnerId === filterLeadOwner;
       const matchSalesOwner = filterSalesOwner === 'All' || salesOwnerId === filterSalesOwner;
       const matchPriority = filterPriority === 'All' || student.priority === filterPriority;
-      const matchDest = filterDestination === 'All' || student.destinationCity === filterDestination;
+      const matchDest = filterDestination === 'All' || student.destinationCity?.trim() === filterDestination;
+      const matchPartner = filterPartner === 'All' || (student.partnerId || '') === filterPartner;
 
-      return matchSearch && matchStage && matchLeadOwner && matchSalesOwner && matchPriority && matchDest;
+      return matchSearch && matchStage && matchLeadOwner && matchSalesOwner && matchPriority && matchDest && matchPartner;
     });
 
     return matchingStudents.sort((a, b) => {
@@ -174,7 +182,7 @@ export default function SalesPage() {
 
       return createdB - createdA;
     });
-  }, [visibleStudents, activities, searchQuery, filterStage, filterLeadOwner, filterSalesOwner, filterPriority, filterDestination, sortColumn, sortDirection]);
+  }, [visibleStudents, activities, searchQuery, filterStage, filterLeadOwner, filterSalesOwner, filterPriority, filterDestination, filterPartner, sortColumn, sortDirection]);
 
   const toggleSort = (column: 'createdAt' | 'lastActivity') => {
     if (sortColumn === column) {
@@ -338,6 +346,21 @@ export default function SalesPage() {
                 <option value="High">High</option>
                 <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
+              </select>
+              <select aria-label="Filter by destination city" value={filterDestination}
+                data-active={filterDestination !== 'All'} onChange={event => setFilterDestination(event.target.value)}
+                className="rounded-lg border border-ha-line bg-white px-2.5 text-xs font-medium">
+                <option value="All">All cities</option>
+                {destinationOptions.map(city => <option key={city} value={city}>{city}</option>)}
+              </select>
+              <select aria-label="Filter by partner" value={filterPartner}
+                data-active={filterPartner !== 'All'} onChange={event => setFilterPartner(event.target.value)}
+                className="rounded-lg border border-ha-line bg-white px-2.5 text-xs font-medium">
+                <option value="All">All partners</option>
+                <option value="">No partner assigned</option>
+                {Array.from(partnerOptions).sort(([, a], [, b]) => a.localeCompare(b)).map(([id, name]) => (
+                  <option key={id} value={id}>{name}</option>
+                ))}
               </select>
               {filterStage !== 'All' && <button type="button" className="sales-mobile-clear-stage" onClick={clearStage}>Clear stage</button>}
             </div>
