@@ -685,17 +685,15 @@ export default function PartnersPage() {
 
             {/* Action Buttons */}
             <div className="workspace-heading-actions">
-              {isManagement && (
-                <button
-                  onClick={() => setShowSingleLeadModal(true)}
-                  aria-label="Add a lead" title="Add a lead" className="ha-primary-action workspace-primary"
-                >
-                  <Plus size={21} aria-hidden="true" />
-                  <span className="workspace-action-text">Add a lead</span>
-                </button>
-              )}
-
-              <button
+              {portfolioMetrics && (<select aria-label="Portfolio owner for partner performance" value={filterPortfolioOwner}
+                    onChange={event => setFilterPortfolioOwner(event.target.value)}
+                    className="min-h-11 max-w-full rounded-lg border border-ha-line bg-white px-2.5 text-xs font-medium">
+                    <option value="All">All portfolio owners</option>
+                    {portfolioOwners.map(owner => <option key={owner.uid} value={owner.uid}>{owner.displayName}</option>)}
+                    {filterPortfolioOwner !== 'All' && !portfolioOwners.some(owner => owner.uid === filterPortfolioOwner) &&
+                      <option value={filterPortfolioOwner}>{portfolioLabel}</option>}
+                  </select>)}
+              {isPartner && (<button
                 onClick={() => {
                   setBulkStep(1);
                   setShowBulkUploadModal(true);
@@ -703,18 +701,7 @@ export default function PartnersPage() {
                 className="workspace-icon-button" aria-label="Import student leads" title="Import student leads"
               >
                 <FileSpreadsheet size={20} aria-hidden="true" />
-              </button>
-
-              {!isPartner && (
-                <button
-                  onClick={handleExportPartnerListCSV}
-                  disabled={filteredPartners.length === 0}
-                  className="workspace-icon-button" aria-label="Export partners CSV" title="Export partners CSV"
-                >
-                  <Download size={20} aria-hidden="true" />
-                </button>
-              )}
-
+              </button>)}
               {isPartner && (
                 <button
                   onClick={() => setShowSingleLeadModal(true)}
@@ -726,6 +713,13 @@ export default function PartnersPage() {
               )}
             </div>
           </div>
+          {portfolioMetrics && (<dl aria-label={`Partner metrics for ${portfolioLabel}`} className="ha-metrics workspace-metrics mt-2 partner-performance-metrics">
+                  <WorkspaceMetric label="Partners">{portfolioMetrics.partners}</WorkspaceMetric>
+                  <WorkspaceMetric label="Leads">{portfolioMetrics.leads}</WorkspaceMetric>
+                  <WorkspaceMetric label="Qualified leads">{portfolioMetrics.qualified}</WorkspaceMetric>
+                  <WorkspaceMetric label="Tenancies">{portfolioMetrics.tenancies}</WorkspaceMetric>
+                  <WorkspaceMetric label="Lead conversion">{portfolioMetrics.conversion}%</WorkspaceMetric>
+                </dl>)}
         </div>
       </div>
 
@@ -904,32 +898,39 @@ export default function PartnersPage() {
         {/* VIEW 2: MANAGEMENT & DIRECTORY VIEW */}
         {!isPartner && (
           <div className="space-y-5">
-            {portfolioMetrics && (
-              <section aria-labelledby="partner-performance-heading" className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h2 id="partner-performance-heading" className="text-sm font-semibold">Partner performance</h2>
-                  <select aria-label="Portfolio owner for partner performance" value={filterPortfolioOwner}
-                    onChange={event => setFilterPortfolioOwner(event.target.value)}
-                    className="min-h-11 max-w-full rounded-lg border border-ha-line bg-white px-2.5 text-xs font-medium">
-                    <option value="All">All portfolio owners</option>
-                    {portfolioOwners.map(owner => <option key={owner.uid} value={owner.uid}>{owner.displayName}</option>)}
-                    {filterPortfolioOwner !== 'All' && !portfolioOwners.some(owner => owner.uid === filterPortfolioOwner) &&
-                      <option value={filterPortfolioOwner}>{portfolioLabel}</option>}
-                  </select>
-                </div>
-                <dl aria-label={`Partner metrics for ${portfolioLabel}`} className="ha-metrics workspace-metrics partner-performance-metrics">
-                  <WorkspaceMetric label="Partners">{portfolioMetrics.partners}</WorkspaceMetric>
-                  <WorkspaceMetric label="Leads">{portfolioMetrics.leads}</WorkspaceMetric>
-                  <WorkspaceMetric label="Qualified leads">{portfolioMetrics.qualified}</WorkspaceMetric>
-                  <WorkspaceMetric label="Tenancies">{portfolioMetrics.tenancies}</WorkspaceMetric>
-                  <WorkspaceMetric label="Lead conversion">{portfolioMetrics.conversion}%</WorkspaceMetric>
-                </dl>
-              </section>
-            )}
             {/* Multi-Dimensional Filters Bar (State, City, Agreement, PO, Type) */}
             <div className="workspace-toolbar">
               <div className="workspace-filter-bar">
                 <WorkspaceSearch label="Search partners" value={searchQuery} onChange={setSearchQuery} />
+
+              {isManagement && (
+                <button
+                  onClick={() => setShowSingleLeadModal(true)}
+                  aria-label="Add a lead" title="Add a lead" className="workspace-icon-button workspace-add"
+                >
+                  <Plus size={21} aria-hidden="true" />
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  setBulkStep(1);
+                  setShowBulkUploadModal(true);
+                }}
+                className="workspace-icon-button" aria-label="Import student leads" title="Import student leads"
+              >
+                <FileSpreadsheet size={20} aria-hidden="true" />
+              </button>
+
+              {!isPartner && (
+                <button
+                  onClick={handleExportPartnerListCSV}
+                  disabled={filteredPartners.length === 0}
+                  className="workspace-icon-button" aria-label="Export partners CSV" title="Export partners CSV"
+                >
+                  <Download size={20} aria-hidden="true" />
+                </button>
+              )}
 
                 <button type="button" className="workspace-icon-button workspace-filter-toggle" aria-label="Partner filters" title="Partner filters" data-active={filterCount > 0} aria-expanded={filtersOpen} aria-controls="partner-filters" onClick={() => setFiltersOpen(!filtersOpen)}>
                   <Filter size={20} aria-hidden="true" />

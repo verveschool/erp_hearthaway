@@ -893,8 +893,8 @@ details[open] > .ha-disclosure > .ha-disclosure-chevron { transform: rotate(180d
 .workspace-filter-bar, .workspace-filter-fields { flex-wrap: wrap; }
 .finance-payment-search { display: flex; flex: 1 1 13rem; align-items: center; gap: .5rem; min-width: 0; }
 .finance-payment-search .ha-search { flex: 1; min-width: 0; }
-.finance-workspace .finance-payment-add { flex-shrink: 0; background: var(--ha-blue); color: white; }
-.finance-workspace .finance-payment-add:is(:hover, :active) { background: var(--ha-blue-hover); }
+.ha-workspace .workspace-add { flex-shrink: 0; background: var(--ha-blue); color: white; }
+.ha-workspace .workspace-add:is(:hover, :active) { background: var(--ha-blue-hover); }
 .workspace-filter-bar .ha-search { min-width: min(100%, 12rem); }
 .workspace-filter-fields > select { min-width: 0; max-width: 15rem; }
 .workspace-compact .workspace-toolbar :is(input, select):not([type=checkbox]) { min-height: 44px; }
@@ -993,8 +993,8 @@ details[open] > .ha-disclosure > .ha-disclosure-chevron { transform: rotate(180d
   }
 }
 
-.activity-metrics .ha-metric { min-width: 0; border: 1px solid var(--ha-mid-gray); border-radius: var(--ha-radius-panel); background: white; }
-.activity-metrics .ha-metric :is(dt, dd) { overflow-wrap: anywhere; }
+
+
 .activity-table :is(th, td) { padding: .75rem; vertical-align: top; }
 .activity-table td { overflow-wrap: anywhere; }
 .activity-table td[data-label="Audit description"] { max-width: 25rem; }
@@ -1009,4 +1009,18 @@ details[open] > .ha-disclosure > .ha-disclosure-chevron { transform: rotate(180d
 
 @media (min-width: 768px) {
   .partners-workspace .partner-performance-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+
+.ha-workspace .workspace-add { width: 44px; height: 44px; padding: 0; }
+.workspace-heading-actions select, .workspace-filter-bar select, .finance-toolbar select { max-width: min(100%, 13rem); }
+.sales-source-toggle { display: none; }
+.sales-source-filters { display: contents; }
+@media (min-width: 64rem) {
+  .sales-filter-fields { grid-template-columns: repeat(4, minmax(0, auto)) 44px; }
+  .sales-filter-fields > select { max-width: clamp(7rem, 12vw, 13rem); }
+  .sales-source-toggle { display: inline-grid; }
+  .sales-source-toggle[data-active=true] { color: var(--ha-blue); border-color: var(--ha-blue); }
+  .sales-source-filters { display: none; grid-column: 1 / -1; gap: .5rem; }
+  .sales-source-filters[data-open=true] { display: flex; }
+  .sales-source-filters select { min-width: 0; max-width: 13rem; min-height: 44px; }
 }

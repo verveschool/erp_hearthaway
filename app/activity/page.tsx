@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Clock, Download, User } from 'lucide-react';
+import { ArrowRight, Clock, Download, ListFilter, User } from 'lucide-react';
 import type { Activity } from '@/lib/types';
 import { exportToCSV } from '@/lib/export-csv';
 import { useHearthAway } from '@/lib/context';
@@ -19,6 +19,7 @@ function activityDate(value: string): Date | null {
 export default function ActivityPage() {
   const { internalRole, activities, activityError, students, currentUser } = useHearthAway();
   const [search, setSearch] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [type, setType] = useState('');
   const [actorRole, setActorRole] = useState('');
   const [sort, setSort] = useState('newest');
@@ -84,16 +85,24 @@ export default function ActivityPage() {
   return <section className="ha-workspace workspace-compact activity-workspace space-y-4">
     <div className="ha-page-header">
       <h1 className="ha-title">Activity</h1>
-    </div>
-    <dl className="activity-metrics grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <dl className="ha-metrics workspace-metrics mt-2">
         <WorkspaceMetric label="Total audit entries">{metrics.total}</WorkspaceMetric>
         <WorkspaceMetric label="Owner reassignments">{metrics.owners}</WorkspaceMetric>
         <WorkspaceMetric label="Lead and status updates">{metrics.updates}</WorkspaceMetric>
         <WorkspaceMetric label="Payment activity">{metrics.payments}</WorkspaceMetric>
-    </dl>
+      </dl>
+    </div>
     <div className="workspace-toolbar">
       <div className="workspace-filter-bar">
         <WorkspaceSearch label="Search activity" placeholder="Search activity, record or person" value={search} onChange={setSearch} />
+        <button type="button" className="workspace-icon-button" title="Activity filters" aria-label="Activity filters"
+          aria-controls="activity-filters" aria-expanded={filtersOpen} data-active={Boolean(type || actorRole || from || to || sort !== 'newest')}
+          onClick={() => setFiltersOpen(!filtersOpen)}><ListFilter size={20} aria-hidden="true" /></button>
+        <button type="button" className="workspace-icon-button" aria-label="Export activity CSV" title="Export activity CSV"
+          onClick={exportActivity} disabled={entries.length === 0}><Download size={20} aria-hidden="true" /></button>
+      </div>
+      <div id="activity-filters" hidden={!filtersOpen}>
+        <div className="workspace-filter-bar">
         <select aria-label="Filter by activity type" value={type} onChange={event => setType(event.target.value)}
           className="min-w-0 max-w-full rounded-lg border border-ha-line bg-white px-2.5 text-xs font-medium">
           <option value="">All activity types</option>
@@ -121,8 +130,7 @@ export default function ActivityPage() {
               className="min-w-0 rounded-lg border border-ha-line bg-white px-2 text-ha-ink" />
           </label>
         </div>
-        <button type="button" className="workspace-icon-button" aria-label="Export activity CSV" title="Export activity CSV"
-          onClick={exportActivity} disabled={entries.length === 0}><Download size={20} aria-hidden="true" /></button>
+        </div>
       </div>
       <div className="flex items-center justify-between gap-2 border-t border-ha-line pt-2 text-xs text-ha-secondary">
         <span role="status">Showing {entries.length} of {metrics.total} events</span>

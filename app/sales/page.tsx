@@ -75,6 +75,7 @@ export default function SalesPage() {
   const [sortColumn, setSortColumn] = useWorkspaceView<'createdAt' | 'lastActivity'>(currentUser.uid, 'sortColumn', 'lastActivity');
   const [sortDirection, setSortDirection] = useWorkspaceView<'asc' | 'desc'>(currentUser.uid, 'sortDirection', 'desc');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [sourceFiltersOpen, setSourceFiltersOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const searchToggle = useRef<HTMLButtonElement>(null);
   const filterToggle = useRef<HTMLButtonElement>(null);
@@ -347,6 +348,12 @@ export default function SalesPage() {
                 <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
               </select>
+              <button type="button" aria-label="City and partner filters" title="City and partner filters" aria-expanded={sourceFiltersOpen}
+                aria-controls="sales-source-filters" className="sales-source-toggle workspace-icon-button"
+                data-active={filterDestination !== 'All' || filterPartner !== 'All'} onClick={() => setSourceFiltersOpen(!sourceFiltersOpen)}>
+                <ListFilter size={20} aria-hidden="true" />
+              </button>
+              <div id="sales-source-filters" className="sales-source-filters" data-open={sourceFiltersOpen}>
               <select aria-label="Filter by destination city" value={filterDestination}
                 data-active={filterDestination !== 'All'} onChange={event => setFilterDestination(event.target.value)}
                 className="rounded-lg border border-ha-line bg-white px-2.5 text-xs font-medium">
@@ -362,6 +369,7 @@ export default function SalesPage() {
                   <option key={id} value={id}>{name}</option>
                 ))}
               </select>
+              </div>
               {filterStage !== 'All' && <button type="button" className="sales-mobile-clear-stage" onClick={clearStage}>Clear stage</button>}
             </div>
             <button type="button" aria-label="Export CSV" title="Export CSV" onClick={handleExportSalesLeadsCSV} disabled={filteredStudents.length === 0}

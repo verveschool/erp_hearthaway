@@ -293,7 +293,7 @@ export default function FinancePage() {
             <div className="workspace-toolbar finance-toolbar">
               <div className="finance-payment-search">
                 <WorkspaceSearch label="Search payments" placeholder="Search payments" value={searchQuery} onChange={setSearchQuery} />
-                <button type="button" aria-label="Record payment" title="Record payment" className="workspace-icon-button finance-payment-add"
+                <button type="button" aria-label="Record payment" title="Record payment" className="workspace-icon-button workspace-add"
                   onClick={() => {
                     setRecordStudentId(id => students.some(student => student.studentId === id) ? id : students[0]?.studentId || '');
                     setShowRecordModal(true);
