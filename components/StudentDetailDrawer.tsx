@@ -99,7 +99,6 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
     payments,
     bookings,
     currentUser,
-    availableUsers,
     leadOwnerOptions,
     updateStudentDecoupledStatus,
     uploadPaymentTransaction,
@@ -604,7 +603,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
               {contactError && <p role="alert" className="text-xs text-rose-700">{contactError}</p>}
               <div className="lead-assignment-fields mt-3 grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg border border-ha-line bg-white p-3">
                 {(() => {
-                  const salesUsers = leadOwnerOptions.length ? leadOwnerOptions : availableUsers.filter((u) => u.role === 'sales');
+                  const salesUsers = leadOwnerOptions;
 
                   return (
                     <>
