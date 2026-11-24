@@ -22,10 +22,11 @@ const extraFields = [
 
 const fieldStyle = 'mt-1 w-full rounded-lg border border-ha-line px-3 py-2 text-sm';
 
-export function LeadDetailsDialog({ title, lead, partners, onClose, onSave }: {
+export function LeadDetailsDialog({ title, lead, partners, requirePartner = false, onClose, onSave }: {
   title: string;
   lead?: Student;
   partners?: Partner[];
+  requirePartner?: boolean;
   onClose: () => void;
   onSave: (details: LeadDetails, partnerId?: string) => Promise<void>;
 }) {
@@ -91,8 +92,8 @@ export function LeadDetailsDialog({ title, lead, partners, onClose, onSave }: {
             </label>
             {partners && (
               <label className="text-sm font-medium">Sourcing partner
-                <select name="partnerId" className={fieldStyle} defaultValue="direct">
-                  <option value="direct">Direct lead</option>
+                <select name="partnerId" className={fieldStyle} defaultValue={requirePartner ? "" : "direct"} required={requirePartner}>
+                  {requirePartner ? <option value="">Choose a partner</option> : <option value="direct">Direct lead</option>}
                   {partners.map((partner) => <option key={partner.id} value={partner.partnerId}>{partner.companyName}</option>)}
                 </select>
               </label>
