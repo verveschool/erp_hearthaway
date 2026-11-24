@@ -107,17 +107,27 @@ service cloud.firestore {
         || eligibleOwner(nextOwnerId, 'leadOwnerDirectory'));
     }
 
+    function canChangeLeadOwner() {
+      let id = request.resource.data.get('leadOwnerId', '');
+      return isInternal() && request.resource.data.get('assignedSalesExecutiveId', '') == id
+        && (id == '' || eligibleOwner(id, 'leadOwnerDirectory'));
+    }
+
     match /students/{studentId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.get('archivalStatus', 'Active') != 'Archived'
         && request.resource.data.get('leadStatus', 'New') != 'Inactive'
-        && request.resource.data.get('salesOwnerId', '') == '';
+        && request.resource.data.get('salesOwnerId', '') == ''
+        && request.resource.data.get('leadOwnerId', '') == ''
+        && request.resource.data.get('assignedSalesExecutiveId', '') == '';
       allow update: if isSignedIn()
         && request.resource.data.get('archivalStatus', 'Active') != 'Archived'
         && request.resource.data.get('leadStatus', 'New') != 'Inactive'
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['salesOwnerId', 'salesOwnerName'])
-          || canChangeSalesOwner());
+          || canChangeSalesOwner())
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['leadOwnerId', 'leadOwnerName', 'assignedSalesExecutiveId', 'assignedSalesExecutiveName'])
+          || canChangeLeadOwner());
       allow delete: if isInternal()
         && !exists(/databases/$(database)/documents/archivedStudents/$(studentId))
         && existsAfter(/databases/$(database)/documents/archivedStudents/$(studentId));
