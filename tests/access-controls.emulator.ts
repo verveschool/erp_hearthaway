@@ -16,9 +16,11 @@ async function run() {
     const admin = await login('qa-admin');
     const manager = await login('qa-management');
     const validOwner = await login('qa-sales');
+    const disabledOwner = await login('qa-disabled');
+    const missingDirectoryOwner = await login('qa-no-directory');
     const partner = await login('qa-partner');
     const lead = doc(db, 'students', 'qa-access-lead');
-    await setDoc(lead, { studentId: 'QA-ACCESS', fullName: 'QA Intake', intake: 'Sep-27', leadStatus: 'New', archivalStatus: 'Active' });
+    await setDoc(lead, { studentId: 'HA-2026-100002', fullName: 'QA Intake', intake: 'Sep-27', leadStatus: 'New', archivalStatus: 'Active' });
     assert.equal((await getDocFromServer(lead)).data()?.intake, 'Sep-27');
     await denied(updateDoc(lead, { leadOwnerId: validOwner.uid, assignedSalesExecutiveId: validOwner.uid }));
     await denied(getDocFromServer(doc(db, 'payments', 'private')));
@@ -28,12 +30,13 @@ async function run() {
 
     await login('qa-management');
     await updateDoc(lead, { leadOwnerId: validOwner.uid, assignedSalesExecutiveId: validOwner.uid });
-    await denied(updateDoc(lead, { leadOwnerId: partner.uid, assignedSalesExecutiveId: partner.uid }));
-    await denied(updateDoc(lead, { leadOwnerId: validOwner.uid, assignedSalesExecutiveId: partner.uid }));
+    await denied(updateDoc(lead, { leadOwnerId: disabledOwner.uid, assignedSalesExecutiveId: disabledOwner.uid }));
+    await denied(updateDoc(lead, { leadOwnerId: missingDirectoryOwner.uid, assignedSalesExecutiveId: missingDirectoryOwner.uid }));
+    await denied(updateDoc(lead, { leadOwnerId: validOwner.uid, assignedSalesExecutiveId: manager.uid }));
     await denied(getDocFromServer(doc(db, 'payments', 'private')));
     await denied(getDocFromServer(doc(db, 'activities', 'private')));
     const feed = doc(db, 'operationalActivities', 'qa-feed');
-    const event = { id: feed.id, studentId: 'QA-ACCESS', timestamp: '2026-11-24T00:00:00.000Z', performedBy: { userId: manager.uid, name: 'QA Management', role: 'management' }, activityType: 'Lead Submitted' };
+    const event = { id: feed.id, studentId: 'HA-2026-100002', timestamp: '24 Nov 2026, 00:00', performedBy: { userId: manager.uid, name: 'QA Management', role: 'management' }, activityType: 'Lead Submitted' };
     await setDoc(feed, event);
     assert.equal((await getDocFromServer(feed)).data()?.activityType, 'Lead Submitted');
     await denied(setDoc(doc(db, 'operationalActivities', 'qa-financial-leak'), { ...event, id: 'qa-financial-leak', description: 'private financial details' }));

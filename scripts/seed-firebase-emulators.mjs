@@ -62,11 +62,16 @@ const owner = await profile('qa-portfolio', 'management', 'QA Portfolio Owner', 
 const other = await profile('qa-other-portfolio', 'management', 'QA Other Portfolio', 'management');
 const sales = await profile('qa-sales', 'management', 'QA Sales', 'management');
 const secondRep = await profile('qa-sales-two', 'management', 'QA Sales Two', 'management');
+const disabled = await profile('qa-disabled', 'management', 'QA Disabled', 'management');
+await profile('qa-no-directory', 'management', 'QA No Directory', 'management');
 const partner = await profile('qa-partner', 'partner', 'QA Partner', undefined, 'PART-00001');
 await profile('qa-finance', 'finance', 'QA Finance');
 
 await Promise.all([
   fixture(`leadOwnerDirectory/${adminUser}`, { displayName: 'QA Admin' }),
+  fixture(`leadOwnerDirectory/${manager}`, { displayName: 'QA Management' }),
+  fixture(`leadOwnerDirectory/${disabled}`, { displayName: 'QA Disabled' }),
+  fixture(`users/${disabled}`, { uid: disabled, email: 'qa-disabled@example.invalid', displayName: 'QA Disabled', role: 'management', status: 'approved', isApproved: false }),
   fixture(`leadOwnerDirectory/${sales}`, { displayName: 'QA Sales' }),
   fixture(`leadOwnerDirectory/${secondRep}`, { displayName: 'QA Sales Two' }),
   fixture(`portfolioOwnerDirectory/${owner}`, { displayName: 'QA Portfolio Owner' }),
