@@ -45,7 +45,7 @@ export function PartnerOwnerDialog({ partner, options, onClose, onSave }: {
         </label>
         {error && <p className="text-sm text-rose-700" role="alert">{error}</p>}
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={close} disabled={saving}>Cancel</button>
+          <button type="button" className="ha-secondary-action" onClick={close} disabled={saving}>Cancel</button>
           <button className="ha-primary-action disabled:opacity-50" type="submit" disabled={!ownerId || saving}>
             {saving ? 'Saving…' : 'Confirm reassignment'}
           </button>

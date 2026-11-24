@@ -1,5 +1,13 @@
 'use client';
 
+import { PaymentConversionFields } from '@/components/PaymentConversionFields';
+import { conversionText, money, paymentConversion, verifiedReceipts, validateConversion } from '@/lib/payment-money';
+import { WorkspaceSearch } from '@/components/WorkspaceSearch';
+import { matchesSearch } from '@/lib/utils';
+
+import { WorkspaceNotice } from '@/components/WorkspaceNotice';
+import { useWorkspaceView } from '@/hooks/use-workspace-view';
+
 import { WorkspaceMetric } from '@/components/WorkspaceMetric';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
@@ -38,25 +46,29 @@ export default function FinancePage() {
     setSelectedStudentId,
   } = useHearthAway();
 
-  const [activeTab, setActiveTab] = useState<'payments' | 'bookings' | 'commissions'>('payments');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterPaymentStatus, setFilterPaymentStatus] = useState('All');
+  const [activeTab, setActiveTab] = useWorkspaceView<'payments' | 'bookings' | 'commissions'>(currentUser.uid, 'activeTab', 'payments');
+  const [searchQuery, setSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'searchQuery', '');
+  const [filterPaymentStatus, setFilterPaymentStatus] = useWorkspaceView<string>(currentUser.uid, 'filterPaymentStatus', 'All');
+  const [bookingSearch, setBookingSearch] = useWorkspaceView<string>(currentUser.uid, 'bookingSearch', '');
+  const [commissionSearch, setCommissionSearch] = useWorkspaceView<string>(currentUser.uid, 'commissionSearch', '');
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [recordingPayment, setRecordingPayment] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [reviewing, setReviewing] = useState<string[]>([]);
+  const [reviewErrors, setReviewErrors] = useState<Record<string, string>>({});
   const [recordError, setRecordError] = useState('');
 
   // New Payment state
   const [recordStudentId, setRecordStudentId] = useState('');
   const [recordAmount, setRecordAmount] = useState('');
+  const [rate, setRate] = useState('');
   const [recordCurrency, setRecordCurrency] = useState('GBP');
   const [recordMethod, setRecordMethod] = useState<'Bank Transfer' | 'Credit Card' | 'Online Gateway' | 'Direct Debit' | 'UPI'>('Bank Transfer');
   const [recordRemarks, setRecordRemarks] = useState('');
 
   // Key Finance Metrics
   const metrics = useMemo(() => {
-    const totalPaymentsReceived = payments
-      .filter((p) => p.paymentStatus === 'Verified')
-      .reduce((sum, p) => sum + p.amount, 0);
+    const totalPaymentsReceived = verifiedReceipts(payments);
 
     const pendingVerificationCount = payments.filter((p) => p.paymentStatus === 'Pending Verification').length;
 
@@ -82,12 +94,7 @@ export default function FinancePage() {
   // Filtered Payments
   const filteredPayments = useMemo(() => {
     return payments.filter((p) => {
-      const matchSearch =
-        searchQuery === '' ||
-        p.paymentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.studentName && p.studentName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        p.uploadedBy.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchSearch = matchesSearch(searchQuery, [p.paymentId, p.studentId, p.studentName, p.uploadedBy]);
 
       const matchStatus = filterPaymentStatus === 'All' || p.paymentStatus === filterPaymentStatus;
 
@@ -114,6 +121,9 @@ export default function FinancePage() {
     });
   }, [partners, bookings]);
 
+  const visibleBookings = bookings.filter(booking => matchesSearch(bookingSearch, [booking.bookingId, booking.bookingReference, booking.studentName, booking.studentId, booking.partnerName, booking.propertyName, booking.bookingStatus]));
+  const visibleCommissions = partnerCommissionLedger.filter(partner => matchesSearch(commissionSearch, [partner.companyName, partner.partnerId, partner.portfolioOwnerName]));
+
   const closeRecordModal = () => {
     if (recordingPayment) return;
     setShowRecordModal(false);
@@ -124,10 +134,13 @@ export default function FinancePage() {
     e.preventDefault();
     if (recordingPayment || !recordStudentId || !recordAmount) return;
 
+    const enteredInr = Number(new FormData(e.currentTarget as HTMLFormElement).get('amountInr'));
     setRecordingPayment(true);
     setRecordError('');
     try {
+      const conversion = validateConversion(Number(recordAmount), recordCurrency, Number(rate), enteredInr);
       await uploadPaymentTransaction({
+        ...conversion,
         studentId: recordStudentId,
         amount: Number(recordAmount),
         currency: recordCurrency,
@@ -135,14 +148,30 @@ export default function FinancePage() {
         remarks: recordRemarks || 'Direct recorded by Finance Team.',
       });
       setShowRecordModal(false);
+      setNotice('Payment recorded.');
+      setRate('');
       setRecordAmount('');
       setRecordRemarks('');
-    } catch {
-      setRecordError('Payment could not be recorded. Check the details and try again.');
+    } catch (error) {
+      setRecordError(error instanceof Error ? error.message : 'Payment could not be recorded. Try again.');
     } finally {
       setRecordingPayment(false);
     }
   };
+
+  async function reviewPayment(id: string, decision: 'Verified' | 'Rejected') {
+    if (reviewing.includes(id)) return;
+    setReviewing(ids => [...ids, id]);
+    setReviewErrors(errors => ({ ...errors, [id]: '' }));
+    try {
+      await verifyPaymentTransaction(id, decision, decision === 'Verified' ? 'Verified by Finance' : 'Insufficient proof of transfer');
+      setNotice(`Payment ${id} ${decision.toLowerCase()}.`);
+    } catch {
+      setReviewErrors(errors => ({ ...errors, [id]: 'Review could not be saved. Try again.' }));
+    } finally {
+      setReviewing(ids => ids.filter(value => value !== id));
+    }
+  }
 
   const handleExportPaymentsCSV = () => {
     exportToCSV(
@@ -153,6 +182,8 @@ export default function FinancePage() {
         { header: 'Student Name', accessor: (p) => p.studentName || '' },
         { header: 'Amount', accessor: (p) => p.amount },
         { header: 'Currency', accessor: (p) => p.currency },
+        { header: 'INR per currency unit', accessor: (p) => paymentConversion(p).rateToInr },
+        { header: 'Amount in INR', accessor: (p) => paymentConversion(p).amountInr },
         { header: 'Payment Method', accessor: (p) => p.paymentMethod },
         { header: 'Payment Date', accessor: (p) => p.paymentDate },
         { header: 'Uploaded By', accessor: (p) => p.uploadedBy },
@@ -185,7 +216,7 @@ export default function FinancePage() {
         { header: 'Tenancy End', accessor: (b) => b.tenancyEndDate },
         { header: 'Booking Status', accessor: (b) => b.bookingStatus },
       ],
-      bookings
+      visibleBookings
     );
   };
 
@@ -202,12 +233,13 @@ export default function FinancePage() {
         { header: 'Partner Payable (£)', accessor: (p) => p.partnerPayable },
         { header: 'Commission Rate (%)', accessor: (p) => `${p.commissionRate}%` },
       ],
-      partnerCommissionLedger
+      visibleCommissions
     );
   };
 
   return (
     <div className="ha-workspace">
+      <WorkspaceNotice message={notice} clear={setNotice} />
       {/* Top Header */}
       <div className="ha-page-header">
         <div>
@@ -216,9 +248,6 @@ export default function FinancePage() {
               <h1 className="ha-title">
                 Finance
               </h1>
-              <p className="ha-summary">
-                Ledger management, payment verification, tenancy bookings, and partner commission payouts.
-              </p>
             </div>
 
             <button
@@ -235,7 +264,7 @@ export default function FinancePage() {
 
           {/* Metrics Ribbon */}
           <dl className="ha-metrics mt-5">
-            <WorkspaceMetric label="Verified Receipts">£{metrics.totalPaymentsReceived.toLocaleString()}</WorkspaceMetric>
+            <WorkspaceMetric label="Verified Receipts">{metrics.totalPaymentsReceived.rupees}<small className="block text-xs">{metrics.totalPaymentsReceived.native}</small></WorkspaceMetric>
             <WorkspaceMetric label="Pending Verification">{metrics.pendingVerificationCount} Transactions</WorkspaceMetric>
             <WorkspaceMetric label="Gross Commission">£{metrics.totalCommissionsExpected.toLocaleString()}</WorkspaceMetric>
             <WorkspaceMetric label="Partner Payouts Payable">£{metrics.totalPartnerPayouts.toLocaleString()}</WorkspaceMetric>
@@ -252,8 +281,7 @@ export default function FinancePage() {
                   : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
               }`}
             >
-              <CreditCard className="h-4 w-4" />
-              Payments Ledger ({payments.length})
+              Payments ({payments.length})
             </button>
             <button
               aria-pressed={activeTab === 'bookings'}
@@ -264,8 +292,7 @@ export default function FinancePage() {
                   : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
               }`}
             >
-              <FileText className="h-4 w-4" />
-              Bookings Ledger ({bookings.length})
+              Bookings ({bookings.length})
             </button>
             <button
               aria-pressed={activeTab === 'commissions'}
@@ -276,7 +303,6 @@ export default function FinancePage() {
                   : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
               }`}
             >
-              <Building className="h-4 w-4" />
               Partner Commissions ({partners.length})
             </button>
           </div>
@@ -288,17 +314,7 @@ export default function FinancePage() {
         {activeTab === 'payments' && (
           <div className="space-y-4">
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs flex flex-col xl:flex-row gap-3">
-              <div className="relative min-w-0 flex-1">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
-                <input
-                  aria-label="Search payments"
-                  type="text"
-                  placeholder="Search by Payment ID, Student Name, Student ID, or Uploader..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-none"
-                />
-              </div>
+              <WorkspaceSearch label="Search payments" placeholder="Search payments by ID, student or uploader" value={searchQuery} onChange={setSearchQuery} />
 
               <div className="flex flex-wrap items-center gap-2">
                 <select
@@ -312,6 +328,7 @@ export default function FinancePage() {
                   <option value="Verified">Verified</option>
                   <option value="Rejected">Rejected</option>
                 </select>
+                {filterPaymentStatus !== 'All' && <button type="button" className="ha-text-action" onClick={() => setFilterPaymentStatus('All')}>Clear filter</button>}
 
                 <button
                   onClick={handleExportPaymentsCSV}
@@ -340,7 +357,8 @@ export default function FinancePage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E8E6E1]">
-                    {filteredPayments.map((payment) => (
+                    {filteredPayments.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-ha-secondary">{searchQuery || filterPaymentStatus !== 'All' ? 'No payments match these filters.' : 'No payments recorded yet.'}</td></tr>}
+                  {filteredPayments.map((payment) => (
                       <tr key={payment.id} className="hover:bg-[#F7F6F3]/50">
                         <td className="py-3.5 px-4 font-mono font-bold text-[#00319D]">
                           {payment.paymentId}
@@ -355,9 +373,10 @@ export default function FinancePage() {
 
                         <td className="py-3.5 px-4">
                           <span className="whitespace-nowrap tabular-nums font-semibold text-sm text-ha-ink">
-                            £{payment.amount.toLocaleString()}
+                            {money(payment.amount, payment.currency)}
                           </span>
-                          <span className="text-xs text-[#6B6860] ml-1">{payment.currency}</span>
+                          <span className="text-xs text-[#6B6860] ml-1">{payment.currency.toUpperCase()}</span>
+                          <small className="block text-xs">{conversionText(payment)}</small>
                         </td>
 
                         <td className="py-3.5 px-4 text-[#6B6860]">{payment.paymentMethod}</td>
@@ -384,18 +403,16 @@ export default function FinancePage() {
                         <td className="py-3.5 px-4 text-right">
                           {payment.paymentStatus === 'Pending Verification' ? (
                             <div className="flex items-center justify-end gap-1.5">
+                              {reviewing.includes(payment.paymentId) && <span role="status">Saving…</span>}
+                              {reviewErrors[payment.paymentId] && <span role="alert">{reviewErrors[payment.paymentId]}</span>}
                               <button
-                                onClick={() =>
-                                  verifyPaymentTransaction(payment.paymentId, 'Verified', 'Verified by Finance')
-                                }
+                                disabled={reviewing.includes(payment.paymentId)} onClick={() => reviewPayment(payment.paymentId, 'Verified')}
                                 className="rounded bg-emerald-600 px-2 py-1 text-xs font-bold text-[#FFFFFF] hover:bg-emerald-700 transition-colors"
                               >
                                 Verify
                               </button>
                               <button
-                                onClick={() =>
-                                  verifyPaymentTransaction(payment.paymentId, 'Rejected', 'Insufficient proof of transfer')
-                                }
+                                disabled={reviewing.includes(payment.paymentId)} onClick={() => reviewPayment(payment.paymentId, 'Rejected')}
                                 className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors"
                               >
                                 Reject
@@ -420,17 +437,15 @@ export default function FinancePage() {
         {activeTab === 'bookings' && (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
-              <span className="text-xs text-[#6B6860]">
-                Showing <strong>{bookings.length}</strong> tenancies booked across partner accommodations
-              </span>
+              <WorkspaceSearch label="Search bookings" placeholder="Search student, booking or property" value={bookingSearch} onChange={setBookingSearch} />
               <button
                 onClick={handleExportBookingsCSV}
-                disabled={bookings.length === 0}
+                disabled={visibleBookings.length === 0}
                 className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-1.5 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs self-start sm:self-auto"
                 title="Download bookings table as CSV"
               >
                 <Download className="h-3.5 w-3.5" />
-                <span>Export Bookings CSV ({bookings.length})</span>
+                <span>Export CSV ({visibleBookings.length})</span>
               </button>
             </div>
 
@@ -449,11 +464,12 @@ export default function FinancePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E8E6E1]">
-                  {bookings.map((booking) => (
+                  {visibleBookings.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-ha-secondary">{bookingSearch ? 'No bookings match this search.' : 'No bookings recorded yet.'}</td></tr>}
+                  {visibleBookings.map((booking) => (
                     <tr key={booking.id} className="hover:bg-[#F7F6F3]/50">
                       <td className="py-3.5 px-4 font-mono font-bold text-[#00319D]">{booking.bookingId}</td>
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-[#1A1A1A]">{booking.studentName}</div>
+                        <button type="button" className="font-semibold text-ha-blue hover:underline text-left" onClick={() => setSelectedStudentId(booking.studentId)}>{booking.studentName}</button>
                         <span className="font-mono text-xs text-[#6B6860]">{booking.studentId}</span>
                       </td>
                       <td className="py-3.5 px-4">
@@ -472,7 +488,7 @@ export default function FinancePage() {
                         £{(booking.partnerPayoutAmount || 0).toLocaleString()} ({booking.partnerPayoutPercent}%)
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className="rounded bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-bold">
+                        <span className={`rounded px-2 py-0.5 text-xs font-semibold ${booking.bookingStatus === 'Confirmed' ? 'bg-emerald-100 text-emerald-800' : booking.bookingStatus === 'Cancelled' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-800'}`}>
                           {booking.bookingStatus}
                         </span>
                       </td>
@@ -489,17 +505,15 @@ export default function FinancePage() {
         {activeTab === 'commissions' && (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FFFFFF] p-4 rounded-xl border border-[#E8E6E1] shadow-2xs">
-              <span className="text-xs text-[#6B6860]">
-                Showing commission ledgers for <strong>{partnerCommissionLedger.length}</strong> active partners
-              </span>
+              <WorkspaceSearch label="Search commissions" placeholder="Search partner or portfolio owner" value={commissionSearch} onChange={setCommissionSearch} />
               <button
                 onClick={handleExportCommissionsCSV}
-                disabled={partnerCommissionLedger.length === 0}
+                disabled={visibleCommissions.length === 0}
                 className="flex items-center gap-1.5 rounded-lg border border-[#00319D] bg-[#00319D]/5 px-3 py-1.5 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs self-start sm:self-auto"
                 title="Download partner commission ledger as CSV"
               >
                 <Download className="h-3.5 w-3.5" />
-                <span>Export Commissions CSV ({partnerCommissionLedger.length})</span>
+                <span>Export CSV ({visibleCommissions.length})</span>
               </button>
             </div>
 
@@ -517,7 +531,8 @@ export default function FinancePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E8E6E1]">
-                  {partnerCommissionLedger.map((partner) => (
+                  {visibleCommissions.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-ha-secondary">{commissionSearch ? 'No partners match this search.' : 'No partner commissions to display.'}</td></tr>}
+                  {visibleCommissions.map((partner) => (
                     <tr key={partner.id} className="hover:bg-[#F7F6F3]/50">
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-[#1A1A1A]">{partner.companyName}</div>
@@ -526,7 +541,7 @@ export default function FinancePage() {
                       <td className="py-3.5 px-4">
                         <span className="inline-flex items-center gap-1 font-semibold text-[#1A1A1A]">
                           <Layers className="h-3 w-3 text-[#00319D]" />
-                          {partner.portfolioOwnerName || 'Beatrice Vance'}
+                          {partner.portfolioOwnerName || 'Unassigned'}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 font-bold text-[#1A1A1A]">{partner.bookedCount}</td>
@@ -587,7 +602,7 @@ export default function FinancePage() {
                     id="finance-record-amount"
                     type="number"
                     required
-                    placeholder="e.g. 500"
+                    min="0.01" step="0.01" placeholder="0.00"
                     value={recordAmount}
                     onChange={(e) => setRecordAmount(e.target.value)}
                     className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
@@ -598,9 +613,11 @@ export default function FinancePage() {
                   <select
                     id="finance-record-currency"
                     value={recordCurrency}
-                    onChange={(e) => setRecordCurrency(e.target.value)}
+                    onChange={(e) => { setRecordCurrency(e.target.value); setRate(''); }}
                     className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"
                   >
+                    <option value="INR">INR (₹)</option>
+                    <option value="AUD">AUD (A$)</option>
                     <option value="GBP">GBP (£)</option>
                     <option value="EUR">EUR (€)</option>
                     <option value="USD">USD ($)</option>
@@ -608,6 +625,7 @@ export default function FinancePage() {
                 </div>
               </div>
 
+              <PaymentConversionFields amount={recordAmount} currency={recordCurrency} rate={rate} onRate={setRate} />
               <div>
                 <label htmlFor="finance-record-method" className="block text-xs font-semibold text-[#1A1A1A] mb-1">Payment Method</label>
                 <select

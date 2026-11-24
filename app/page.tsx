@@ -1,5 +1,7 @@
 'use client';
 
+import { PasswordField } from '@/components/PasswordField';
+
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useHearthAway } from '@/lib/context';
@@ -36,6 +38,7 @@ export default function HomePage() {
   const router = useRouter();
   const {
     currentUser,
+    canAccessRoute,
     isAuthenticated,
     loginWithUser,
     loginWithEmailPassword,
@@ -58,12 +61,15 @@ export default function HomePage() {
   useEffect(() => {
     if (isAuthenticated && currentUser?.uid) {
       const targetRoute = getDashboardForRole(currentUser.role);
-      router.replace(targetRoute);
+      const requested = new URLSearchParams(window.location.search).get('returnTo');
+      const workspaces = ['/portfolio', '/sales', '/finance', '/management', '/archive', '/partners'];
+      router.replace(requested && workspaces.includes(requested) && canAccessRoute(requested).allowed ? requested : targetRoute);
     }
-  }, [isAuthenticated, currentUser, router]);
+  }, [isAuthenticated, currentUser, router, canAccessRoute]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setErrorMessage('');
 
     const cleanEmail = email.trim().toLowerCase();
@@ -145,7 +151,7 @@ export default function HomePage() {
           <p className="text-xs text-[#6B6860]">
             {isForgotPassword
               ? 'Enter your work email to receive a password recovery link'
-              : 'Enter your credentials to access your workspace'}
+              : 'Sign in with your work email.'}
           </p>
         </div>
 
@@ -196,16 +202,7 @@ export default function HomePage() {
                   Forgot Password?
                 </button>
               </div>
-              <div className="relative">
-                <Key className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
-                <input
-                  id="app-password" autoComplete="current-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:ring-1 focus:ring-[#00319D] focus:outline-hidden transition-all"
-                />
-              </div>
+              <PasswordField id="app-password" autoComplete="current-password" value={password} required disabled={isLoading} onChange={e => setPassword(e.target.value)} />
             </div>
 
             <button
@@ -241,7 +238,7 @@ export default function HomePage() {
 
             <div>
               <label htmlFor="app-email" className="block text-xs font-semibold text-[#1A1A1A] mb-1.5">
-                Registered Work Email
+                Work email
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />

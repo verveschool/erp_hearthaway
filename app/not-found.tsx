@@ -12,30 +12,22 @@ export default function NotFound() {
         </div>
 
         <div className="space-y-2">
-          <span className="inline-block rounded-md bg-[#F7F6F3] border border-[#E8E6E1] px-2.5 py-0.5 text-[11px] font-bold text-[#00319D] uppercase tracking-wider">
-            404 - Page Not Found
-          </span>
-          <h1 className="text-2xl font-bold text-[#1A1A1A]">Page Not Found</h1>
+
+          <h1 className="ha-title">Page not found</h1>
           <p className="text-xs text-[#6B6860] leading-relaxed">
-            The workspace or resource you requested could not be found or may have been relocated.
+            This page may have moved or no longer exists.
           </p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
           <Link
             href="/"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-[#00319D] px-4 py-2.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors"
+            className="ha-primary-action w-full sm:w-auto"
           >
             <Home className="h-4 w-4" />
-            Return to HearthAway Home
+            Return to workspace
           </Link>
-          <Link
-            href="/sales"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-4 py-2.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4 text-[#6B6860]" />
-            Go to Sales Workspace
-          </Link>
+
         </div>
       </div>
     </div>

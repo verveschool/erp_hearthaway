@@ -1,17 +1,25 @@
 import { z } from 'zod';
+import { normalizeLeadPhone } from './lead-phone';
 import { SupportedCurrencies, type Student } from './types';
 
 const requiredText = z.string().trim().min(1);
 export const contactEmail = (value: unknown) => typeof value === 'string' ? value.trim().toLowerCase() : '';
 export const contactPhone = (value: unknown) => {
-  if (typeof value === 'string') return value.replace(/\D/g, '');
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? String(value) : '';
+  // Legacy numeric contacts are usable for duplicate detection only, not dialing or export.
+  const candidate = typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? String(value) : value;
+  return normalizeLeadPhone(candidate)?.replace(/^(\+|00)/, '') ?? '';
 };
+const phoneField = z.string().trim().transform((value, context) => {
+  const phone = normalizeLeadPhone(value);
+  if (phone) return phone;
+  context.addIssue({ code: 'custom', message: 'Enter a complete phone number.' });
+  return z.NEVER;
+});
 
 export const leadDetailsSchema = z.object({
   fullName: requiredText,
   email: z.string().trim().pipe(z.email()).transform(contactEmail),
-  phone: requiredText.refine((value) => contactPhone(value).length >= 6, 'Enter a valid phone number.'),
+  phone: phoneField,
   university: requiredText,
   destinationCity: requiredText,
   destinationCountry: requiredText,
@@ -20,7 +28,7 @@ export const leadDetailsSchema = z.object({
   moveInDate: requiredText,
   notes: z.string().trim().default(''),
   currency: z.string().trim().transform((value) => value.toUpperCase()).pipe(z.enum(SupportedCurrencies)).default('GBP'),
-  whatsApp: z.string().trim().optional(),
+  whatsApp: z.union([z.literal(''), phoneField]).optional(),
   nationality: z.string().trim().optional(),
   currentCountry: z.string().trim().optional(),
   course: z.string().trim().optional(),
@@ -67,6 +75,7 @@ export function getLeadOwner(student: Pick<Student, 'leadOwnerId' | 'leadOwnerNa
 export const leadEditSchema = leadDetailsSchema.extend({
   email: z.string().trim(),
   phone: z.string().trim(),
+  whatsApp: z.string().trim().optional(),
   university: z.string().trim(),
   destinationCity: z.string().trim(),
   destinationCountry: z.string().trim(),

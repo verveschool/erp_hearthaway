@@ -59,7 +59,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
           <div className="space-y-2.5">
             <Link
-              href="/"
+              href={`/?returnTo=${encodeURIComponent(pathname)}`}
               className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#00319D] px-4 py-2.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors"
             >
               Go to Sign In

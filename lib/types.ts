@@ -192,6 +192,8 @@ export const PaymentSchema = z.object({
   bookingId: z.string().optional().default(''),
   bookingReference: z.string().optional(),
   amount: z.number(),
+  rateToInr: z.number().positive().optional(),
+  amountInr: z.number().positive().optional(),
   currency: z.enum(['INR', 'GBP', 'EUR', 'AUD', 'USD', 'inr', 'gbp', 'eur', 'aud', 'usd']).default('GBP'),
   paymentDate: z.string(),
   paymentMethod: z.enum(['Bank Transfer', 'Credit Card', 'Online Gateway', 'Direct Debit', 'UPI']),

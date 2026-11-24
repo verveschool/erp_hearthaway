@@ -1,5 +1,10 @@
 'use client';
 
+import { WorkspaceSearch } from '@/components/WorkspaceSearch';
+import { matchesSearch } from '@/lib/utils';
+
+import { useWorkspaceView } from '@/hooks/use-workspace-view';
+
 import { WorkspaceMetric } from '@/components/WorkspaceMetric';
 import { getLeadOwner } from '@/lib/lead-details';
 import { PartnerOwnerDialog } from '@/components/PartnerOwnerDialog';
@@ -7,6 +12,7 @@ import { PartnerOwnerDialog } from '@/components/PartnerOwnerDialog';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useHearthAway } from '@/lib/context';
 import { AppUser, Student } from '@/lib/types';
+import { leadPhoneCsv, parseLeadPhone } from '@/lib/lead-phone';
 import { exportToCSV } from '@/lib/export-csv';
 import {
   Layers,
@@ -135,12 +141,7 @@ export default function PortfolioPage() {
   // Selected portfolio owner for inspection:
   // If user is a Portfolio Owner, they ONLY see their own portfolio!
   // If user is Management, they can pick a Portfolio Owner or view "all"
-  const [selectedOwnerId, setSelectedOwnerId] = useState<string>(() => {
-    if (currentUser.role === 'portfolio_owner') {
-      return currentUser.uid;
-    }
-    return 'all';
-  });
+  const [selectedOwnerId, setSelectedOwnerId] = useWorkspaceView<string>(currentUser.uid, 'selectedOwnerId', currentUser.role === 'portfolio_owner' ? currentUser.uid : 'all');
 
   // Effective Owner ID: strictly enforce that portfolio_owner role cannot inspect others
   const effectiveOwnerId = currentUser.role === 'portfolio_owner' ? currentUser.uid : selectedOwnerId;
@@ -160,24 +161,24 @@ export default function PortfolioPage() {
         };
 
   // State for search, filters, and active tab
-  const [activeTab, setActiveTab] = useState<'leads' | 'partners' | 'audit'>('leads');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterPartner, setFilterPartner] = useState('All');
-  const [filterLeadStatus, setFilterLeadStatus] = useState('All');
-  const [filterBookingStatus, setFilterBookingStatus] = useState('All');
-  const [sortBy, setSortBy] = useState<'newest' | 'name' | 'budget'>('newest');
+  const [activeTab, setActiveTab] = useWorkspaceView<'leads' | 'partners' | 'audit'>(currentUser.uid, 'activeTab', 'leads');
+  const [searchQuery, setSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'searchQuery', '');
+  const [filterPartner, setFilterPartner] = useWorkspaceView<string>(currentUser.uid, 'filterPartner', 'All');
+  const [filterLeadStatus, setFilterLeadStatus] = useWorkspaceView<string>(currentUser.uid, 'filterLeadStatus', 'All');
+  const [filterBookingStatus, setFilterBookingStatus] = useWorkspaceView<string>(currentUser.uid, 'filterBookingStatus', 'All');
+  const [sortBy, setSortBy] = useWorkspaceView<'newest' | 'name' | 'budget'>(currentUser.uid, 'sortBy', 'newest');
 
   // Audit Trail filtering state
-  const [auditSearchQuery, setAuditSearchQuery] = useState('');
-  const [auditFilterType, setAuditFilterType] = useState('All');
-  const [auditFilterRole, setAuditFilterRole] = useState('All');
-  const [auditSortBy, setAuditSortBy] = useState<'newest' | 'oldest'>('newest');
+  const [auditSearchQuery, setAuditSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'auditSearchQuery', '');
+  const [auditFilterType, setAuditFilterType] = useWorkspaceView<string>(currentUser.uid, 'auditFilterType', 'All');
+  const [auditFilterRole, setAuditFilterRole] = useWorkspaceView<string>(currentUser.uid, 'auditFilterRole', 'All');
+  const [auditSortBy, setAuditSortBy] = useWorkspaceView<'newest' | 'oldest'>(currentUser.uid, 'auditSortBy', 'newest');
 
   // Reassignment Modal state for Management
   const [reassignModalPartnerId, setReassignModalPartnerId] = useState<string | null>(null);
 
   // Global Lead Search across all portfolios (independent of active owner)
-  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [globalSearchQuery, setGlobalSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'globalSearch', '');
   const [isGlobalSearchFocused, setIsGlobalSearchFocused] = useState(false);
   const globalSearchRef = useRef<HTMLDivElement>(null);
 
@@ -205,19 +206,14 @@ export default function PortfolioPage() {
   const globalMatchingLeads = useMemo(() => {
     const q = globalSearchQuery.trim().toLowerCase();
     if (!q) return [];
-    return students.filter((s) => {
-      const matchName = s.fullName && s.fullName.toLowerCase().includes(q);
-      const matchId = s.studentId && s.studentId.toLowerCase().includes(q);
-      const matchEmail = s.email && s.email.toLowerCase().includes(q);
-      return matchName || matchId || matchEmail;
-    });
+    return students.filter(s => matchesSearch(q, [s.fullName, s.studentId, s.email]));
   }, [students, globalSearchQuery]);
 
   // View mode for leads listing: 'table' or 'cards' (toggle in Portfolio header)
-  const [leadViewMode, setLeadViewMode] = useState<'table' | 'cards'>('table');
+  const [leadViewMode, setLeadViewMode] = useWorkspaceView<'table' | 'cards'>(currentUser.uid, 'leadViewMode', 'table');
 
   // Quick filter chip selection for Generated Leads
-  const [quickFilter, setQuickFilter] = useState<'all' | 'high_priority' | 'due_today' | 'awaiting_payment' | 'qualified' | 'booked'>('all');
+  const [quickFilter, setQuickFilter] = useWorkspaceView<'all' | 'high_priority' | 'due_today' | 'awaiting_payment' | 'qualified' | 'booked'>(currentUser.uid, 'quickFilter', 'all');
 
   // Helper to determine if a student lead has follow-up SLA / tasks due today or urgent
   const isDueToday = (s: Student) => {
@@ -284,9 +280,9 @@ export default function PortfolioPage() {
   }, [onboardedPartners, portfolioLeads]);
 
   // Chart visual mode & controls for 6-Month Growth Trend
-  const [chartType, setChartType] = useState<'area' | 'bar'>('area');
-  const [isChartExpanded, setIsChartExpanded] = useState<boolean>(true);
-  const [useBenchmarkModel, setUseBenchmarkModel] = useState<boolean>(false);
+  const [chartType, setChartType] = useWorkspaceView<'area' | 'bar'>(currentUser.uid, 'chartType', 'area');
+  const [isChartExpanded, setIsChartExpanded] = useWorkspaceView<boolean>(currentUser.uid, 'isChartExpanded', false);
+  const [useBenchmarkModel, setUseBenchmarkModel] = useWorkspaceView<boolean>(currentUser.uid, 'useBenchmarkModel', false);
   const isMounted = React.useSyncExternalStore(
     () => () => {},
     () => true,
@@ -393,21 +389,10 @@ export default function PortfolioPage() {
       // Global Search Filter (by student name or student ID)
       if (globalSearchQuery.trim() !== '') {
         const gq = globalSearchQuery.trim().toLowerCase();
-        const matchName = lead.fullName && lead.fullName.toLowerCase().includes(gq);
-        const matchId = lead.studentId && lead.studentId.toLowerCase().includes(gq);
-        const matchEmail = lead.email && lead.email.toLowerCase().includes(gq);
-        if (!matchName && !matchId && !matchEmail) return false;
+        if (!matchesSearch(gq, [lead.fullName, lead.studentId, lead.email])) return false;
       }
 
-      const matchSearch =
-        searchQuery === '' ||
-        lead.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.university.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.destinationCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (lead.partnerName && lead.partnerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        getLeadOwner(lead).name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (lead.salesOwnerName || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchSearch = matchesSearch(searchQuery, [lead.fullName, lead.studentId, lead.university, lead.destinationCity, lead.partnerName, getLeadOwner(lead).name, lead.salesOwnerName]);
 
       const matchPartner = filterPartner === 'All' || lead.partnerId === filterPartner;
       const matchLeadStatus = filterLeadStatus === 'All' || lead.leadStatus === filterLeadStatus;
@@ -444,13 +429,7 @@ export default function PortfolioPage() {
   const filteredActivities = useMemo(() => {
     const result = activities.filter((act) => {
       const q = auditSearchQuery.trim().toLowerCase();
-      const matchSearch =
-        q === '' ||
-        act.description.toLowerCase().includes(q) ||
-        act.activityType.toLowerCase().includes(q) ||
-        (act.performedBy?.name && act.performedBy.name.toLowerCase().includes(q)) ||
-        (act.studentId && act.studentId.toLowerCase().includes(q)) ||
-        (act.activityId && act.activityId.toLowerCase().includes(q));
+      const matchSearch = matchesSearch(q, [act.description, act.activityType, act.performedBy?.name, act.studentId, act.activityId]);
 
       let matchType = true;
       if (auditFilterType !== 'All') {
@@ -518,7 +497,7 @@ export default function PortfolioPage() {
         { header: 'Student ID', accessor: (s) => s.studentId },
         { header: 'Full Name', accessor: (s) => s.fullName },
         { header: 'Email', accessor: (s) => s.email },
-        { header: 'Phone', accessor: (s) => s.phone },
+        { header: 'Phone', accessor: (s) => leadPhoneCsv(s.phone) },
         { header: 'Sourcing Partner', accessor: (s) => s.partnerName || s.partnerId },
         { header: 'Partner ID', accessor: (s) => s.partnerId },
         { header: 'Lead Owner', accessor: (s) => getLeadOwner(s).name },
@@ -592,9 +571,6 @@ export default function PortfolioPage() {
               <h1 className="ha-title">
                 Portfolio overview
               </h1>
-              <p className="ha-summary">
-                Track partner relationships, sourced leads and audit activity.
-              </p>
             </div>
 
             {/* Management View Selector: Inspect different Portfolio Owners */}
@@ -621,7 +597,7 @@ export default function PortfolioPage() {
           </div>
 
           {/* DEDICATED GLOBAL LEAD SEARCH INPUT IN HEADER (Cross-Portfolio) */}
-          <div className="mt-5 relative z-40" ref={globalSearchRef}>
+          <div className="mt-5 relative z-40" ref={globalSearchRef} onKeyDown={event => { if (event.key === 'Escape' && isGlobalSearchFocused) { event.preventDefault(); setIsGlobalSearchFocused(false); } }}>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-[#F7F6F3] p-2 sm:p-2.5 rounded-xl border border-[#E8E6E1] shadow-2xs">
               <div className="relative min-w-0 flex-1">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -648,6 +624,7 @@ export default function PortfolioPage() {
                     }}
                     className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#6B6860] hover:text-[#1A1A1A] cursor-pointer"
                     title="Clear global search"
+                    aria-label="Clear global search"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -802,7 +779,7 @@ export default function PortfolioPage() {
           </div>
 
           {/* Recharts-based 6-Month Growth Trend: Lead Generation Volume vs Tenancy Conversions */}
-          <div className="mt-6 rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-5 shadow-2xs space-y-4">
+          <div className="portfolio-growth" data-expanded={isChartExpanded}>
             {/* Header with Title, Stats & View Controls */}
             <div className="flex flex-col gap-3 border-b border-[#E8E6E1] pb-4">
               <div>
@@ -838,6 +815,7 @@ export default function PortfolioPage() {
                   </div>
                 </div>
 
+                {isChartExpanded && <>
                 {/* Benchmark Mode Toggle */}
                 <button
                   type="button"
@@ -886,13 +864,14 @@ export default function PortfolioPage() {
                   </button>
                 </div>
 
+                </>}
                 {/* Collapse / Expand Toggle */}
                 <button
                   type="button"
                   aria-expanded={isChartExpanded}
                   onClick={() => setIsChartExpanded(!isChartExpanded)}
                   className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-1.5 text-[#6B6860] hover:bg-[#F7F6F3] hover:text-[#1A1A1A] cursor-pointer"
-                  title={isChartExpanded ? 'Collapse Growth Chart' : 'Expand Growth Chart'}
+                  aria-label={isChartExpanded ? 'Collapse growth chart' : 'Expand growth chart'} title={isChartExpanded ? 'Collapse growth chart' : 'Expand growth chart'}
                 >
                   {isChartExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </button>
@@ -1066,8 +1045,7 @@ export default function PortfolioPage() {
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
                 }`}
               >
-                <Users className="h-4 w-4" />
-                Generated Leads ({metrics.totalLeads})
+                Leads ({metrics.totalLeads})
               </button>
               <button
                 aria-pressed={activeTab === 'partners'}
@@ -1078,8 +1056,7 @@ export default function PortfolioPage() {
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
                 }`}
               >
-                <Building className="h-4 w-4" />
-                Onboarded Partners ({metrics.totalPartners})
+                Partners ({metrics.totalPartners})
               </button>
               <button
                 aria-pressed={activeTab === 'audit'}
@@ -1090,8 +1067,7 @@ export default function PortfolioPage() {
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
                 }`}
               >
-                <ShieldCheck className="h-4 w-4" />
-                Platform Audit Trail ({auditMetrics.total})
+                Activity log ({auditMetrics.total})
               </button>
             </div>
 
@@ -1172,17 +1148,7 @@ export default function PortfolioPage() {
             {/* Search, Filter & CSV Export Toolbar */}
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3">
               <div className="flex flex-col xl:flex-row gap-3">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
-                  <input
-                    aria-label="Search portfolio leads"
-                    type="text"
-                    placeholder="Search by student name, ID, university, city, partner, or lead owner..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-none"
-                  />
-                </div>
+                <WorkspaceSearch label="Search portfolio leads" placeholder="Search leads" value={searchQuery} onChange={setSearchQuery} />
 
                 <div className="flex max-w-full flex-wrap items-center gap-2">
                   {/* Sourcing Partner Filter */}
@@ -1558,9 +1524,9 @@ export default function PortfolioPage() {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="flex items-center gap-1.5">
-                          {lead.phone && (
+                          {parseLeadPhone(lead.phone) && (
                             <a
-                              href={`tel:${lead.phone}`}
+                              href={leadPhoneCsv(lead.phone)}
                               className="p-1.5 rounded-lg border border-[#E8E6E1] bg-[#F7F6F3] text-[#6B6860] hover:text-[#00319D] hover:bg-[#FFFFFF] transition-colors"
                               title={`Call ${lead.phone}`}
                             >
@@ -1842,17 +1808,7 @@ export default function PortfolioPage() {
             {/* Audit Search, Filter & CSV Export Toolbar */}
             <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-4 shadow-2xs space-y-3">
               <div className="flex flex-col xl:flex-row gap-3">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />
-                  <input
-                    aria-label="Search audit trail"
-                    type="text"
-                    placeholder="Search audit trail by description, action, actor, target ID..."
-                    value={auditSearchQuery}
-                    onChange={(e) => setAuditSearchQuery(e.target.value)}
-                    className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-none"
-                  />
-                </div>
+                <WorkspaceSearch label="Search audit trail" value={auditSearchQuery} onChange={setAuditSearchQuery} />
 
                 <div className="flex max-w-full flex-wrap items-center gap-2">
                   {/* Category Filter */}

@@ -607,3 +607,173 @@ html:has(.sales-page) { overflow: hidden; }
   .sales-page-header { gap: .25rem; }
   .sales-filter-fields { max-height: 30dvh; }
 }
+
+.sales-page-header, .sales-page { gap: .5rem; }
+.sales-overview, .sales-filter-bar, .sales-lead-panel { box-shadow: none; }
+.sales-results { display: flex; align-items: center; flex-wrap: wrap; gap: .25rem .75rem; font-size: .75rem; color: var(--ha-muted); }
+.sales-results > button { margin-left: auto; color: var(--ha-blue); }
+.sales-results .sales-lead-count { min-width: 7em; margin: 0; font-variant-numeric: tabular-nums; }
+.sales-toolbar-actions button, .sales-desktop-add, .sales-desktop-export { min-height: 44px; min-width: 44px; }
+.sales-page button:active, .lead-record-layout button:active, .lead-contact-row a:active { background-color: var(--ha-selected); }
+.sales-page :is(button, select, input):focus-visible, .lead-record-layout :is(a, button, select):focus-visible { outline: 2px solid var(--ha-blue); outline-offset: -2px; }
+@media (min-width: 64rem) {
+  .sales-overview, .sales-filter-bar { padding: .5rem .875rem; }
+  .sales-pipeline-cards { padding: 0; margin-top: .375rem; gap: 0; background: white; border-radius: .4rem; }
+  .sales-pipeline-cards > button { min-height: 44px; border: 0; padding: .25rem .75rem; border-radius: 0; }
+  .sales-pipeline-cards > button + button { border-left: 1px solid var(--ha-mid-gray); }
+  .sales-pipeline-cards > button[aria-pressed=true] { box-shadow: inset 0 -3px var(--ha-blue); }
+}
+.lead-header-tools, .lead-contact-row { display: inline-flex; position: relative; gap: 2px; align-items: center; }
+.lead-header-tools { flex-shrink: 0; }
+.lead-header-tools button, .lead-contact-row a { display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; border-radius: .375rem; color: var(--ha-blue); }
+.lead-header-tools button:hover, .lead-contact-row a[href]:hover { background: var(--ha-selected); }
+.lead-header-tools .lead-overflow { position: absolute; z-index: 3; right: 0; top: 100%; background: white; box-shadow: 0 3px 16px #0002; padding-inline: 1rem; white-space: nowrap; }
+.lead-record-layout .lead-record-controls { display: block; margin-top: .5rem; }
+.lead-contact-row { background: white; border: 1px solid var(--ha-mid-gray); border-radius: .5rem; font-size: .8125rem; font-weight: 600; }
+.lead-contact-row a { padding-inline: .5rem; }
+.lead-contact-row a[aria-disabled=true] { opacity: .45; }
+.lead-phone-text { font-size: .75rem; color: var(--ha-muted); margin-top: .25rem; }
+.lead-record-layout .lead-assignment-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .25rem .75rem; padding: .5rem 0 0; border: 0; border-top: 1px solid var(--ha-mid-gray); border-radius: 0; background: none; margin-top: .5rem; }
+.lead-record-layout .lead-assignment-fields > label { min-height: 0; padding: 0; border: 0; background: none; }
+.lead-field-control { min-width: 0; display: grid; }
+.lead-field-status { font-size: .6875rem; min-height: 1em; line-height: 1; color: var(--ha-blue); }
+.lead-record-tabs button { min-height: 36px; font-size: .8125rem; font-weight: 600; border-bottom: 2px solid transparent; }
+.lead-record-tabs button[aria-selected=true] { color: var(--ha-blue); border-color: currentColor; }
+.lead-record-layout [data-tip], .sales-page [data-tip] { position: relative; }
+:is(.sales-page,.lead-record-layout) [data-tip]:is(:focus-visible,:hover)::after { content: attr(data-tip); position: absolute; z-index: 4; top: 100%; right: 0; padding: .25rem .5rem; border-radius: .25rem; color: white; background: #252525; font: 12px/1.4 Lato,sans-serif; white-space: nowrap; pointer-events: none; }
+@container sales-details (max-width: 23rem) {
+  .lead-record-layout .lead-assignment-fields { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 63.99rem) {
+  .ha-drawer:has(.lead-record-layout) .lead-record-layout { height: 100%; overflow-y: auto; overscroll-behavior: contain; }
+  .ha-drawer:has(.lead-record-layout) .ha-drawer-body { flex: none; overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lead-record-layout, .ha-drawer:has(.lead-record-layout) { animation: none; transition: none; }
+}
+.lead-record-layout .lead-record-controls > .lead-assignment-fields > label { min-height: 0; }
+.sales-leads-table td[data-column="student"] > div { font-size: .75rem; color: var(--ha-muted); }
+.lead-summary, .lead-record-layout .ha-drawer-body { overflow-wrap: anywhere; }
+@media (max-width: 63.99rem) {
+  html:has(.ha-drawer[open]) { scrollbar-gutter: auto; }
+}
+@media (max-height: 28rem) and (max-width: 63.99rem) {
+  .ha-shell:has(.sales-page) > main { overflow-y: auto; }
+  .sales-page .sales-page-content { min-height: 10rem; }
+}
+
+/* Shared workspace rhythm and interaction feedback. */
+.ha-workspace:not(.sales-page) > .ha-page-header {
+  padding: clamp(.875rem, 1.4vw, 1.375rem);
+  box-shadow: none;
+}
+.ha-workspace:not(.sales-page) .ha-metric { padding: .625rem .875rem; }
+.ha-workspace:not(.sales-page) .ha-tabs { gap: 1rem; }
+.ha-tabs > button { min-height: 44px; padding-block: .5rem; }
+.ha-shell :where(button, a, summary, input, select, textarea):focus-visible,
+.ha-dialog :where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--ha-focus); outline-offset: 2px;
+}
+.ha-shell :where(button, summary, a[href]):active:not(:disabled):not([aria-disabled=true]),
+.ha-dialog button:active:not(:disabled):not([aria-disabled=true]) { filter: brightness(.96); }
+.ha-dialog button[aria-label^="Close"], .ha-auth-card button[type=submit] { min-height: 44px; min-width: 44px; }
+.workspace-notice:not(:empty) {
+  position: fixed; z-index: 12; inset: auto 1rem 1rem auto;
+  max-width: min(26rem, calc(100vw - 2rem)); padding: .65rem 1rem;
+  border: 1px solid var(--ha-mid-gray); border-radius: .5rem;
+  background: white; color: var(--ha-blue); font-size: .875rem;
+}
+.portfolio-growth { margin-block: .875rem; border-block: 1px solid var(--ha-mid-gray); padding-block: .75rem; }
+.portfolio-growth[data-expanded=false] > :first-child { border: 0; padding-bottom: 0; }
+.portfolio-growth button[aria-expanded] { min-height: 44px; min-width: 44px; margin-left: auto; }
+@media (min-width: 48rem) {
+  .portfolio-growth[data-expanded=false] > :first-child { flex-direction: row; align-items: center; justify-content: space-between; }
+}
+.archive-list { border: 1px solid var(--ha-mid-gray); border-radius: .75rem; overflow: hidden; }
+.archive-list > li { border: none; border-radius: 0; }
+.archive-list > li + li { border-top: 1px solid var(--ha-mid-gray); }
+@media (prefers-reduced-motion: reduce) {
+  .ha-shell *, .ha-dialog * { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+.partner-filter-toggle { display: none; }
+@media (max-width: 47.99rem) {
+  .partner-filter-toggle { display: inline-flex; align-self: flex-start; align-items: center; min-height: 44px; color: var(--ha-blue); }
+  #partner-filters[data-open=false] { display: none; }
+  #partner-filters[data-open=true] { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  #partner-filters select { min-width: 0; width: 100%; }
+}
+
+/* One interaction language for every workspace, including dialogs and auth. */
+:root {
+  --ha-interaction-duration: 140ms;
+  --ha-interaction-ease: cubic-bezier(.2,.65,.3,1);
+  --ha-control-line: #d8d6d0;
+}
+.ha-shell :where(button, a[href], summary, input, select, textarea),
+.ha-dialog :where(button, a[href], summary, input, select, textarea) {
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-duration: var(--ha-interaction-duration);
+  transition-timing-function: var(--ha-interaction-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.ha-shell :where(button, a[href], summary):not(:disabled), .ha-dialog :where(button, a[href], summary):not(:disabled) { cursor: pointer; }
+.ha-shell :where(button, input, select, textarea):disabled,
+.ha-dialog :where(button, input, select, textarea):disabled { cursor: not-allowed; }
+.ha-shell button[aria-disabled=true], .ha-dialog button[aria-disabled=true] { cursor: wait; }
+.ha-shell :where(input, select, textarea):focus-visible,
+.ha-dialog :where(input, select, textarea):focus-visible { outline-offset: 1px; }
+.ha-search { position: relative; display: flex; min-width: 0; flex: 1; align-items: center; }
+.ha-search-icon { position: absolute; left: .75rem; color: var(--ha-muted); pointer-events: none; }
+.ha-search input { width: 100%; height: 100%; min-height: 36px; border: 1px solid var(--ha-control-line); border-radius: .625rem; background: white; padding: .45rem 2.5rem .45rem 2.25rem; color: var(--ha-charcoal); }
+.ha-search input::placeholder { color: var(--ha-muted); }
+.ha-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.ha-search input:focus { border-color: var(--ha-blue); }
+.ha-search > button { position: absolute; right: .25rem; display: grid; place-items: center; width: 30px; height: 30px; color: var(--ha-muted); border-radius: .375rem; }
+.ha-search > button:hover { background: var(--ha-warm-gray); color: var(--ha-charcoal); }
+.ha-text-action { display: inline-flex; align-items: center; justify-content: center; gap: .375rem; padding: .375rem .625rem; min-height: 36px; border-radius: .5rem; color: var(--ha-blue); font-size: .8125rem; font-weight: 600; }
+.ha-text-action:hover { background: var(--ha-selected); }
+.ha-secondary-action { display: inline-flex; justify-content: center; align-items: center; min-height: 40px; padding: .5rem 1rem; border: 1px solid var(--ha-mid-gray); border-radius: .625rem; background: white; font-size: .875rem; font-weight: 600; }
+.ha-secondary-action:hover { background: var(--ha-warm-gray); }
+.ha-empty-state { display: grid; justify-items: center; gap: .45rem; min-width: 0; padding: 2.75rem 1rem; background: white; border: 1px solid var(--ha-mid-gray); border-radius: var(--ha-radius-panel); text-align: center; font-size: .875rem; color: var(--ha-muted); }
+.ha-empty-state strong { color: var(--ha-charcoal); font-size: 1rem; }
+.ha-empty-state svg { color: var(--ha-muted); margin-bottom: .25rem; }
+.ha-disclosure { display: flex; align-items: center; justify-content: space-between; gap: .75rem; list-style: none; min-height: 40px; }
+.ha-disclosure::-webkit-details-marker { display: none; }
+.ha-disclosure-chevron { flex: none; color: var(--ha-muted); transition: transform var(--ha-interaction-duration) var(--ha-interaction-ease); }
+details[open] > .ha-disclosure > .ha-disclosure-chevron { transform: rotate(180deg); }
+.ha-tabs { scrollbar-width: thin; }
+.ha-tabs > button { white-space: nowrap; }
+.ha-tabs > button[aria-pressed=false]:hover { color: var(--ha-charcoal); }
+.ha-table tbody tr { transition: background-color var(--ha-interaction-duration) var(--ha-interaction-ease); }
+.ha-table tbody tr:not([data-selected]):has(button:hover, a[href]:hover) { background-color: #f8f7f4; }
+.ha-destructive-action { background: #b4232a; }
+.ha-destructive-action:hover { background: #941b21; }
+.ha-dialog[open]:not(.ha-drawer) { animation: ha-dialog-enter 160ms var(--ha-interaction-ease); }
+.ha-dialog[open]::backdrop { animation: ha-backdrop-enter 150ms ease-out; }
+@keyframes ha-dialog-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ha-backdrop-enter { from { opacity: 0; } to { opacity: 1; } }
+.workspace-notice:not(:empty) { display: flex; align-items: center; gap: .5rem; box-shadow: 0 4px 20px rgb(31 32 38 / 12%); bottom: max(1rem, env(safe-area-inset-bottom)); border-radius: .75rem; pointer-events: none; }
+.workspace-notice svg { flex: none; color: #087b4a; }
+.lead-field-control[data-pending=true] select { opacity: .75; }
+.lead-field-status[data-error=true] { color: #a51d25; }
+.ha-account-menu { animation: ha-dialog-enter 140ms var(--ha-interaction-ease); }
+.ha-account-menu button { min-height: 40px; font-size: .8125rem; }
+.ha-nav-link[aria-current=page] { color: var(--ha-blue); background: var(--ha-selected); }
+.ha-nav-link svg { flex: none; }
+.ha-auth-card :where(input, select):not([type=checkbox], [type=radio]) { min-height: 42px; }
+.ha-password-field { position: relative; display: flex; align-items: center; }
+.ha-password-field input { font-size: .875rem; min-height: 42px; width: 100%; border: 1px solid var(--ha-control-line); border-radius: .625rem; padding: .5rem 2.75rem .5rem 2.25rem; }
+.ha-password-field button { position: absolute; right: .25rem; display: grid; place-items: center; height: 36px; width: 36px; border-radius: .375rem; color: var(--ha-muted); }
+.ha-password-field button:hover { background: var(--ha-warm-gray); color: var(--ha-charcoal); }
+.ha-text-action.text-rose-700 { color: #a51d25; }
+.ha-text-action.text-rose-700:hover { background: #fff0f0; }
+@media (pointer: coarse) {
+  .ha-search > button { width: 40px; height: 40px; }
+  .ha-search input { padding-right: 3rem; min-height: 44px; }
+  .ha-secondary-action, .ha-text-action, .ha-account-menu button { min-height: 44px; }
+  .ha-password-field button { width: 40px; height: 40px; }
+  .ha-password-field input { font-size: 16px; min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-dialog[open], .ha-dialog[open]::backdrop, .ha-account-menu { animation: none !important; }
+}

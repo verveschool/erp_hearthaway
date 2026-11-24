@@ -72,7 +72,7 @@ export function PartnerLeadTargets({ partner, leads, canEdit, onSave }: {
               <input className="mt-1 w-full rounded-lg border border-ha-line px-3 py-2" type="number" min="0" step="1" value={promised} onChange={(event) => setPromised(event.target.value)} required />
             </label>
             <div className="flex justify-end gap-3">
-              <button type="button" onClick={dismiss} disabled={saving} className="text-sm">Cancel</button>
+              <button type="button" onClick={dismiss} disabled={saving} className="ha-secondary-action">Cancel</button>
               <button type="submit" disabled={saving} className="ha-primary-action">{saving ? 'Saving…' : 'Save target'}</button>
             </div>
           </form>

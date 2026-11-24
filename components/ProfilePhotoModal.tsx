@@ -22,7 +22,7 @@ interface ProfilePhotoModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentAvatarUrl?: string;
-  onSavePhoto: (dataUrl: string) => void;
+  onSavePhoto: (dataUrl: string) => Promise<void>;
   userName?: string;
 }
 
@@ -44,6 +44,7 @@ export function ProfilePhotoModal({
 }: ProfilePhotoModalProps) {
   const [activeTab, setActiveTab] = useState<'upload' | 'camera' | 'presets'>('upload');
   const [previewPhoto, setPreviewPhoto] = useState<string>(currentAvatarUrl || '');
+  const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
@@ -212,19 +213,20 @@ export function ProfilePhotoModal({
 
   if (!isOpen) return null;
 
-  const handleApply = () => {
+  async function savePhoto(photo: string) {
+    if (saving) return;
     stopCamera();
-    onSavePhoto(previewPhoto);
-    onClose();
-  };
-
-  const handleRemove = () => {
-    stopCamera();
-    setPreviewPhoto('');
-    setCapturedPhoto(null);
-    onSavePhoto('');
-    onClose();
-  };
+    setSaving(true);
+    setErrorMessage('');
+    try {
+      await onSavePhoto(photo);
+      onClose();
+    } catch {
+      setErrorMessage('The photo could not be saved. Try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const userInitials = (userName || 'HA')
     .split(' ')
@@ -234,12 +236,13 @@ export function ProfilePhotoModal({
     .toUpperCase();
 
   return (
-    <WorkspaceDialog label="Profile photo" onDismiss={() => { stopCamera(); onClose(); }}>
+    <WorkspaceDialog label="Profile photo" onDismiss={() => { if (!saving) { stopCamera(); onClose(); } }}>
       <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl relative animate-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
         {/* Close Button */}
         <button
           aria-label="Close dialog"
           onClick={() => {
+            if (saving) return;
             stopCamera();
             onClose();
           }}
@@ -250,15 +253,9 @@ export function ProfilePhotoModal({
 
         {/* Header */}
         <div className="mb-4">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1 rounded bg-[#00319D]/10 px-2 py-0.5 text-[10px] font-bold text-[#00319D]">
-              <Camera className="h-3 w-3" />
-              Account Indicator Photo
-            </span>
-          </div>
-          <h3 className="text-lg font-bold text-[#1A1A1A]">Update Profile Picture</h3>
+          <h3 className="text-lg font-semibold text-[#1A1A1A]">Profile photo</h3>
           <p className="text-xs text-[#6B6860] mt-0.5">
-            Personalize the avatar shown in your top-right account indicator.
+            This photo appears beside your name in the workspace.
           </p>
         </div>
 
@@ -281,9 +278,6 @@ export function ProfilePhotoModal({
                   {userInitials}
                 </span>
               )}
-            </div>
-            <div className="absolute bottom-0 right-0 h-5 w-5 rounded-full bg-emerald-500 ring-2 ring-white flex items-center justify-center">
-              <Check className="h-3 w-3 text-white" />
             </div>
           </div>
 
@@ -489,7 +483,7 @@ export function ProfilePhotoModal({
           {currentAvatarUrl && (
             <button
               type="button"
-              onClick={handleRemove}
+              disabled={saving} onClick={() => savePhoto('')}
               className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer"
             >
               Reset to Initials
@@ -500,6 +494,7 @@ export function ProfilePhotoModal({
             <button
               type="button"
               onClick={() => {
+                if (saving) return;
                 stopCamera();
                 onClose();
               }}
@@ -509,11 +504,11 @@ export function ProfilePhotoModal({
             </button>
             <button
               type="button"
-              onClick={handleApply}
+              disabled={saving} onClick={() => savePhoto(previewPhoto)}
               className="flex items-center gap-1.5 rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors shadow-xs cursor-pointer"
             >
               <Check className="h-3.5 w-3.5" />
-              Use This Photo
+              {saving ? 'Saving…' : 'Use this photo'}
             </button>
           </div>
         </div>

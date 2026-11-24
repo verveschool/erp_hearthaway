@@ -34,7 +34,7 @@ export function LeadDetailsDialog({ title, lead, partners, onClose, onSave }: {
   const [error, setError] = useState('');
   const [dirty, setDirty] = useState(false);
   const dismiss = () => {
-    if (running.current || (lead && dirty && !window.confirm('Discard unsaved changes to this lead?'))) return;
+    if (running.current || (dirty && !window.confirm('Discard unsaved lead details?'))) return;
     onClose();
   };
 
@@ -50,7 +50,9 @@ export function LeadDetailsDialog({ title, lead, partners, onClose, onSave }: {
       occupants: read('occupants') ? Number(read('occupants')) : undefined,
     });
     if (!result.success || (!lead && result.data.budget === undefined)) {
-      setError('Enter a name, valid email and phone, university, destination, intake, move-in date and budget.');
+      const issue = !result.success ? result.error.issues[0] : null;
+      const field = issue && [...coreFields, ...extraFields].find(([name]) => name === issue.path[0]);
+      setError(field ? `${field[1]}: ${issue?.message}` : 'Check the required lead details and try again.');
       return;
     }
     running.current = true;
@@ -69,7 +71,7 @@ export function LeadDetailsDialog({ title, lead, partners, onClose, onSave }: {
 
   return (
     <WorkspaceDialog label={title} onDismiss={dismiss}>
-      <form onSubmit={submit} onChange={() => { if (lead) setDirty(true); }} className="w-full max-w-2xl space-y-4 p-5 sm:p-6" aria-busy={saving}>
+      <form onSubmit={submit} onChange={() => setDirty(true)} className="w-full max-w-2xl space-y-4 p-5 sm:p-6" aria-busy={saving}>
         <h2 className="text-lg font-semibold">{title}</h2>
         {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
         <fieldset disabled={saving} className="space-y-4">
@@ -111,7 +113,7 @@ export function LeadDetailsDialog({ title, lead, partners, onClose, onSave }: {
           </details>
         </fieldset>
         <div className="flex justify-end gap-3">
-          <button type="button" className="px-3 py-2 text-sm" onClick={dismiss} disabled={saving}>Cancel</button>
+          <button type="button" className="ha-secondary-action" onClick={dismiss} disabled={saving}>Cancel</button>
           <button className="ha-primary-action disabled:opacity-50" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save lead'}</button>
         </div>
       </form>
