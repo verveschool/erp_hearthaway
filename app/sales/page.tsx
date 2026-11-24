@@ -10,6 +10,7 @@ import { LeadDetailsDialog } from '@/components/LeadDetailsDialog';
 import { getLeadOwner } from '@/lib/lead-details';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useHearthAway } from '@/lib/context';
 import { ArrowUpDown, Download, ListFilter, Plus, Search } from 'lucide-react';
 import { SalesLeadWorkspace } from '@/components/SalesLeadWorkspace';
@@ -73,7 +74,9 @@ export default function SalesPage() {
   const [filterDestination, setFilterDestination] = useState<string>('All');
   const [sortColumn, setSortColumn] = useWorkspaceView<'createdAt' | 'lastActivity'>(currentUser.uid, 'sortColumn', 'lastActivity');
   const [sortDirection, setSortDirection] = useWorkspaceView<'asc' | 'desc'>(currentUser.uid, 'sortDirection', 'desc');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const searchToggle = useRef<HTMLButtonElement>(null);
   const filterToggle = useRef<HTMLButtonElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const stageControl = useRef<HTMLSelectElement>(null);
@@ -94,7 +97,29 @@ export default function SalesPage() {
 
   function closeStudent() {
     setSelectedStudentId(null);
-    requestAnimationFrame(() => (selectedTrigger.current?.isConnected ? selectedTrigger.current : search.current)?.focus({ preventScroll: true }));
+    requestAnimationFrame(() => {
+      const fallback = search.current?.offsetWidth ? search.current : searchToggle.current;
+      (selectedTrigger.current?.isConnected ? selectedTrigger.current : fallback)?.focus({ preventScroll: true });
+    });
+  }
+
+  function toggleMobileSearch() {
+    if (searchOpen) {
+      setSearchOpen(false);
+      searchToggle.current?.focus();
+    } else {
+      // Reveal and focus the input during the same tap so mobile browsers can open the keyboard.
+      flushSync(() => {
+        setFiltersOpen(false);
+        setSearchOpen(true);
+      });
+      search.current?.focus();
+    }
+  }
+
+  function clearStage() {
+    setFilterStage('All');
+    stageControl.current?.focus();
   }
 
   const salesUsers = useMemo(() => {
@@ -187,17 +212,52 @@ export default function SalesPage() {
     );
   };
 
+  const leadCount = filteredStudents.length === visibleStudents.length
+    ? `${visibleStudents.length} ${visibleStudents.length === 1 ? 'lead' : 'leads'}`
+    : `${filteredStudents.length} of ${visibleStudents.length} leads`;
+
   return (
     <div className="ha-workspace sales-page">
       {/* Top Header */}
       <div className="ha-page-header sales-page-header" onKeyDown={(event) => {
-        if (event.key !== 'Escape' || !filtersOpen || !filterToggle.current?.offsetWidth) return;
-        setFiltersOpen(false);
-        filterToggle.current.focus();
+        if (event.key !== 'Escape') return;
+        if (searchOpen && searchToggle.current?.offsetWidth) {
+          setSearchOpen(false);
+          searchToggle.current.focus();
+        } else if (filtersOpen && filterToggle.current?.offsetWidth) {
+          setFiltersOpen(false);
+          filterToggle.current.focus();
+        }
       }}>
         <div className="sales-overview">
           <div className="sales-overview-title flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <h1 className="ha-title">Sales</h1>
+            <div>
+              <h1 className="ha-title">Sales</h1>
+              <p role="status" className="sales-mobile-lead-count text-ha-secondary">{leadCount}</p>
+            </div>
+
+            <div className="sales-toolbar-actions">
+              <button ref={searchToggle} type="button" aria-label={searchQuery.trim() ? 'Search leads (active)' : 'Search leads'}
+                aria-expanded={searchOpen} aria-controls="sales-search-field" data-active={Boolean(searchQuery.trim())}
+                onClick={toggleMobileSearch}>
+                <Search size={22} aria-hidden="true" />
+              </button>
+              <button type="button" aria-label="Add Sales Lead" onClick={() => setShowAddLeadModal(true)}>
+                <Plus size={22} aria-hidden="true" />
+              </button>
+              <button ref={filterToggle} type="button"
+                aria-label={`Filter leads (${activeFilters} active)`} aria-expanded={filtersOpen} aria-controls="sales-filter-fields"
+                onClick={() => {
+                  setSearchOpen(false);
+                  setFiltersOpen(!filtersOpen);
+                }}>
+                <ListFilter size={22} aria-hidden="true" />
+                {activeFilters > 0 && <span aria-hidden="true">{activeFilters}</span>}
+              </button>
+              <button type="button" aria-label="Export CSV" onClick={handleExportSalesLeadsCSV} disabled={filteredStudents.length === 0}>
+                <Download size={22} aria-hidden="true" />
+              </button>
+            </div>
 
             <button
               onClick={() => setShowAddLeadModal(true)}
@@ -229,27 +289,11 @@ export default function SalesPage() {
           </div>
         </div>
 
-        <div className="sales-toolbar-actions">
-          <button type="button" className="sales-compact-toggle" onClick={() => setShowAddLeadModal(true)}>
-            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            Add Sales Lead
-          </button>
-          <button ref={filterToggle} type="button" className="sales-compact-toggle"
-            data-tip={`Filter leads (${activeFilters} active)`} aria-label={`Filter leads (${activeFilters} active)`} aria-expanded={filtersOpen} aria-controls="sales-filter-fields"
-            onClick={() => setFiltersOpen(!filtersOpen)}>
-            <ListFilter className="h-3.5 w-3.5" aria-hidden="true" />
-            {activeFilters > 0 && <span>{activeFilters}</span>}
-          </button>
-          <button type="button" onClick={handleExportSalesLeadsCSV} disabled={filteredStudents.length === 0}
-            className="sales-export-action disabled:opacity-40">
-            <Download className="h-3.5 w-3.5" aria-hidden="true" />
-            Export CSV
-          </button>
-        </div>
-
         <div className="sales-filter-bar">
           <div className="sales-toolbar-fields">
-            <WorkspaceSearch inputRef={search} label="Search sales leads" placeholder="Search leads by name or phone" value={searchQuery} onChange={setSearchQuery} />
+            <div id="sales-search-field" className="sales-search-field" data-open={searchOpen}>
+              <WorkspaceSearch inputRef={search} label="Search sales leads" placeholder="Search leads by name or phone" value={searchQuery} onChange={setSearchQuery} />
+            </div>
 
             <div id="sales-filter-fields" data-open={filtersOpen} className="sales-filter-fields">
               {[
@@ -297,6 +341,7 @@ export default function SalesPage() {
                 <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
               </select>
+              {filterStage !== 'All' && <button type="button" className="sales-mobile-clear-stage" onClick={clearStage}>Clear stage</button>}
             </div>
             <button type="button" onClick={handleExportSalesLeadsCSV} disabled={filteredStudents.length === 0}
               className="sales-desktop-export items-center justify-center gap-1.5 rounded-lg border border-ha-blue bg-ha-blue/5 px-3 py-2 text-xs font-bold text-ha-blue hover:bg-ha-blue/15 disabled:opacity-40">
@@ -304,17 +349,10 @@ export default function SalesPage() {
               Export CSV
             </button>
           </div>
-          <div className="sales-results"><span>Stage totals precede filters. Export includes matching leads.</span>
-            <button type="button" style={{ visibility: filterStage === 'All' ? 'hidden' : 'visible' }} onClick={() => {
-              setFilterStage('All');
-              (stageControl.current?.offsetWidth ? stageControl.current : filterToggle.current)?.focus();
-            }}>Clear stage</button>
-          <p role="status" data-filtered={filteredStudents.length !== visibleStudents.length}
-            className="sales-lead-count text-xs text-ha-secondary">
-            {filteredStudents.length === visibleStudents.length
-              ? `${visibleStudents.length} leads`
-              : `${filteredStudents.length} of ${visibleStudents.length} leads`}
-          </p></div>
+          <div className="sales-results">
+            <button type="button" style={{ visibility: filterStage === 'All' ? 'hidden' : 'visible' }} onClick={clearStage}>Clear stage</button>
+            <p role="status" className="sales-lead-count text-xs text-ha-secondary">{leadCount}</p>
+          </div>
         </div>
       </div>
 
