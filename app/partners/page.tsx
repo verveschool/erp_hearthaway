@@ -7,7 +7,7 @@ import { getLeadOwner, leadContactConflicts, leadConflictMessage, leadDetailsSch
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
 import React, { useState, useMemo, useRef } from 'react';
-import { useHearthAway } from '@/lib/context';
+import { useHearthAway, type BulkLeadImportResult } from '@/lib/context';
 import { AgreementStatusSchema, type Partner, type Student, type AgreementStatus } from '@/lib/types';
 import { exportToCSV } from '@/lib/export-csv';
 import {
@@ -43,6 +43,15 @@ import {
 } from 'lucide-react';
 
 const MAX_AGREEMENT_BYTES = 768 * 1024;
+
+const importFailureMessages: Readonly<Record<string, string>> = {
+  'permission-denied': 'The database denied this import. Ask your CRM administrator to check bulk upload permissions.',
+  unauthenticated: 'Your session could not be verified. Sign in again before importing.',
+  unavailable: 'The CRM could not reach the database. Check your connection and retry.',
+  'deadline-exceeded': 'The database did not respond in time. Retry the unsaved rows.',
+  aborted: 'The database could not finish saving this batch. Retry the unsaved rows.',
+  'resource-exhausted': 'The database is temporarily at its limit. Wait briefly, then retry.',
+};
 
 export default function PartnersPage() {
   const {
@@ -141,6 +150,7 @@ export default function PartnersPage() {
   // Steps: 1 (Select), 2 (Download template), 3 (Validate), 4 (Preview), 5 (Errors), 6 (Duplicates), 7 (Confirm), 8 (Results)
   const [bulkPartnerId, setBulkPartnerId] = useState('');
   const [importing, setImporting] = useState(false);
+  const importInFlight = useRef(false);
   const [bulkStep, setBulkStep] = useState<number>(1);
   const [csvFileName, setCsvFileName] = useState<string>('');
   const [csvRawText, setCsvRawText] = useState<string>('');
@@ -148,7 +158,7 @@ export default function PartnersPage() {
   const [validationErrors, setValidationErrors] = useState<Array<{ row: number; field: string; message: string }>>([]);
   const [duplicateRows, setDuplicateRows] = useState<Array<{ row: number; email: string; phone: string; reason: string }>>([]);
   const [validRows, setValidRows] = useState<Array<any>>([]);
-  const [importResults, setImportResults] = useState<{ importedCount: number; duplicatesCount: number; errorsCount: number } | null>(null);
+  const [importResults, setImportResults] = useState<BulkLeadImportResult | null>(null);
   const [csvParseError, setCsvParseError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -602,25 +612,33 @@ export default function PartnersPage() {
 
   // Step 7: Confirm & Execute CSV Batch Import
   const handleExecuteImport = async () => {
-    if (importing || validRows.length === 0) return;
+    const rows = importResults?.retryRows ?? validRows;
+    if (importInFlight.current || rows.length === 0) return;
 
     const targetPartnerId = isPartner ? activePartnerId : bulkPartnerId;
     if (!targetPartnerId) return;
+    importInFlight.current = true;
     setImporting(true);
     setCsvParseError(null);
     try {
-      const result = await bulkImportPartnerLeads(validRows, targetPartnerId);
-      setImportResults(result);
+      const result = await bulkImportPartnerLeads(rows, targetPartnerId);
+      setImportResults((previous) => ({
+        ...result,
+        importedCount: (previous?.importedCount ?? 0) + result.importedCount,
+        duplicatesCount: (previous?.duplicatesCount ?? 0) + result.duplicatesCount,
+        invalidCount: (previous?.invalidCount ?? 0) + result.invalidCount,
+      }));
       setBulkStep(8);
-    } catch {
-      setCsvParseError('The import could not start. Check your access and try again.');
+    } catch (cause) {
+      setCsvParseError(cause instanceof Error ? cause.message : 'The import could not start. Try again.');
     } finally {
+      importInFlight.current = false;
       setImporting(false);
     }
   };
 
   const handleResetBulkModal = () => {
-    if (importing) return;
+    if (importInFlight.current) return;
     setBulkPartnerId('');
     setShowBulkUploadModal(false);
     setBulkStep(1);
@@ -1669,7 +1687,7 @@ export default function PartnersPage() {
                   </div>
                   <div className="flex items-center gap-2 text-xs">
                     <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      {validRows.length} Valid
+                      {validRows.length} ready to import
                     </span>
                     {validationErrors.length > 0 && (
                       <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
@@ -1763,15 +1781,35 @@ export default function PartnersPage() {
             {/* STEP 8: Import Results */}
             {bulkStep === 8 && importResults && (
               <div className="text-center py-6 space-y-4">
-                <div className="h-14 w-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
-                  <CheckCircle2 className="h-8 w-8" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold tabular-nums text-[#1A1A1A]">Batch Import Complete</h3>
-                  <p className="text-xs text-[#6B6860] mt-1">
-                    Successfully imported <strong>{importResults.importedCount}</strong> new leads into the master system.
+                <div role="status" aria-busy={importing}>
+                  <div className={`h-14 w-14 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                    importResults.retryRows.length || importResults.invalidCount
+                      ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-600'
+                  }`}>
+                    {importResults.retryRows.length || importResults.invalidCount
+                      ? <AlertTriangle className="h-8 w-8" aria-hidden="true" />
+                      : <CheckCircle2 className="h-8 w-8" aria-hidden="true" />}
+                  </div>
+                  <h3 className="text-lg font-semibold">
+                    {importResults.retryRows.length || importResults.invalidCount
+                      ? importResults.importedCount || importResults.duplicatesCount ? 'Import partially complete' : 'Import failed'
+                      : importResults.importedCount ? 'Batch import complete' : 'No new leads to import'}
+                  </h3>
+                  <p className="text-sm text-ha-secondary mt-1">
+                    {importResults.importedCount} new leads imported.
+                    {importResults.retryRows.length > 0 && ` ${importResults.retryRows.length} rows can be retried.`}
                   </p>
                 </div>
+                {importResults.failureCodes.length > 0 && (
+                  <ul role="alert" className="mx-auto max-w-sm space-y-2 rounded-lg bg-amber-50 p-3 text-left text-sm text-amber-900">
+                    {importResults.failureCodes.map((code) => (
+                      <li key={code}>{importFailureMessages[code] ?? 'The CRM could not save this batch. Retry, or share this error with your CRM administrator.'} <span className="text-xs">({code})</span></li>
+                    ))}
+                  </ul>
+                )}
+                {importResults.invalidCount > 0 && (
+                  <p role="alert" className="text-sm text-rose-700">{importResults.invalidCount} rows did not pass validation during import.</p>
+                )}
 
                 <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto text-xs py-2">
                   <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
@@ -1784,17 +1822,22 @@ export default function PartnersPage() {
                   </div>
                   <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
                     <span className="text-xs text-[#6B6860] uppercase block">Errors</span>
-                    <span className="text-base font-semibold text-rose-600">{importResults.errorsCount}</span>
+                    <span className="text-base font-semibold text-rose-600">{importResults.invalidCount + importResults.retryRows.length}</span>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleResetBulkModal}
-                  className="rounded-lg bg-[#00319D] px-6 py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors cursor-pointer"
-                >
-                  Done
-                </button>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {importResults.retryRows.length > 0 && (
+                    <button type="button" disabled={importing} onClick={handleExecuteImport}
+                      className="ha-primary-action disabled:opacity-50">
+                      {importing ? 'Retrying…' : `Retry ${importResults.retryRows.length} unsaved rows`}
+                    </button>
+                  )}
+                  <button type="button" onClick={handleResetBulkModal} disabled={importing}
+                    className="rounded-lg border border-ha-line bg-white px-4 py-2 text-sm font-semibold text-ha-ink disabled:opacity-50">
+                    Done
+                  </button>
+                </div>
               </div>
             )}
           </div>
