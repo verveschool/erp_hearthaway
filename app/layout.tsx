@@ -7,8 +7,8 @@ export const metadata: Metadata = {
   title: 'HearthAway - Master Accommodation CRM Platform',
   description: 'Unified master accommodation marketplace CRM with role-isolated workspaces for Students, B2B Partners, and Internal Sales & Management operations.',
   icons: {
-    icon: '/brand/hearthaway_icon_transparent.svg',
-    apple: '/brand/hearthaway_icon_transparent.svg',
+    icon: { url: '/favicon.png', type: 'image/png', sizes: '48x48' },
+    apple: { url: '/apple-touch-icon.png', type: 'image/png', sizes: '180x180' },
   },
   openGraph: {
     title: 'HearthAway - Master Accommodation CRM Platform',
