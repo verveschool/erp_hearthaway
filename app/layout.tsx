@@ -2,6 +2,7 @@ import type {Metadata, Viewport} from 'next';
 import './fonts/lato.css';
 import './globals.css'; // Global styles
 import { ClientShell } from '@/components/ClientShell';
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata: Metadata = {
   title: 'Shinrabansho',
@@ -37,6 +38,7 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
       </head>
       <body className="bg-[#F7F6F3] text-[#1A1A1A] antialiased" suppressHydrationWarning>
         <ClientShell>{children}</ClientShell>
+        <Analytics />
       </body>
     </html>
   );
