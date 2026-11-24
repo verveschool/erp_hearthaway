@@ -2,8 +2,11 @@ import { z } from 'zod';
 import { SupportedCurrencies, type Student } from './types';
 
 const requiredText = z.string().trim().min(1);
-export const contactEmail = (value = '') => value.trim().toLowerCase();
-export const contactPhone = (value = '') => value.replace(/\D/g, '');
+export const contactEmail = (value: unknown) => typeof value === 'string' ? value.trim().toLowerCase() : '';
+export const contactPhone = (value: unknown) => {
+  if (typeof value === 'string') return value.replace(/\D/g, '');
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? String(value) : '';
+};
 
 export const leadDetailsSchema = z.object({
   fullName: requiredText,
