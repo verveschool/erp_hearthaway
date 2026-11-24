@@ -36,6 +36,7 @@ export default function HomePage() {
   const router = useRouter();
   const {
     currentUser,
+    canAccessRoute,
     isAuthenticated,
     loginWithUser,
     loginWithEmailPassword,
@@ -58,9 +59,11 @@ export default function HomePage() {
   useEffect(() => {
     if (isAuthenticated && currentUser?.uid) {
       const targetRoute = getDashboardForRole(currentUser.role);
-      router.replace(targetRoute);
+      const requested = new URLSearchParams(window.location.search).get('returnTo');
+      const workspaces = ['/portfolio', '/sales', '/finance', '/management', '/archive', '/partners'];
+      router.replace(requested && workspaces.includes(requested) && canAccessRoute(requested).allowed ? requested : targetRoute);
     }
-  }, [isAuthenticated, currentUser, router]);
+  }, [isAuthenticated, currentUser, router, canAccessRoute]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,7 +148,7 @@ export default function HomePage() {
           <p className="text-xs text-[#6B6860]">
             {isForgotPassword
               ? 'Enter your work email to receive a password recovery link'
-              : 'Enter your credentials to access your workspace'}
+              : 'Sign in with your work email.'}
           </p>
         </div>
 
@@ -241,7 +244,7 @@ export default function HomePage() {
 
             <div>
               <label htmlFor="app-email" className="block text-xs font-semibold text-[#1A1A1A] mb-1.5">
-                Registered Work Email
+                Work email
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-2.5 h-4 w-4 text-[#6B6860]" />

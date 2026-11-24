@@ -1,5 +1,8 @@
 'use client';
 
+import { WorkspaceNotice } from '@/components/WorkspaceNotice';
+import { useWorkspaceView } from '@/hooks/use-workspace-view';
+
 import { LeadDetailsDialog } from '@/components/LeadDetailsDialog';
 import { PartnerOwnerDialog } from '@/components/PartnerOwnerDialog';
 import { PartnerLeadTargets } from '@/components/PartnerLeadTargets';
@@ -81,14 +84,15 @@ export default function PartnersPage() {
   const currentPartnerRecord = partners.find((p) => p.partnerId === activePartnerId);
 
   // Search, Filter & View state for Partners
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState('All');
-  const [filterPortfolioOwner, setFilterPortfolioOwner] = useState('All');
-  const [filterStatus, setFilterStatus] = useState('All');
-  const [filterState, setFilterState] = useState('All');
-  const [filterCity, setFilterCity] = useState('All');
-  const [filterAgreement, setFilterAgreement] = useState('All');
-  const [viewMode, setViewMode] = useState<'directory' | 'bifurcated'>('bifurcated');
+  const [searchQuery, setSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'searchQuery', '');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filterType, setFilterType] = useWorkspaceView<string>(currentUser.uid, 'filterType', 'All');
+  const [filterPortfolioOwner, setFilterPortfolioOwner] = useWorkspaceView<string>(currentUser.uid, 'filterPortfolioOwner', 'All');
+  const [filterStatus, setFilterStatus] = useWorkspaceView<string>(currentUser.uid, 'filterStatus', 'All');
+  const [filterState, setFilterState] = useWorkspaceView<string>(currentUser.uid, 'filterState', 'All');
+  const [filterCity, setFilterCity] = useWorkspaceView<string>(currentUser.uid, 'filterCity', 'All');
+  const [filterAgreement, setFilterAgreement] = useWorkspaceView<string>(currentUser.uid, 'filterAgreement', 'All');
+  const [viewMode, setViewMode] = useWorkspaceView<'directory' | 'bifurcated'>(currentUser.uid, 'viewMode', 'bifurcated');
 
   // Selected partner for inspecting their leads
   const [inspectPartnerId, setInspectPartnerId] = useState<string | null>(null);
@@ -111,7 +115,7 @@ export default function PartnersPage() {
   const [agreementTerms, setAgreementTerms] = useState<string>('');
   const [agreementFile, setAgreementFile] = useState<File | null>(null);
   const [agreementLogoUrl, setAgreementLogoUrl] = useState<string>('');
-  const [agreementSaved, setAgreementSaved] = useState<boolean>(false);
+  const [notice, setNotice] = useState('');
   const [agreementSaving, setAgreementSaving] = useState<boolean>(false);
   const [agreementError, setAgreementError] = useState<string>('');
   const agreementFileRef = useRef<HTMLInputElement>(null);
@@ -176,6 +180,8 @@ export default function PartnersPage() {
       return matchSearch && matchType && matchPO && matchStatus && matchState && matchCity && matchAgreement;
     });
   }, [partners, searchQuery, filterType, filterPortfolioOwner, filterStatus, filterState, filterCity, filterAgreement, currentUser.role, currentUser.uid]);
+
+  const filterCount = [filterState, filterCity, filterAgreement, filterType, filterPortfolioOwner].filter(value => value !== 'All').length;
 
   // Partners grouped by State and City for Bifurcation View
   const partnersByStateAndCity = useMemo(() => {
@@ -299,7 +305,7 @@ export default function PartnersPage() {
     setAgreementTerms(partner.agreementTerms || `${partner.commissionRate}% Commission, 120-day payment window`);
     setAgreementFile(null);
     setAgreementLogoUrl(partner.logoUrl || '');
-    setAgreementSaved(false);
+    setNotice('');
     setAgreementError('');
   };
 
@@ -319,11 +325,8 @@ export default function PartnersPage() {
         logoUrl: agreementLogoUrl || '',
       }, agreementFile ?? undefined);
 
-      setAgreementSaved(true);
-      setTimeout(() => {
-        setAgreementSaved(false);
-        setSelectedAgreementPartner(null);
-      }, 1500);
+      setNotice(`Agreement saved for ${selectedAgreementPartner.companyName}.`);
+      setSelectedAgreementPartner(null);
     } catch (error) {
       setAgreementError(error instanceof Error ? error.message : 'Unable to save agreement terms. Please try again.');
     } finally {
@@ -336,7 +339,7 @@ export default function PartnersPage() {
     if (!file || !selectedAgreementPartner) return;
 
     e.target.value = '';
-    setAgreementSaved(false);
+    setNotice('');
     if (file.size === 0 || file.size > MAX_AGREEMENT_BYTES) {
       setAgreementError('Choose a nonempty agreement file up to 768 KB.');
       return;
@@ -434,6 +437,7 @@ export default function PartnersPage() {
       return;
     }
 
+    setNotice(`${newCompanyName} ${onboardingPartner ? 'updated' : 'added'}.`);
     setShowOnboardModal(false);
     setOnboardingPartner(null);
     setIsOnboarding(false);
@@ -666,6 +670,7 @@ export default function PartnersPage() {
 
   return (
     <div className="ha-workspace">
+      <WorkspaceNotice message={notice} clear={setNotice} />
       {/* Top Header */}
       <div className="ha-page-header">
         <div>
@@ -674,9 +679,6 @@ export default function PartnersPage() {
               <h1 className="ha-title">
                 Partners
               </h1>
-              <p className="ha-summary">
-                Manage partner agencies, agreements, portfolio owners and student referrals.
-              </p>
             </div>
 
             {/* Action Buttons */}
@@ -941,14 +943,17 @@ export default function PartnersPage() {
                   <input
                     aria-label="Search partners"
                     type="text"
-                    placeholder="Search partners by agency, city, state, code, contact person..."
+                    placeholder="Search partners"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-none"
                   />
                 </div>
 
-                <div className="flex max-w-full flex-wrap items-center gap-2">
+                <button type="button" className="partner-filter-toggle" aria-expanded={filtersOpen} aria-controls="partner-filters" onClick={() => setFiltersOpen(!filtersOpen)}>
+                  Filters{filterCount ? ` (${filterCount})` : ''}
+                </button>
+                <div id="partner-filters" data-open={filtersOpen} className="flex max-w-full flex-wrap items-center gap-2">
                   {/* Bifurcate by State Filter */}
                   <div className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5 text-[#00319D]" />
@@ -1035,33 +1040,12 @@ export default function PartnersPage() {
                 </div>
               </div>
 
-              {/* Active Filter Badges */}
-              {(filterState !== 'All' || filterCity !== 'All' || filterAgreement !== 'All' || searchQuery) && (
-                <div className="flex items-center gap-2 pt-1 border-t border-[#E8E6E1] text-xs text-[#6B6860]">
-                  <span className="font-semibold text-[#1A1A1A]">Active Bifurcation:</span>
-                  {filterState !== 'All' && (
-                    <span className="inline-flex items-center gap-1 rounded bg-[#00319D]/10 px-2 py-0.5 font-bold text-[#00319D]">
-                      State: {filterState}
-                      <button onClick={() => setFilterState('All')} className="hover:text-rose-600">×</button>
-                    </span>
-                  )}
-                  {filterCity !== 'All' && (
-                    <span className="inline-flex items-center gap-1 rounded bg-[#00319D]/10 px-2 py-0.5 font-bold text-[#00319D]">
-                      City: {filterCity}
-                      <button onClick={() => setFilterCity('All')} className="hover:text-rose-600">×</button>
-                    </span>
-                  )}
-                  {filterAgreement !== 'All' && (
-                    <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 font-bold text-amber-900">
-                      Agreement: {filterAgreement}
-                      <button onClick={() => setFilterAgreement('All')} className="hover:text-rose-600">×</button>
-                    </span>
-                  )}
-                  <span className="ml-auto font-medium">
-                    Showing <strong>{filteredPartners.length}</strong> of <strong>{partners.length}</strong> partners
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center justify-between gap-2 text-xs text-ha-secondary">
+                <span role="status">{filteredPartners.length} {filteredPartners.length === 1 ? 'partner' : 'partners'}</span>
+                {filterCount > 0 && <button type="button" className="text-ha-blue" onClick={() => {
+                  setFilterState('All'); setFilterCity('All'); setFilterAgreement('All'); setFilterType('All'); setFilterPortfolioOwner('All');
+                }}>Clear filters</button>}
+              </div>
             </div>
 
             {/* MODE A: BIFURCATED BY STATE & CITY (Grouped View) */}
@@ -1335,11 +1319,11 @@ export default function PartnersPage() {
 
       {/* MODAL: AGREEMENT MANAGEMENT MODAL */}
       {selectedAgreementPartner && (
-        <WorkspaceDialog label="Partner agreement" onDismiss={() => setSelectedAgreementPartner(null)}>
+        <WorkspaceDialog label="Partner agreement" onDismiss={() => { if (!agreementSaving) setSelectedAgreementPartner(null); }}>
           <div className="w-full max-w-lg rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 sm:p-7 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               aria-label="Close dialog"
-              onClick={() => setSelectedAgreementPartner(null)}
+              disabled={agreementSaving} onClick={() => setSelectedAgreementPartner(null)}
               className="absolute top-5 right-5 rounded-lg p-1 text-[#6B6860] hover:bg-[#F7F6F3] hover:text-[#1A1A1A] cursor-pointer"
             >
               <X className="h-5 w-5" />
@@ -1348,7 +1332,7 @@ export default function PartnersPage() {
             <div className="flex items-center gap-2 mb-2">
               <span className="inline-flex items-center gap-1 rounded bg-[#00319D]/10 px-2 py-0.5 text-xs font-bold text-[#00319D]">
                 <FileCheck className="h-3.5 w-3.5" />
-                Partner Agreement &amp; Contract Terms
+                Agreement
               </span>
               <span className="text-xs font-mono text-[#6B6860]">
                 {selectedAgreementPartner.partnerId}
@@ -1500,12 +1484,6 @@ export default function PartnersPage() {
                 {agreementFile && <p className="text-xs text-[#6B6860]" role="status">Selected: {agreementFile.name}</p>}
               </div>
 
-              {agreementSaved && (
-                <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Agreement terms updated &amp; persisted successfully!
-                </p>
-              )}
               {agreementError && (
                 <p role="alert" className="text-xs text-red-600 font-semibold">
                   {agreementError}
@@ -1515,7 +1493,7 @@ export default function PartnersPage() {
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E8E6E1]">
                 <button
                   type="button"
-                  onClick={() => setSelectedAgreementPartner(null)}
+                  disabled={agreementSaving} onClick={() => setSelectedAgreementPartner(null)}
                   className="rounded-lg border border-[#E8E6E1] px-3.5 py-1.5 text-xs font-semibold text-[#6B6860] hover:bg-[#F7F6F3] cursor-pointer"
                 >
                   Close
@@ -1525,7 +1503,7 @@ export default function PartnersPage() {
                   disabled={agreementSaving}
                   className="rounded-lg bg-[#00319D] px-4 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                 >
-                  {agreementSaving ? 'Saving…' : 'Save Agreement Terms'}
+                  {agreementSaving ? 'Saving…' : 'Save agreement'}
                 </button>
               </div>
             </form>
@@ -1810,13 +1788,13 @@ export default function PartnersPage() {
 
       {/* MODAL 2: ONBOARD NEW PARTNER (with State, City, Agreement) */}
       {showOnboardModal && (
-        <WorkspaceDialog label={onboardingPartner ? 'Edit partner' : 'Onboard education consultant'} onDismiss={() => setShowOnboardModal(false)}>
+        <WorkspaceDialog label={onboardingPartner ? 'Edit partner' : 'Onboard education consultant'} onDismiss={() => { if (!isOnboarding) setShowOnboardModal(false); }}>
           <div className="w-full max-w-md rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-[#1A1A1A]">{onboardingPartner ? 'Edit partner' : 'Onboard Education Consultant'}</h3>
               <button
                 aria-label="Close dialog"
-                onClick={() => setShowOnboardModal(false)}
+                disabled={isOnboarding} onClick={() => setShowOnboardModal(false)}
                 className="text-[#6B6860] hover:text-[#1A1A1A] cursor-pointer"
               >
                 <X className="h-5 w-5" />
@@ -2043,7 +2021,7 @@ export default function PartnersPage() {
                       <p className="mt-1 text-xs text-[#6B6860]">{lead.email}</p>
                       <p className="mt-2 text-xs font-semibold text-[#00319D]">{lead.leadStatus || 'New'}</p>
                       <button type="button" className="mt-2 text-xs font-semibold text-ha-blue hover:underline"
-                        onClick={() => { setInspectPartnerId(null); setSelectedStudentId(lead.studentId); }}>Open lead</button>
+                        onClick={() => setSelectedStudentId(lead.studentId)}>Open lead</button>
                     </div>
                   ))}
                 </div>

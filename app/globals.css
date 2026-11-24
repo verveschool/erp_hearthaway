@@ -661,3 +661,44 @@ html:has(.sales-page) { overflow: hidden; }
   .ha-shell:has(.sales-page) > main { overflow-y: auto; }
   .sales-page .sales-page-content { min-height: 10rem; }
 }
+
+/* Shared workspace rhythm and interaction feedback. */
+.ha-workspace:not(.sales-page) > .ha-page-header {
+  padding: clamp(.875rem, 1.4vw, 1.375rem);
+  box-shadow: none;
+}
+.ha-workspace:not(.sales-page) .ha-metric { padding: .625rem .875rem; }
+.ha-workspace:not(.sales-page) .ha-tabs { gap: 1rem; }
+.ha-tabs > button { min-height: 44px; padding-block: .5rem; }
+.ha-shell :where(button, a, summary, input, select, textarea):focus-visible,
+.ha-dialog :where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--ha-focus); outline-offset: 2px;
+}
+.ha-shell :where(button, summary, a):active:not(:disabled),
+.ha-dialog button:active:not(:disabled) { filter: brightness(.92); }
+.ha-dialog button[aria-label^="Close"], .ha-auth-card button[type=submit] { min-height: 44px; min-width: 44px; }
+.workspace-notice:not(:empty) {
+  position: fixed; z-index: 12; inset: auto 1rem 1rem auto;
+  max-width: min(26rem, calc(100vw - 2rem)); padding: .65rem 1rem;
+  border: 1px solid var(--ha-mid-gray); border-radius: .5rem;
+  background: white; color: var(--ha-blue); font-size: .875rem;
+}
+.portfolio-growth { margin-block: .875rem; border-block: 1px solid var(--ha-mid-gray); padding-block: .75rem; }
+.portfolio-growth[data-expanded=false] > :first-child { border: 0; padding-bottom: 0; }
+.portfolio-growth button[aria-expanded] { min-height: 44px; min-width: 44px; margin-left: auto; }
+@media (min-width: 48rem) {
+  .portfolio-growth[data-expanded=false] > :first-child { flex-direction: row; align-items: center; justify-content: space-between; }
+}
+.archive-list { border: 1px solid var(--ha-mid-gray); border-radius: .75rem; overflow: hidden; }
+.archive-list > li { border: none; border-radius: 0; }
+.archive-list > li + li { border-top: 1px solid var(--ha-mid-gray); }
+@media (prefers-reduced-motion: reduce) {
+  .ha-shell *, .ha-dialog * { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+.partner-filter-toggle { display: none; }
+@media (max-width: 47.99rem) {
+  .partner-filter-toggle { display: inline-flex; align-self: flex-start; align-items: center; min-height: 44px; color: var(--ha-blue); }
+  #partner-filters[data-open=false] { display: none; }
+  #partner-filters[data-open=true] { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  #partner-filters select { min-width: 0; width: 100%; }
+}

@@ -250,17 +250,6 @@ export function Navbar() {
                       </span>
                     )}
 
-                    {/* Camera icon overlay hint on hover */}
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsPhotoModalOpen(true);
-                      }}
-                      className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Upload or snap profile photo"
-                    >
-                      <Camera className="h-3.5 w-3.5" />
-                    </div>
                   </div>
 
                   <div className="hidden sm:block max-w-32 truncate">
@@ -300,17 +289,7 @@ export function Navbar() {
                             </span>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDropdownOpen(false);
-                            setIsPhotoModalOpen(true);
-                          }}
-                          className="absolute inset-0 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                          title="Upload new picture or take photo with camera"
-                        >
-                          <Camera className="h-4 w-4" />
-                        </button>
+
                       </div>
 
                       <div className="min-w-0 flex-1">
@@ -323,20 +302,6 @@ export function Navbar() {
                       </div>
                     </div>
 
-                    {/* Direct Quick Action to Change Photo from Device or Camera */}
-                    <div className="mt-3 pt-2.5 border-t border-[#E8E6E1]/70 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDropdownOpen(false);
-                          setIsPhotoModalOpen(true);
-                        }}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#00319D]/10 hover:bg-[#00319D]/15 text-[#00319D] px-2 py-1.5 text-[11px] font-bold transition-colors cursor-pointer"
-                      >
-                        <Camera className="h-3.5 w-3.5" />
-                        Upload or Snap Photo
-                      </button>
-                    </div>
                   </div>
 
                   <div className="space-y-1">
@@ -348,7 +313,7 @@ export function Navbar() {
                       className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] text-left transition-colors cursor-pointer"
                     >
                       <Camera className="h-3.5 w-3.5 text-[#00319D]" />
-                      Custom Profile Picture (Device / Camera)
+                      Change profile photo
                     </button>
 
                     <button
@@ -359,7 +324,7 @@ export function Navbar() {
                       className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F6F3] text-left transition-colors cursor-pointer"
                     >
                       <Settings className="h-3.5 w-3.5 text-[#6B6860]" />
-                      Account Settings &amp; Profile
+                      Account settings
                     </button>
 
                     <button
@@ -428,12 +393,10 @@ export function Navbar() {
 
       <ProfilePhotoModal
         isOpen={isPhotoModalOpen}
-        onClose={() => setIsPhotoModalOpen(false)}
+        onClose={() => { setIsPhotoModalOpen(false); requestAnimationFrame(() => accountToggle.current?.focus()); }}
         currentAvatarUrl={currentUser.avatarUrl}
         userName={currentUser.displayName || currentUser.email}
-        onSavePhoto={(newPhotoUrl) => {
-          updateCurrentUserProfile({ avatarUrl: newPhotoUrl });
-        }}
+        onSavePhoto={avatarUrl => updateCurrentUserProfile({ avatarUrl })}
       />
     </header>
   );

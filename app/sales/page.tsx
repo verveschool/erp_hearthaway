@@ -1,5 +1,7 @@
 'use client';
 
+import { useWorkspaceView } from '@/hooks/use-workspace-view';
+
 import { LeadFieldSelect } from '@/components/LeadFieldSelect';
 import { LeadDetailsDialog } from '@/components/LeadDetailsDialog';
 import { getLeadOwner } from '@/lib/lead-details';
@@ -60,14 +62,14 @@ export default function SalesPage() {
     hideTestRecords,
   } = useHearthAway();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStage, setFilterStage] = useState<PipelineFilter>('All');
-  const [filterLeadOwner, setFilterLeadOwner] = useState('All');
-  const [filterSalesOwner, setFilterSalesOwner] = useState('All');
-  const [filterPriority, setFilterPriority] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'searchQuery', '');
+  const [filterStage, setFilterStage] = useWorkspaceView<PipelineFilter>(currentUser.uid, 'filterStage', 'All');
+  const [filterLeadOwner, setFilterLeadOwner] = useWorkspaceView<string>(currentUser.uid, 'filterLeadOwner', 'All');
+  const [filterSalesOwner, setFilterSalesOwner] = useWorkspaceView<string>(currentUser.uid, 'filterSalesOwner', 'All');
+  const [filterPriority, setFilterPriority] = useWorkspaceView<string>(currentUser.uid, 'filterPriority', 'All');
   const [filterDestination, setFilterDestination] = useState<string>('All');
-  const [sortColumn, setSortColumn] = useState<'createdAt' | 'lastActivity'>('lastActivity');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [sortColumn, setSortColumn] = useWorkspaceView<'createdAt' | 'lastActivity'>(currentUser.uid, 'sortColumn', 'lastActivity');
+  const [sortDirection, setSortDirection] = useWorkspaceView<'asc' | 'desc'>(currentUser.uid, 'sortDirection', 'desc');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterToggle = useRef<HTMLButtonElement>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -156,7 +158,7 @@ export default function SalesPage() {
 
   const toggleSort = (column: 'createdAt' | 'lastActivity') => {
     if (sortColumn === column) {
-      setSortDirection((direction) => direction === 'asc' ? 'desc' : 'asc');
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setSortColumn(column);
       setSortDirection('desc');

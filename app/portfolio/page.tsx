@@ -1,5 +1,7 @@
 'use client';
 
+import { useWorkspaceView } from '@/hooks/use-workspace-view';
+
 import { WorkspaceMetric } from '@/components/WorkspaceMetric';
 import { getLeadOwner } from '@/lib/lead-details';
 import { PartnerOwnerDialog } from '@/components/PartnerOwnerDialog';
@@ -161,18 +163,18 @@ export default function PortfolioPage() {
         };
 
   // State for search, filters, and active tab
-  const [activeTab, setActiveTab] = useState<'leads' | 'partners' | 'audit'>('leads');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterPartner, setFilterPartner] = useState('All');
-  const [filterLeadStatus, setFilterLeadStatus] = useState('All');
-  const [filterBookingStatus, setFilterBookingStatus] = useState('All');
-  const [sortBy, setSortBy] = useState<'newest' | 'name' | 'budget'>('newest');
+  const [activeTab, setActiveTab] = useWorkspaceView<'leads' | 'partners' | 'audit'>(currentUser.uid, 'activeTab', 'leads');
+  const [searchQuery, setSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'searchQuery', '');
+  const [filterPartner, setFilterPartner] = useWorkspaceView<string>(currentUser.uid, 'filterPartner', 'All');
+  const [filterLeadStatus, setFilterLeadStatus] = useWorkspaceView<string>(currentUser.uid, 'filterLeadStatus', 'All');
+  const [filterBookingStatus, setFilterBookingStatus] = useWorkspaceView<string>(currentUser.uid, 'filterBookingStatus', 'All');
+  const [sortBy, setSortBy] = useWorkspaceView<'newest' | 'name' | 'budget'>(currentUser.uid, 'sortBy', 'newest');
 
   // Audit Trail filtering state
-  const [auditSearchQuery, setAuditSearchQuery] = useState('');
-  const [auditFilterType, setAuditFilterType] = useState('All');
-  const [auditFilterRole, setAuditFilterRole] = useState('All');
-  const [auditSortBy, setAuditSortBy] = useState<'newest' | 'oldest'>('newest');
+  const [auditSearchQuery, setAuditSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'auditSearchQuery', '');
+  const [auditFilterType, setAuditFilterType] = useWorkspaceView<string>(currentUser.uid, 'auditFilterType', 'All');
+  const [auditFilterRole, setAuditFilterRole] = useWorkspaceView<string>(currentUser.uid, 'auditFilterRole', 'All');
+  const [auditSortBy, setAuditSortBy] = useWorkspaceView<'newest' | 'oldest'>(currentUser.uid, 'auditSortBy', 'newest');
 
   // Reassignment Modal state for Management
   const [reassignModalPartnerId, setReassignModalPartnerId] = useState<string | null>(null);
@@ -215,10 +217,10 @@ export default function PortfolioPage() {
   }, [students, globalSearchQuery]);
 
   // View mode for leads listing: 'table' or 'cards' (toggle in Portfolio header)
-  const [leadViewMode, setLeadViewMode] = useState<'table' | 'cards'>('table');
+  const [leadViewMode, setLeadViewMode] = useWorkspaceView<'table' | 'cards'>(currentUser.uid, 'leadViewMode', 'table');
 
   // Quick filter chip selection for Generated Leads
-  const [quickFilter, setQuickFilter] = useState<'all' | 'high_priority' | 'due_today' | 'awaiting_payment' | 'qualified' | 'booked'>('all');
+  const [quickFilter, setQuickFilter] = useWorkspaceView<'all' | 'high_priority' | 'due_today' | 'awaiting_payment' | 'qualified' | 'booked'>(currentUser.uid, 'quickFilter', 'all');
 
   // Helper to determine if a student lead has follow-up SLA / tasks due today or urgent
   const isDueToday = (s: Student) => {
@@ -285,9 +287,9 @@ export default function PortfolioPage() {
   }, [onboardedPartners, portfolioLeads]);
 
   // Chart visual mode & controls for 6-Month Growth Trend
-  const [chartType, setChartType] = useState<'area' | 'bar'>('area');
-  const [isChartExpanded, setIsChartExpanded] = useState<boolean>(true);
-  const [useBenchmarkModel, setUseBenchmarkModel] = useState<boolean>(false);
+  const [chartType, setChartType] = useWorkspaceView<'area' | 'bar'>(currentUser.uid, 'chartType', 'area');
+  const [isChartExpanded, setIsChartExpanded] = useWorkspaceView<boolean>(currentUser.uid, 'isChartExpanded', false);
+  const [useBenchmarkModel, setUseBenchmarkModel] = useWorkspaceView<boolean>(currentUser.uid, 'useBenchmarkModel', false);
   const isMounted = React.useSyncExternalStore(
     () => () => {},
     () => true,
@@ -593,9 +595,6 @@ export default function PortfolioPage() {
               <h1 className="ha-title">
                 Portfolio overview
               </h1>
-              <p className="ha-summary">
-                Track partner relationships, sourced leads and audit activity.
-              </p>
             </div>
 
             {/* Management View Selector: Inspect different Portfolio Owners */}
@@ -803,7 +802,7 @@ export default function PortfolioPage() {
           </div>
 
           {/* Recharts-based 6-Month Growth Trend: Lead Generation Volume vs Tenancy Conversions */}
-          <div className="mt-6 rounded-2xl border border-[#E8E6E1] bg-[#FFFFFF] p-5 shadow-2xs space-y-4">
+          <div className="portfolio-growth" data-expanded={isChartExpanded}>
             {/* Header with Title, Stats & View Controls */}
             <div className="flex flex-col gap-3 border-b border-[#E8E6E1] pb-4">
               <div>
@@ -839,6 +838,7 @@ export default function PortfolioPage() {
                   </div>
                 </div>
 
+                {isChartExpanded && <>
                 {/* Benchmark Mode Toggle */}
                 <button
                   type="button"
@@ -887,13 +887,14 @@ export default function PortfolioPage() {
                   </button>
                 </div>
 
+                </>}
                 {/* Collapse / Expand Toggle */}
                 <button
                   type="button"
                   aria-expanded={isChartExpanded}
                   onClick={() => setIsChartExpanded(!isChartExpanded)}
                   className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] p-1.5 text-[#6B6860] hover:bg-[#F7F6F3] hover:text-[#1A1A1A] cursor-pointer"
-                  title={isChartExpanded ? 'Collapse Growth Chart' : 'Expand Growth Chart'}
+                  aria-label={isChartExpanded ? 'Collapse growth chart' : 'Expand growth chart'} title={isChartExpanded ? 'Collapse growth chart' : 'Expand growth chart'}
                 >
                   {isChartExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </button>
@@ -1067,8 +1068,7 @@ export default function PortfolioPage() {
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
                 }`}
               >
-                <Users className="h-4 w-4" />
-                Generated Leads ({metrics.totalLeads})
+                Leads ({metrics.totalLeads})
               </button>
               <button
                 aria-pressed={activeTab === 'partners'}
@@ -1079,8 +1079,7 @@ export default function PortfolioPage() {
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
                 }`}
               >
-                <Building className="h-4 w-4" />
-                Onboarded Partners ({metrics.totalPartners})
+                Partners ({metrics.totalPartners})
               </button>
               <button
                 aria-pressed={activeTab === 'audit'}
@@ -1091,8 +1090,7 @@ export default function PortfolioPage() {
                     : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
                 }`}
               >
-                <ShieldCheck className="h-4 w-4" />
-                Platform Audit Trail ({auditMetrics.total})
+                Activity log ({auditMetrics.total})
               </button>
             </div>
 

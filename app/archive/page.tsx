@@ -1,5 +1,6 @@
 'use client';
 
+import { useWorkspaceView } from '@/hooks/use-workspace-view';
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { useHearthAway } from '@/lib/context';
@@ -18,7 +19,8 @@ export default function ArchivePage() {
 
 function ArchivedLeads() {
   const [rows, setRows] = useState<ArchivedStudent[] | null>(null);
-  const [search, setSearch] = useState('');
+  const { currentUser } = useHearthAway();
+  const [search, setSearch] = useWorkspaceView<string>(currentUser.uid, 'search', '');
   const [error, setError] = useState('');
   useEffect(() => onSnapshot(query(collection(db, 'archivedStudents'), orderBy('archivedAt', 'desc')), (snapshot) => {
     setRows(snapshot.docs.map((row) => row.data() as ArchivedStudent));
@@ -29,7 +31,7 @@ function ArchivedLeads() {
   }), []);
   const term = search.trim().toLowerCase();
   const visible = rows?.filter((lead) => [lead.fullName, lead.studentId, lead.email, lead.phone, lead.partnerName, lead.archivalReason]
-    .some((value) => value?.toLowerCase().includes(term)));
+    .some((value) => String(value ?? '').toLowerCase().includes(term)));
 
   return (
     <section className="ha-workspace">
@@ -42,12 +44,12 @@ function ArchivedLeads() {
       </label>
       {error ? <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p> :
         !visible ? <p role="status" className="mt-4 text-sm">Loading archive…</p> :
-        visible.length === 0 ? <p className="mt-4 text-sm text-ha-secondary">No archived leads match this search.</p> :
-        <ul className="mt-4 space-y-2">
+        visible.length === 0 ? <p className="mt-4 text-sm text-ha-secondary">{term ? 'No archived leads match this search.' : 'Archived leads will appear here.'}</p> :
+        <ul className="archive-list mt-4">
           {visible.map((lead) => (
             <li key={lead.id} className="rounded-lg border border-ha-line bg-white p-3">
               <details>
-                <summary className="cursor-pointer font-semibold">{lead.fullName} <span className="ml-2 text-xs font-normal text-ha-secondary">{lead.studentId} · Inactive</span></summary>
+                <summary className="cursor-pointer py-2 font-semibold">{lead.fullName} <span className="ml-2 text-xs font-normal text-ha-secondary">{lead.studentId}</span></summary>
                 <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 [&_dt]:font-semibold [&_dd]:break-words">
                   <div><dt>Email</dt><dd>{lead.email}</dd></div>
                   <div><dt>Phone</dt><dd>{lead.phone}</dd></div>

@@ -66,6 +66,8 @@ export function LoginModal() {
   // Profile update state
   const [editName, setEditName] = useState(currentUser?.displayName || '');
   const [editAvatarUrl, setEditAvatarUrl] = useState(currentUser?.avatarUrl || '');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
   const [profileSaved, setProfileSaved] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
@@ -149,25 +151,19 @@ export function LoginModal() {
             ctx.drawImage(img, startX, startY, minDim, minDim, 0, 0, targetDim, targetDim);
             const compressed = canvas.toDataURL('image/jpeg', 0.88);
             setEditAvatarUrl(compressed);
-            updateCurrentUserProfile({ avatarUrl: compressed });
-            setProfileSaved(true);
-            setTimeout(() => setProfileSaved(false), 2500);
+            void saveProfile({ avatarUrl: compressed });
           } else {
             setEditAvatarUrl(rawDataUrl);
-            updateCurrentUserProfile({ avatarUrl: rawDataUrl });
-            setProfileSaved(true);
-            setTimeout(() => setProfileSaved(false), 2500);
+            void saveProfile({ avatarUrl: rawDataUrl });
           }
         } catch {
           setEditAvatarUrl(rawDataUrl);
-          updateCurrentUserProfile({ avatarUrl: rawDataUrl });
-          setProfileSaved(true);
-          setTimeout(() => setProfileSaved(false), 2500);
+          void saveProfile({ avatarUrl: rawDataUrl });
         }
       };
       img.onerror = () => {
         setEditAvatarUrl(rawDataUrl);
-        updateCurrentUserProfile({ avatarUrl: rawDataUrl });
+        void saveProfile({ avatarUrl: rawDataUrl });
       };
       img.src = rawDataUrl;
     };
@@ -179,27 +175,32 @@ export function LoginModal() {
 
   const handleRemovePhoto = () => {
     setEditAvatarUrl('');
-    updateCurrentUserProfile({ avatarUrl: '' });
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 2500);
+    void saveProfile({ avatarUrl: '' });
   };
 
   const handleSelectPreset = (url: string) => {
     setEditAvatarUrl(url);
-    updateCurrentUserProfile({ avatarUrl: url });
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 2500);
+    void saveProfile({ avatarUrl: url });
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editName.trim()) return;
-    updateCurrentUserProfile({
-      displayName: editName.trim(),
-      avatarUrl: editAvatarUrl,
-    });
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 2000);
+  async function saveProfile(updates: { displayName?: string; avatarUrl?: string }) {
+    setProfileSaving(true);
+    setProfileSaved(false);
+    setProfileError('');
+    try {
+      await updateCurrentUserProfile(updates);
+      setProfileSaved(true);
+    } catch {
+      setProfileError('Profile changes could not be saved. Try again.');
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  const handleSaveProfile = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (profileSaving || !editName.trim()) return;
+    void saveProfile({ displayName: editName.trim(), avatarUrl: editAvatarUrl });
   };
 
   const roleLabels: Record<string, string> = {
@@ -233,12 +234,12 @@ export function LoginModal() {
         {/* Modal Header: Clean Title without Logo */}
         <div className="mb-5">
           <h2 className="text-xl font-extrabold text-[#1A1A1A] tracking-tight">
-            {authModalTab === 'signin' ? 'Sign In' : 'Account & Profile Photo'}
+            {authModalTab === 'signin' ? 'Sign In' : 'Account settings'}
           </h2>
           <p className="text-xs text-[#6B6860] mt-1">
             {authModalTab === 'signin'
               ? 'Enter your work credentials to access your designated workspace'
-              : 'Update your display name, role settings, and custom profile photo'}
+              : 'Update your display name and photo.'}
           </p>
         </div>
 
@@ -542,23 +543,24 @@ export function LoginModal() {
                   id="loginmodal-edit-name"
                   type="text"
                   value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                  onChange={(e) => { setProfileSaved(false); setEditName(e.target.value); }}
                   className="w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-3 py-2 text-xs text-[#1A1A1A] focus:border-[#00319D] focus:outline-hidden"
                 />
               </div>
 
+              {profileError && <p role="alert">{profileError}</p>}
               {profileSaved && (
-                <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+                <p role="status" className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  Profile updated &amp; photo saved successfully!
+                  Profile saved.
                 </p>
               )}
 
               <button
-                type="submit"
+                type="submit" disabled={profileSaving}
                 className="w-full rounded-lg bg-[#00319D] py-2 text-xs font-bold text-[#FFFFFF] hover:bg-[#00257A] transition-colors cursor-pointer"
               >
-                Save Changes
+                {profileSaving ? 'Saving…' : 'Save changes'}
               </button>
             </form>
 
@@ -581,11 +583,10 @@ export function LoginModal() {
         onClose={() => setIsPhotoModalOpen(false)}
         currentAvatarUrl={editAvatarUrl || currentUser?.avatarUrl}
         userName={editName || currentUser?.displayName || currentUser?.email}
-        onSavePhoto={(newPhotoUrl) => {
-          setEditAvatarUrl(newPhotoUrl);
-          updateCurrentUserProfile({ avatarUrl: newPhotoUrl });
+        onSavePhoto={async avatarUrl => {
+          await updateCurrentUserProfile({ avatarUrl });
+          setEditAvatarUrl(avatarUrl);
           setProfileSaved(true);
-          setTimeout(() => setProfileSaved(false), 2000);
         }}
       />
     </WorkspaceDialog>

@@ -1,5 +1,8 @@
 'use client';
 
+import { WorkspaceNotice } from '@/components/WorkspaceNotice';
+import { useWorkspaceView } from '@/hooks/use-workspace-view';
+
 import { WorkspaceMetric } from '@/components/WorkspaceMetric';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
@@ -38,11 +41,14 @@ export default function FinancePage() {
     setSelectedStudentId,
   } = useHearthAway();
 
-  const [activeTab, setActiveTab] = useState<'payments' | 'bookings' | 'commissions'>('payments');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterPaymentStatus, setFilterPaymentStatus] = useState('All');
+  const [activeTab, setActiveTab] = useWorkspaceView<'payments' | 'bookings' | 'commissions'>(currentUser.uid, 'activeTab', 'payments');
+  const [searchQuery, setSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'searchQuery', '');
+  const [filterPaymentStatus, setFilterPaymentStatus] = useWorkspaceView<string>(currentUser.uid, 'filterPaymentStatus', 'All');
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [recordingPayment, setRecordingPayment] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [reviewing, setReviewing] = useState<string[]>([]);
+  const [reviewErrors, setReviewErrors] = useState<Record<string, string>>({});
   const [recordError, setRecordError] = useState('');
 
   // New Payment state
@@ -135,6 +141,7 @@ export default function FinancePage() {
         remarks: recordRemarks || 'Direct recorded by Finance Team.',
       });
       setShowRecordModal(false);
+      setNotice('Payment recorded.');
       setRecordAmount('');
       setRecordRemarks('');
     } catch {
@@ -143,6 +150,20 @@ export default function FinancePage() {
       setRecordingPayment(false);
     }
   };
+
+  async function reviewPayment(id: string, decision: 'Verified' | 'Rejected') {
+    if (reviewing.includes(id)) return;
+    setReviewing(ids => [...ids, id]);
+    setReviewErrors(errors => ({ ...errors, [id]: '' }));
+    try {
+      await verifyPaymentTransaction(id, decision, decision === 'Verified' ? 'Verified by Finance' : 'Insufficient proof of transfer');
+      setNotice(`Payment ${id} ${decision.toLowerCase()}.`);
+    } catch {
+      setReviewErrors(errors => ({ ...errors, [id]: 'Review could not be saved. Try again.' }));
+    } finally {
+      setReviewing(ids => ids.filter(value => value !== id));
+    }
+  }
 
   const handleExportPaymentsCSV = () => {
     exportToCSV(
@@ -208,6 +229,7 @@ export default function FinancePage() {
 
   return (
     <div className="ha-workspace">
+      <WorkspaceNotice message={notice} clear={setNotice} />
       {/* Top Header */}
       <div className="ha-page-header">
         <div>
@@ -216,9 +238,6 @@ export default function FinancePage() {
               <h1 className="ha-title">
                 Finance
               </h1>
-              <p className="ha-summary">
-                Ledger management, payment verification, tenancy bookings, and partner commission payouts.
-              </p>
             </div>
 
             <button
@@ -252,8 +271,7 @@ export default function FinancePage() {
                   : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
               }`}
             >
-              <CreditCard className="h-4 w-4" />
-              Payments Ledger ({payments.length})
+              Payments ({payments.length})
             </button>
             <button
               aria-pressed={activeTab === 'bookings'}
@@ -264,8 +282,7 @@ export default function FinancePage() {
                   : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
               }`}
             >
-              <FileText className="h-4 w-4" />
-              Bookings Ledger ({bookings.length})
+              Bookings ({bookings.length})
             </button>
             <button
               aria-pressed={activeTab === 'commissions'}
@@ -276,7 +293,6 @@ export default function FinancePage() {
                   : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
               }`}
             >
-              <Building className="h-4 w-4" />
               Partner Commissions ({partners.length})
             </button>
           </div>
@@ -340,7 +356,8 @@ export default function FinancePage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E8E6E1]">
-                    {filteredPayments.map((payment) => (
+                    {filteredPayments.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-ha-secondary">{searchQuery || filterPaymentStatus !== 'All' ? 'No payments match these filters.' : 'No payments recorded yet.'}</td></tr>}
+                  {filteredPayments.map((payment) => (
                       <tr key={payment.id} className="hover:bg-[#F7F6F3]/50">
                         <td className="py-3.5 px-4 font-mono font-bold text-[#00319D]">
                           {payment.paymentId}
@@ -384,18 +401,16 @@ export default function FinancePage() {
                         <td className="py-3.5 px-4 text-right">
                           {payment.paymentStatus === 'Pending Verification' ? (
                             <div className="flex items-center justify-end gap-1.5">
+                              {reviewing.includes(payment.paymentId) && <span role="status">Saving…</span>}
+                              {reviewErrors[payment.paymentId] && <span role="alert">{reviewErrors[payment.paymentId]}</span>}
                               <button
-                                onClick={() =>
-                                  verifyPaymentTransaction(payment.paymentId, 'Verified', 'Verified by Finance')
-                                }
+                                disabled={reviewing.includes(payment.paymentId)} onClick={() => reviewPayment(payment.paymentId, 'Verified')}
                                 className="rounded bg-emerald-600 px-2 py-1 text-xs font-bold text-[#FFFFFF] hover:bg-emerald-700 transition-colors"
                               >
                                 Verify
                               </button>
                               <button
-                                onClick={() =>
-                                  verifyPaymentTransaction(payment.paymentId, 'Rejected', 'Insufficient proof of transfer')
-                                }
+                                disabled={reviewing.includes(payment.paymentId)} onClick={() => reviewPayment(payment.paymentId, 'Rejected')}
                                 className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors"
                               >
                                 Reject
@@ -449,6 +464,7 @@ export default function FinancePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E8E6E1]">
+                  {bookings.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-ha-secondary">No bookings recorded yet.</td></tr>}
                   {bookings.map((booking) => (
                     <tr key={booking.id} className="hover:bg-[#F7F6F3]/50">
                       <td className="py-3.5 px-4 font-mono font-bold text-[#00319D]">{booking.bookingId}</td>
@@ -517,6 +533,7 @@ export default function FinancePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E8E6E1]">
+                  {partnerCommissionLedger.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-ha-secondary">No partner commissions to display.</td></tr>}
                   {partnerCommissionLedger.map((partner) => (
                     <tr key={partner.id} className="hover:bg-[#F7F6F3]/50">
                       <td className="py-3.5 px-4">
@@ -587,7 +604,7 @@ export default function FinancePage() {
                     id="finance-record-amount"
                     type="number"
                     required
-                    placeholder="e.g. 500"
+                    min="0.01" step="0.01" placeholder="0.00"
                     value={recordAmount}
                     onChange={(e) => setRecordAmount(e.target.value)}
                     className="w-full rounded-lg border border-[#E8E6E1] p-2 text-xs focus:border-[#00319D] focus:outline-none"

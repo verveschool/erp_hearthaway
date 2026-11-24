@@ -108,7 +108,7 @@ interface HearthAwayContextType {
     university?: string;
     avatarUrl?: string;
   }) => AppUser;
-  updateCurrentUserProfile: (updates: Partial<AppUser>) => void;
+  updateCurrentUserProfile: (updates: Partial<AppUser>) => Promise<void>;
   canAccessRoute: (pathname?: string | null) => AccessCheckResult;
 
   // Master Entities
@@ -651,8 +651,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const updateCurrentUserProfile = (updates: Partial<AppUser>) => {
+  const updateCurrentUserProfile = async (updates: Partial<AppUser>) => {
     if (!currentUser?.uid) return;
+    await setDoc(doc(db, 'users', currentUser.uid), updates, { merge: true });
     const updated = { ...currentUser, ...updates };
     setCurrentUser(updated);
     try {
@@ -662,9 +663,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       }
     } catch (e) {}
 
-    setDoc(doc(db, 'users', currentUser.uid), updated, { merge: true }).catch((err) => {
-      handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.uid}`);
-    });
   };
 
   const loginWithUser = (user: AppUser) => {
@@ -1544,28 +1542,31 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       minute: '2-digit',
     });
 
-    logStudentActivity(
-      payment.studentId,
-      decision === 'Verified' ? 'Payment Verified' : 'Payment Rejected',
-      `Payment ${payment.paymentId} (${payment.currency} ${payment.amount}) was ${decision.toLowerCase()} by ${currentUser.displayName} (${currentUser.role}). ${remarks ? `Note: ${remarks}` : ''}`,
-      payment.paymentStatus,
-      decision
-    );
-
-    if (decision === 'Verified') {
-      updateStudentDecoupledStatus(payment.studentId, {
-        bookingStatus: 'Booked',
-        commissionStatus: 'Due',
+    const paymentRef = doc(db, 'payments', docId);
+    const student = students.find(entry => entry.studentId === payment.studentId);
+    const studentRef = student && decision === 'Verified' ? doc(db, 'students', student.id) : null;
+    await runTransaction(db, async transaction => {
+      const stored = (await transaction.get(paymentRef)).data() as Payment | undefined;
+      if (!stored || stored.paymentStatus !== 'Pending Verification') throw new Error('Payment already reviewed or unavailable.');
+      const lead = studentRef ? (await transaction.get(studentRef)).data() as Student | undefined : undefined;
+      const audit = buildActivity(stored.studentId, `Payment ${decision}`,
+        `Payment ${stored.paymentId} (${stored.currency} ${stored.amount}) was ${decision.toLowerCase()} by ${currentUser.displayName}. ${remarks || ''}`,
+        stored.paymentStatus, decision);
+      transaction.set(doc(db, 'activities', audit.id), audit);
+      transaction.update(paymentRef, {
+        paymentStatus: decision, verifiedBy: `${currentUser.displayName} (${currentUser.role})`,
+        verificationTimestamp: formattedTimestamp, remarks: remarks ? [stored.remarks, remarks].filter(Boolean).join(' | ') : stored.remarks || '',
       });
-    }
-
-    updateDoc(doc(db, 'payments', docId), {
-      paymentStatus: decision,
-      verifiedBy: `${currentUser.displayName} (${currentUser.role})`,
-      verificationTimestamp: formattedTimestamp,
-      remarks: remarks ? `${payment.remarks || ''} | ${remarks}` : payment.remarks,
-    }).catch((err) => {
-      handleFirestoreError(err, OperationType.WRITE, `payments/${docId}`);
+      if (lead && studentRef) {
+        for (const [label, previous, next] of [['Booking Status', lead.bookingStatus, 'Booked'], ['Commission Status', lead.commissionStatus, 'Due']]) {
+          if (previous === next) continue;
+          const change = buildActivity(stored.studentId, label + ' Change', `Changed ${label} from "${previous || 'Unset'}" to "${next}"`, previous, next);
+          transaction.set(doc(db, 'activities', change.id), change);
+        }
+        transaction.update(studentRef, { bookingStatus: 'Booked', commissionStatus: 'Due', updatedAt: formattedTimestamp, lastActivityAt: formattedTimestamp });
+      } else if (student) {
+        transaction.update(doc(db, 'students', student.id), { lastActivityAt: formattedTimestamp });
+      }
     });
   };
 
