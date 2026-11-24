@@ -2,6 +2,7 @@
 
 import { LeadDetailsDialog } from '@/components/LeadDetailsDialog';
 import { getLeadOwner } from '@/lib/lead-details';
+import { parseLeadPhone } from '@/lib/lead-phone';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useHearthAway } from '@/lib/context';
@@ -97,16 +98,19 @@ export default function SalesPage() {
   )), [hideTestRecords, students]);
 
   const filteredStudents = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const phoneDigits = parseLeadPhone(query)?.digits;
     const matchingStudents = visibleStudents.filter((student) => {
       const matchSearch =
-        searchQuery === '' ||
-        student.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        student.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        student.destinationCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        student.university.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (student.partnerName && student.partnerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        getLeadOwner(student).name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (student.salesOwnerName || '').toLowerCase().includes(searchQuery.toLowerCase());
+        query === '' ||
+        student.fullName.toLowerCase().includes(query) ||
+        student.studentId.toLowerCase().includes(query) ||
+        student.destinationCity.toLowerCase().includes(query) ||
+        student.university.toLowerCase().includes(query) ||
+        (student.partnerName && student.partnerName.toLowerCase().includes(query)) ||
+        getLeadOwner(student).name.toLowerCase().includes(query) ||
+        (student.salesOwnerName || '').toLowerCase().includes(query) ||
+        (phoneDigits !== undefined && parseLeadPhone(student.phone)?.digits.includes(phoneDigits));
 
       const matchStage = filterStage === 'All' || (student.pipelineStage || 'New') === filterStage;
       const leadOwnerId = getLeadOwner(student).id;
@@ -249,7 +253,7 @@ export default function SalesPage() {
               <input
                 aria-label="Search sales leads"
                 type="text"
-                placeholder="Search leads"
+                placeholder="Search leads by name or phone"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-full w-full rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] pl-9 pr-3 py-2 text-xs text-[#1A1A1A] placeholder-[#6B6860] focus:border-[#00319D] focus:outline-none"
