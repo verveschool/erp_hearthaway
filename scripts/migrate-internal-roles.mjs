@@ -3,14 +3,23 @@ import { readFileSync } from 'node:fs';
 // supplied by the operator; never uses credentials from this repository.
 const args = process.argv.slice(2);
 const project = args.find(x => x.startsWith('--project='))?.slice(10);
+const database = args.find(x => x.startsWith('--database='))?.slice(11);
 const apply = args.includes('--apply');
 const manifestPath = args.find(x => x.startsWith('--manifest='))?.slice(11);
 const manifest = manifestPath ? JSON.parse(readFileSync(manifestPath, 'utf8')) : {};
 if (!manifest || Array.isArray(manifest) || typeof manifest !== 'object' || Object.values(manifest).some(role => !['admin', 'management'].includes(role))) throw new Error('Manifest must be a JSON object mapping exact Firebase UIDs to admin or management.');
-if (!project || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(project) || !process.env.GOOGLE_OAUTH_ACCESS_TOKEN || args.some(x => !x.startsWith('--project=') && x !== '--apply' && !x.startsWith('--manifest='))) {
-  console.error('Usage: GOOGLE_OAUTH_ACCESS_TOKEN=<token> node scripts/migrate-internal-roles.mjs --project=<project-id> [--manifest=reviewed-uid-map.json] [--apply]');
+if (!project || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(project)
+    || !database || (database !== '(default)' && !/^[a-z][a-z0-9-]{2,61}[a-z0-9]$/.test(database))
+    || args.filter(x => x.startsWith('--project=')).length !== 1
+    || args.filter(x => x.startsWith('--database=')).length !== 1
+    || args.filter(x => x.startsWith('--manifest=')).length > 1
+    || args.filter(x => x === '--apply').length > 1
+    || !process.env.GOOGLE_OAUTH_ACCESS_TOKEN
+    || args.some(x => !x.startsWith('--project=') && !x.startsWith('--database=') && x !== '--apply' && !x.startsWith('--manifest='))) {
+  console.error('Usage: GOOGLE_OAUTH_ACCESS_TOKEN=<token> node scripts/migrate-internal-roles.mjs --project=<project-id> --database=<database-id> [--manifest=reviewed-uid-map.json] [--apply]');
   process.exit(1);
 }
+console.log(`Target project: ${project}; Firestore database: ${database}; Firebase Auth claims are project-wide. Mode: ${apply ? 'APPLY' : 'DRY RUN'}`);
 const headers = { Authorization: `Bearer ${process.env.GOOGLE_OAUTH_ACCESS_TOKEN}`, 'Content-Type': 'application/json' };
 async function api(url, method = 'GET', body) {
   const r = await fetch(url, { method, headers, body: body && JSON.stringify(body), signal: AbortSignal.timeout(30000) });
@@ -19,7 +28,7 @@ async function api(url, method = 'GET', body) {
   return data;
 }
 const authBase = `https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts`;
-const store = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
+const store = `https://firestore.googleapis.com/v1/projects/${project}/databases/${database}/documents`;
 const mapping = { management: 'admin', sales: 'management', portfolio_owner: 'management' };
 let pageToken;
 const users = [];
@@ -56,7 +65,7 @@ for (const user of users) {
   // Firestore writes are committed together. Claim changes happen last, so a
   // failed directory/profile write cannot grant access. A failed claim update
   // can be safely retried, after reviewing the partial result.
-  const docName = `projects/${project}/databases/(default)/documents`;
+  const docName = `projects/${project}/databases/${database}/documents`;
   const writes = [{ update: { name: `${docName}/users/${user.localId}`, fields: { role: { stringValue: mapped } } }, updateMask: { fieldPaths: ['role'] }, currentDocument: { updateTime: profile.updateTime } }];
   for (const directory of ['leadOwnerDirectory', 'portfolioOwnerDirectory']) {
     writes.push({ update: { name: `${docName}/${directory}/${user.localId}`, fields: { displayName: { stringValue: displayName } } }, updateMask: { fieldPaths: ['displayName'] } });
