@@ -65,9 +65,9 @@ export default function ActivityPage() {
       { header: 'Actor role', accessor: event => event.performedBy?.role },
       { header: 'Target entity', accessor: event => event.studentId },
       ...(!isAdmin ? [] : [
-        { header: 'Audit description', accessor: event => event.description },
-        { header: 'Previous value', accessor: event => event.oldValue },
-        { header: 'New value', accessor: event => event.newValue },
+        { header: 'Audit description', accessor: (event: Activity) => event.description },
+        { header: 'Previous value', accessor: (event: Activity) => event.oldValue },
+        { header: 'New value', accessor: (event: Activity) => event.newValue },
       ]),
     ], entries.map(({ event }) => event));
   }
