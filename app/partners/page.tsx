@@ -295,24 +295,6 @@ export default function PartnersPage() {
   const [newPortfolioOwnerId, setNewPortfolioOwnerId] = useState('');
   const [newCommissionRate, setNewCommissionRate] = useState('40');
 
-  const openNewPartner = () => {
-    setOnboardingPartner(null);
-    setOnboardingError('');
-    setNewCompanyName('');
-    setNewPartnerType('Study Abroad Consultant');
-    setNewContactPerson('');
-    setNewEmail('');
-    setNewPhone('');
-    setNewCity('Mumbai');
-    setNewState('Maharashtra');
-    setNewCountry('India');
-    setNewAgreementStatus('Active');
-    setNewAgreementType('Master Services Agreement (MSA)');
-    setNewAgreementTerms('40% Commission, 120-day payment window');
-    setNewPortfolioOwnerId('');
-    setNewCommissionRate('40');
-    setShowOnboardModal(true);
-  };
 
   const handleOpenAgreementModal = (partner: Partner) => {
     setSelectedAgreementPartner(partner);
@@ -733,11 +715,11 @@ export default function PartnersPage() {
 
               {isManagement && (
                 <button
-                  onClick={openNewPartner}
-                  aria-label="Onboard partner" title="Onboard partner" className="ha-primary-action workspace-primary"
+                  onClick={() => setShowSingleLeadModal(true)}
+                  aria-label="Add a lead" title="Add a lead" className="ha-primary-action workspace-primary"
                 >
                   <Plus size={21} aria-hidden="true" />
-                  <span className="workspace-action-text">Onboard partner</span>
+                  <span className="workspace-action-text">Add a lead</span>
                 </button>
               )}
 
@@ -1177,7 +1159,8 @@ export default function PartnersPage() {
             {viewMode === 'directory' && (
               <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
                 <div className="ha-table-scroll">
-                  <table className="ha-table">
+                  <table className="ha-table min-w-[1450px] table-fixed">
+                    <colgroup><col className="w-[190px]" /><col className="w-[130px]" /><col className="w-[140px]" /><col className="w-[150px]" /><col className="w-[200px]" /><col className="w-[150px]" /><col className="w-[210px]" /><col className="w-[90px]" /><col className="w-[190px]" /></colgroup>
                     <thead>
                       <tr>
                         <th scope="col" className="py-3 px-4 font-bold">Partner Agency</th>
@@ -1275,35 +1258,13 @@ export default function PartnersPage() {
                               </td>
 
                               <td className="py-3.5 px-4 text-right">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  {isManagement && (
-                                    <>
-                                      <button
-                                        onClick={() => openPartnerOnboarding(partner)}
-                                        className="rounded-md border border-[#00319D] bg-[#00319D]/5 px-2.5 py-1 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/10 cursor-pointer"
-                                      >
-                                        Edit
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeletePartner(partner)}
-                                        className="rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100 cursor-pointer"
-                                      >
-                                        Delete
-                                      </button>
-                                    </>
-                                  )}
-                                  <button
-                                    onClick={() => handleOpenAgreementModal(partner)} disabled={!isManagement}
-                                    className="rounded-md border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-1 text-xs font-bold text-[#1A1A1A] hover:bg-[#F7F6F3] transition-colors cursor-pointer"
-                                  >
-                                    Agreement
-                                  </button>
-                                  <button
-                                    onClick={() => setInspectPartnerId(partner.partnerId)}
-                                    className="rounded-md border border-[#E8E6E1] bg-[#F7F6F3] px-2.5 py-1 text-xs font-bold text-[#00319D] hover:bg-[#E8E6E1] transition-colors cursor-pointer"
-                                  >
-                                    Leads ({leadsCount})
-                                  </button>
+                                <div className="flex items-center justify-end gap-1">
+                                  {isManagement && <>
+                                    <button type="button" onClick={() => openPartnerOnboarding(partner)} className="workspace-icon-button" title="Edit partner" aria-label={`Edit ${partner.companyName}`}><Pencil size={16} aria-hidden="true" /></button>
+                                    <button type="button" onClick={() => handleDeletePartner(partner)} className="workspace-icon-button text-rose-700" title="Delete partner" aria-label={`Delete ${partner.companyName}`}><Trash2 size={16} aria-hidden="true" /></button>
+                                    <button type="button" onClick={() => handleOpenAgreementModal(partner)} className="workspace-icon-button" title="Manage agreement" aria-label={`Manage agreement for ${partner.companyName}`}><FileCheck size={16} aria-hidden="true" /></button>
+                                  </>}
+                                  <button type="button" onClick={() => setInspectPartnerId(partner.partnerId)} className="workspace-icon-button" title="View leads" aria-label={`View ${leadsCount} leads for ${partner.companyName}`}><Users size={16} aria-hidden="true" /></button>
                                 </div>
                               </td>
                             </tr>
@@ -1541,8 +1502,8 @@ export default function PartnersPage() {
                 <select className="mt-1 block w-full rounded-lg border border-ha-line p-2"
                   value={bulkPartnerId} onChange={(event) => setBulkPartnerId(event.target.value)} disabled={importing}>
                   <option value="">Choose a partner</option>
-                  <option value="direct">Direct lead</option>
-                  {filteredPartners.map((partner) => <option key={partner.id} value={partner.partnerId}>{partner.companyName}</option>)}
+                  {!isManagement && <option value="direct">Direct lead</option>}
+                  {partners.filter((partner) => currentUser.role !== 'portfolio_owner' || partner.portfolioOwnerId === currentUser.uid).map((partner) => <option key={partner.id} value={partner.partnerId}>{partner.companyName}</option>)}
                 </select>
               </label>
             )}
@@ -2020,8 +1981,9 @@ export default function PartnersPage() {
       )}
 
       {showSingleLeadModal && (
-        <LeadDetailsDialog title="Submit student lead" onClose={() => setShowSingleLeadModal(false)}
-          onSave={async (lead) => { await submitPartnerLead(lead); }} />
+        <LeadDetailsDialog title={isPartner ? "Submit student lead" : "Add a lead"} onClose={() => setShowSingleLeadModal(false)}
+          partners={isManagement ? partners : undefined} requirePartner={isManagement}
+          onSave={async (lead, partnerId) => { await submitPartnerLead(lead, partnerId); }} />
       )}
 
       {inspectPartnerId && !isPartner && (
