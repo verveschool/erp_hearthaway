@@ -28,7 +28,7 @@ async function profile(alias, role, name, claim, partnerId) {
   }
   if (claim) {
     await request(`${auth}/identitytoolkit.googleapis.com/v1/projects/${project}/accounts:update`, 'POST', {
-      localId: uid, customAttributes: JSON.stringify({ leadOperationsRole: claim }),
+      localId: uid, customAttributes: JSON.stringify({ internalRole: claim }),
     }, admin);
   }
   await fixture(`users/${uid}`, {
@@ -56,15 +56,17 @@ function fixture(path, values) {
   }, admin);
 }
 
+const adminUser = await profile('qa-admin', 'admin', 'QA Admin', 'admin');
 const manager = await profile('qa-management', 'management', 'QA Management', 'management');
-const owner = await profile('qa-portfolio', 'portfolio_owner', 'QA Portfolio Owner', 'portfolio_owner');
-const other = await profile('qa-other-portfolio', 'portfolio_owner', 'QA Other Portfolio', 'portfolio_owner');
-const sales = await profile('qa-sales', 'sales', 'QA Sales', 'sales');
-const secondRep = await profile('qa-sales-two', 'sales', 'QA Sales Two', 'sales');
+const owner = await profile('qa-portfolio', 'management', 'QA Portfolio Owner', 'management');
+const other = await profile('qa-other-portfolio', 'management', 'QA Other Portfolio', 'management');
+const sales = await profile('qa-sales', 'management', 'QA Sales', 'management');
+const secondRep = await profile('qa-sales-two', 'management', 'QA Sales Two', 'management');
 const partner = await profile('qa-partner', 'partner', 'QA Partner', undefined, 'PART-00001');
 await profile('qa-finance', 'finance', 'QA Finance');
 
 await Promise.all([
+  fixture(`leadOwnerDirectory/${adminUser}`, { displayName: 'QA Admin' }),
   fixture(`leadOwnerDirectory/${sales}`, { displayName: 'QA Sales' }),
   fixture(`leadOwnerDirectory/${secondRep}`, { displayName: 'QA Sales Two' }),
   fixture(`portfolioOwnerDirectory/${owner}`, { displayName: 'QA Portfolio Owner' }),
