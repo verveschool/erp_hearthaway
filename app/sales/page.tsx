@@ -324,21 +324,21 @@ export default function SalesPage() {
             <table className="ha-table sales-leads-table">
               <thead>
                 <tr>
-                  <th data-column="student" scope="col" className="py-3 px-4 font-bold">Student Name & ID</th>
-                  <th data-column="partner" scope="col" className="py-3 px-4 font-bold">Sourcing Partner</th>
-                  <th data-column="lead-owner" scope="col" className="py-3 px-4 font-bold">Lead Owner</th>
-                  <th data-column="sales-owner" scope="col" className="py-3 px-4 font-bold">Sales Owner</th>
-                  <th data-column="city" scope="col" className="py-3 px-4 font-bold"><span className="sales-city-label">City</span><span className="sales-university">University & City</span></th>
-                  <th data-column="pipeline" scope="col" className="py-3 px-4 font-bold">Pipeline</th>
-                  <th data-column="priority" scope="col" className="py-3 px-4 font-bold">Priority</th>
-                  <th data-column="created" scope="col" className="py-3 px-4 font-bold">
+                  <th data-column="student" scope="col" className="py-3 font-bold">Student Name & ID</th>
+                  <th data-column="partner" scope="col" className="py-3 font-bold">Sourcing Partner</th>
+                  <th data-column="lead-owner" scope="col" className="py-3 font-bold">Lead Owner</th>
+                  <th data-column="sales-owner" scope="col" className="py-3 font-bold">Sales Owner</th>
+                  <th data-column="city" scope="col" className="py-3 font-bold">City</th>
+                  <th data-column="pipeline" scope="col" className="py-3 font-bold">Pipeline</th>
+                  <th data-column="priority" scope="col" className="py-3 font-bold">Priority</th>
+                  <th data-column="created" scope="col" className="py-3 font-bold">
                     <button type="button" onClick={() => toggleSort('createdAt')} className="inline-flex items-center gap-1 hover:text-[#00319D]">
                       Created On
                       <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
                       <span className="sr-only">{sortColumn === 'createdAt' ? `sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}` : 'sort'}</span>
                     </button>
                   </th>
-                  <th data-column="activity" scope="col" className="py-3 px-4 font-bold">
+                  <th data-column="activity" scope="col" className="py-3 font-bold">
                     <button type="button" onClick={() => toggleSort('lastActivity')} className="inline-flex items-center gap-1 hover:text-[#00319D]">
                       Last Activity
                       <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
@@ -348,7 +348,7 @@ export default function SalesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8E6E1]">
-                {filteredStudents.length === 0 && <tr><td colSpan={9} className="p-8 text-center text-ha-secondary">No leads match this view.</td></tr>}
+                {filteredStudents.length === 0 && <tr><td colSpan={9} className="py-8 text-center text-ha-secondary">No leads match this view.</td></tr>}
                 {filteredStudents.map((student) => {
                   const leadActivities = activities
                     .filter((activity) => activity.studentId === student.studentId && !NON_QUALIFYING_ACTIVITY.test(activity.activityType))
@@ -362,7 +362,7 @@ export default function SalesPage() {
                       className="cursor-pointer transition-colors hover:bg-ha-canvas/60"
                       onClick={(event) => openStudent(student.studentId, event.currentTarget.querySelector('button'))}
                     >
-                      <td data-column="student" className="py-3.5 px-4">
+                      <td data-column="student" className="py-3.5">
                         <button type="button" title={student.fullName} aria-expanded={openStudentId === student.studentId}
                           className="text-left font-semibold text-ha-blue hover:underline [overflow-wrap:anywhere]"
                           onClick={(event) => { event.stopPropagation(); openStudent(student.studentId, event.currentTarget); }}>
@@ -371,7 +371,7 @@ export default function SalesPage() {
                         <div className="font-mono text-xs text-[#00319D]">{student.studentId}</div>
                       </td>
 
-                      <td data-column="partner" className="py-3.5 px-4">
+                      <td data-column="partner" className="py-3.5">
                         <div className="font-semibold text-[#1A1A1A]">
                           {student.partnerName || student.partnerId}
                         </div>
@@ -379,7 +379,7 @@ export default function SalesPage() {
                       </td>
 
                       {/* Lead Owner with inline reassignment */}
-                      <td data-column="lead-owner" className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                      <td data-column="lead-owner" className="py-3.5" onClick={(e) => e.stopPropagation()}>
                         <LeadFieldSelect
                           aria-label={`Lead owner for ${student.fullName}`}
                           value={getLeadOwner(student).id}
@@ -399,7 +399,7 @@ export default function SalesPage() {
                         </LeadFieldSelect>
                       </td>
 
-                      <td data-column="sales-owner" className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                      <td data-column="sales-owner" className="py-3.5" onClick={(e) => e.stopPropagation()}>
                         {['admin', 'management', 'sales'].includes(currentUser.role) && ['management', 'sales'].includes(leadOperationsRole) ? (
                           <LeadFieldSelect
                             aria-label={`Sales owner for ${student.fullName}`}
@@ -417,12 +417,11 @@ export default function SalesPage() {
                         ) : student.salesOwnerName || 'Unassigned'}
                       </td>
 
-                      <td data-column="city" className="py-3.5 px-4 align-top">
-                        <div className="text-[#1A1A1A] font-medium whitespace-normal break-words">{student.destinationCity}</div>
-                        <div title={student.university} className="sales-university line-clamp-3 text-xs text-[#6B6860] whitespace-normal break-words">{student.university}</div>
+                      <td data-column="city" className="py-3.5 align-top font-medium text-ha-ink">
+                        {student.destinationCity}
                       </td>
 
-                      <td data-column="pipeline" className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                      <td data-column="pipeline" className="py-3.5" onClick={(e) => e.stopPropagation()}>
                         <LeadFieldSelect
                           aria-label={`Pipeline stage for ${student.fullName}`}
                           value={student.pipelineStage || 'New'}
@@ -435,7 +434,7 @@ export default function SalesPage() {
                         </LeadFieldSelect>
                       </td>
 
-                      <td data-column="priority" className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                      <td data-column="priority" className="py-3.5" onClick={(e) => e.stopPropagation()}>
                         <LeadFieldSelect
                           aria-label={`Priority for ${student.fullName}`}
                           value={student.priority || 'Medium'}
@@ -446,11 +445,11 @@ export default function SalesPage() {
                         </LeadFieldSelect>
                       </td>
 
-                      <td data-column="created" className="py-3.5 px-4 whitespace-normal text-[#1A1A1A]">
+                      <td data-column="created" className="py-3.5 whitespace-normal text-[#1A1A1A]">
                         {formatLeadDate(student.createdAt)}
                       </td>
 
-                      <td data-column="activity" className="py-3.5 px-4 whitespace-normal text-[#6B6860]">
+                      <td data-column="activity" className="py-3.5 whitespace-normal text-[#6B6860]">
                         {formatLeadDate(lastActivity, true)}
                       </td>
                     </tr>
