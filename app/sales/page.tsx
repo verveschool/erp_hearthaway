@@ -258,14 +258,6 @@ export default function SalesPage() {
                 <Download size={22} aria-hidden="true" />
               </button>
             </div>
-
-            <button
-              onClick={() => setShowAddLeadModal(true)}
-              className="ha-primary-action sales-desktop-add"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Sales Lead
-            </button>
           </div>
 
           <div className="sales-pipeline-cards grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
@@ -294,6 +286,10 @@ export default function SalesPage() {
             <div id="sales-search-field" className="sales-search-field" data-open={searchOpen}>
               <WorkspaceSearch inputRef={search} label="Search sales leads" placeholder="Search leads by name or phone" value={searchQuery} onChange={setSearchQuery} />
             </div>
+            <button type="button" aria-label="Add Sales Lead" title="Add Sales Lead" onClick={() => setShowAddLeadModal(true)}
+              className="sales-desktop-add items-center justify-center rounded-lg border border-ha-blue bg-ha-blue/5 text-ha-blue hover:bg-ha-blue/15">
+              <Plus size={20} aria-hidden="true" />
+            </button>
 
             <div id="sales-filter-fields" data-open={filtersOpen} className="sales-filter-fields">
               {[

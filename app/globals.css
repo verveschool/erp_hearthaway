@@ -345,13 +345,27 @@ html:has(.ha-dialog[open]) { overflow: hidden; scrollbar-gutter: stable; }
 }
 
 @media (min-width: 64rem) {
+  @container sales-queue (min-width: 49rem) {
+    .sales-leads-table th[data-column="student"] { width: 18%; }
+    .sales-leads-table th[data-column="partner"] { width: 15%; }
+    .sales-leads-table th[data-column="city"] { width: 14%; }
+  }
+
+  @container sales-queue (min-width: 59rem) {
+    .sales-leads-table th[data-column="student"] { width: 14%; }
+    .sales-leads-table th[data-column="partner"] { width: 12%; }
+    .sales-leads-table th:is([data-column="lead-owner"], [data-column="sales-owner"]) { width: 11.5%; }
+    .sales-leads-table th[data-column="city"] { width: 10.5%; }
+    .sales-leads-table th[data-column="priority"] { width: 10.5%; }
+  }
+
   .sales-lead-workspace {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
   }
 
   .sales-lead-workspace:not(:has(.sales-lead-divider)) .sales-leads-table [data-column] { display: table-cell; }
-  .sales-lead-workspace:not(:has(.sales-lead-divider)) th[data-column="student"] { width: 16%; }
+  .sales-lead-workspace:not(:has(.sales-lead-divider)) th[data-column="student"] { width: 14%; }
 
   .sales-lead-scroll, .sales-lead-panel {
     min-height: 0;
@@ -443,9 +457,8 @@ html:has(.sales-page) { overflow: hidden; }
 .sales-page-header { position: relative; flex: none; padding: clamp(.75rem, 1.9vh, 1.25rem); }
 .sales-page-header, .sales-filter-bar { display: grid; gap: .5rem; }
 .sales-toolbar-actions, .sales-mobile-lead-count, .sales-mobile-clear-stage { display: none; }
-.sales-desktop-export { display: none; }
+.sales-desktop-add, .sales-desktop-export { display: none; }
 .sales-toolbar-fields, .sales-filter-fields { display: grid; gap: .5rem; min-width: 0; }
-.sales-toolbar-fields { grid-template-columns: minmax(0, 1fr) auto auto; }
 .sales-search-field { display: flex; min-width: 0; }
 .sales-filter-fields { grid-template-columns: repeat(4, minmax(0, auto)); }
 .sales-filter-fields > select { min-width: 0; min-height: 2.25rem; }
@@ -517,9 +530,18 @@ html:has(.sales-page) { overflow: hidden; }
     border-radius: .75rem;
     background: var(--ha-warm-gray);
   }
-  .sales-desktop-export { display: inline-flex; }
+  .sales-toolbar-fields { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+  .sales-desktop-add, .sales-desktop-export { display: inline-flex; }
   .sales-leads-table { font-size: .8125rem; }
-  .sales-leads-table thead { font-size: .75rem; }
+  .sales-leads-table thead th { font-size: .75rem; }
+  .sales-leads-table tbody {
+    font-size: .6875rem;
+    line-height: 1.21875rem;
+  }
+  .sales-leads-table select {
+    padding-inline: .25rem;
+    text-overflow: ellipsis;
+  }
   .lead-mobile-only { display: none; }
 
   .lead-record-controls {
@@ -592,7 +614,7 @@ html:has(.sales-page) { overflow: hidden; }
     font-size: .625rem;
     line-height: 1.25;
   }
-  .sales-page .sales-desktop-add, .sales-pipeline-cards { display: none; }
+  .sales-pipeline-cards { display: none; }
   .sales-filter-bar, .sales-toolbar-fields { display: block; }
   .sales-search-field { margin-top: .25rem; }
   .sales-search-field[data-open="false"] { display: none; }
@@ -689,7 +711,7 @@ html:has(.sales-page) { overflow: hidden; }
   .lead-record-layout, .ha-drawer:has(.lead-record-layout) { animation: none; transition: none; }
 }
 .lead-record-layout .lead-record-controls > .lead-assignment-fields > label { min-height: 0; }
-.sales-leads-table td[data-column="student"] > div { font-size: .75rem; color: var(--ha-muted); }
+.sales-leads-table td[data-column="student"] > div { font-size: min(.75rem, 1em); color: var(--ha-muted); }
 .lead-summary, .lead-record-layout .ha-drawer-body { overflow-wrap: anywhere; }
 @media (max-width: 63.99rem) {
   html:has(.ha-drawer[open]) { scrollbar-gutter: auto; }
