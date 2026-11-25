@@ -460,7 +460,7 @@ html:has(.sales-page) { overflow: hidden; }
 .sales-desktop-add, .sales-desktop-export { display: none; }
 .sales-toolbar-fields, .sales-filter-fields { display: grid; gap: .5rem; min-width: 0; }
 .sales-search-field { display: flex; min-width: 0; }
-.sales-filter-fields { grid-template-columns: repeat(4, minmax(0, auto)); }
+.sales-filter-fields { grid-template-columns: repeat(3, minmax(0, auto)); }
 .sales-filter-fields > select { min-width: 0; min-height: 2.25rem; }
 .sales-lead-search > svg { top: 50%; transform: translateY(-50%); }
 .sales-lead-search input { min-height: 2.25rem; }
@@ -891,6 +891,10 @@ details[open] > .ha-disclosure > .ha-disclosure-chevron { transform: rotate(180d
   min-width: 0;
 }
 .workspace-filter-bar, .workspace-filter-fields { flex-wrap: wrap; }
+.finance-payment-search { display: flex; flex: 1 1 13rem; align-items: center; gap: .5rem; min-width: 0; }
+.finance-payment-search .ha-search { flex: 1; min-width: 0; }
+.ha-workspace .workspace-add { flex-shrink: 0; background: var(--ha-blue); color: white; }
+.ha-workspace .workspace-add:is(:hover, :active) { background: var(--ha-blue-hover); }
 .workspace-filter-bar .ha-search { min-width: min(100%, 12rem); }
 .workspace-filter-fields > select { min-width: 0; max-width: 15rem; }
 .workspace-compact .workspace-toolbar :is(input, select):not([type=checkbox]) { min-height: 44px; }
@@ -987,4 +991,36 @@ details[open] > .ha-disclosure > .ha-disclosure-chevron { transform: rotate(180d
     font-size: .8125rem;
     padding-inline: .375rem .15rem;
   }
+}
+
+
+
+.activity-table :is(th, td) { padding: .75rem; vertical-align: top; }
+.activity-table td { overflow-wrap: anywhere; }
+.activity-table td[data-label="Audit description"] { max-width: 25rem; }
+.activity-badge { display: inline-block; border-radius: .375rem; background: #f3f3f4; padding: .2rem .45rem; font-weight: 600; }
+.activity-badge[data-tone="stage"] { background: #e6efff; color: #00319d; }
+.activity-badge[data-tone="owner"] { background: #f2e8ff; color: #6628a3; }
+.activity-badge[data-tone="payment"] { background: #e5f5ec; color: #17633d; }
+@media (max-width: 767px) {
+  .activity-table td:is([data-label="Audit description"], [data-label="State transition"]) { grid-column: 1 / -1; }
+  .activity-table :is(th, td) { padding: .5rem; }
+}
+
+@media (min-width: 768px) {
+  .partners-workspace .partner-performance-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+
+.ha-workspace .workspace-add { width: 44px; height: 44px; padding: 0; }
+.workspace-heading-actions select, .workspace-filter-bar select, .finance-toolbar select { max-width: min(100%, 13rem); }
+.sales-source-toggle { display: none; }
+.sales-source-filters { display: contents; }
+@media (min-width: 64rem) {
+  .sales-filter-fields { grid-template-columns: repeat(4, minmax(0, auto)) 44px; }
+  .sales-filter-fields > select { max-width: clamp(7rem, 12vw, 13rem); }
+  .sales-source-toggle { display: inline-grid; }
+  .sales-source-toggle[data-active=true] { color: var(--ha-blue); border-color: var(--ha-blue); }
+  .sales-source-filters { display: none; grid-column: 1 / -1; gap: .5rem; }
+  .sales-source-filters[data-open=true] { display: flex; }
+  .sales-source-filters select { min-width: 0; max-width: 13rem; min-height: 44px; }
 }

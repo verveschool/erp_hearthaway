@@ -17,7 +17,7 @@ async function request(url, method, body, headers = {}) {
 }
 
 async function profile(alias, role, name, claim, partnerId) {
-  const email = `${alias}@example.invalid`;
+  const email = alias.includes('@') ? alias : `${alias}@example.invalid`;
   const credentials = { email, password, returnSecureToken: true };
   let uid;
   try {
@@ -28,9 +28,10 @@ async function profile(alias, role, name, claim, partnerId) {
   }
   if (claim) {
     await request(`${auth}/identitytoolkit.googleapis.com/v1/projects/${project}/accounts:update`, 'POST', {
-      localId: uid, customAttributes: JSON.stringify({ leadOperationsRole: claim }),
+      localId: uid, customAttributes: JSON.stringify(claim === 'lookup' ? { intakeLookup: true } : { internalRole: claim }),
     }, admin);
   }
+  if (claim === 'lookup') return uid;
   await fixture(`users/${uid}`, {
     uid, email, displayName: name, role, isApproved: true, status: 'approved',
     ...(partnerId ? { partnerId, partnerName: 'Example Education' } : {}),
@@ -56,15 +57,24 @@ function fixture(path, values) {
   }, admin);
 }
 
+await profile('lead-intake-reader@system.hearthaway.invalid', '', '', 'lookup');
+const adminUser = await profile('qa-admin', 'admin', 'QA Admin', 'admin');
 const manager = await profile('qa-management', 'management', 'QA Management', 'management');
-const owner = await profile('qa-portfolio', 'portfolio_owner', 'QA Portfolio Owner', 'portfolio_owner');
-const other = await profile('qa-other-portfolio', 'portfolio_owner', 'QA Other Portfolio', 'portfolio_owner');
-const sales = await profile('qa-sales', 'sales', 'QA Sales', 'sales');
-const secondRep = await profile('qa-sales-two', 'sales', 'QA Sales Two', 'sales');
+const owner = await profile('qa-portfolio', 'management', 'QA Portfolio Owner', 'management');
+const other = await profile('qa-other-portfolio', 'management', 'QA Other Portfolio', 'management');
+const sales = await profile('qa-sales', 'management', 'QA Sales', 'management');
+const secondRep = await profile('qa-sales-two', 'management', 'QA Sales Two', 'management');
+const disabled = await profile('qa-disabled', 'management', 'QA Disabled', 'management');
+await profile('qa-no-directory', 'management', 'QA No Directory', 'management');
 const partner = await profile('qa-partner', 'partner', 'QA Partner', undefined, 'PART-00001');
-await profile('qa-finance', 'finance', 'QA Finance');
+await profile('qa-partner-two', 'partner', 'Other Agency', undefined, 'PART-00002');
+await profile('qa-finance', 'finance', 'QA Finance', 'finance');
 
 await Promise.all([
+  fixture(`leadOwnerDirectory/${adminUser}`, { displayName: 'QA Admin' }),
+  fixture(`leadOwnerDirectory/${manager}`, { displayName: 'QA Management' }),
+  fixture(`leadOwnerDirectory/${disabled}`, { displayName: 'QA Disabled' }),
+  fixture(`users/${disabled}`, { uid: disabled, email: 'qa-disabled@example.invalid', displayName: 'QA Disabled', role: 'management', status: 'approved', isApproved: false }),
   fixture(`leadOwnerDirectory/${sales}`, { displayName: 'QA Sales' }),
   fixture(`leadOwnerDirectory/${secondRep}`, { displayName: 'QA Sales Two' }),
   fixture(`portfolioOwnerDirectory/${owner}`, { displayName: 'QA Portfolio Owner' }),
@@ -83,6 +93,11 @@ await Promise.all([
     phone: '+44 7700 900002', city: 'Bristol', state: 'Bristol', country: 'United Kingdom',
     portfolioOwnerId: other, portfolioOwnerName: 'QA Other Portfolio', agreementStatus: 'Active',
     status: 'Active', onboardingDate: '2026-01-01', commissionRate: 20,
+  }),
+  fixture('students/qa-other-lead', {
+    id: 'qa-other-lead', studentId: 'HA-2026-100099', fullName: 'Other Fixture Lead', firstName: 'Other', lastName: 'Fixture Lead',
+    email: 'other@example.invalid', phone: '+44 7700 900099', partnerId: 'PART-00002', pipelineStage: 'New',
+    destinationCity: 'Bristol', university: 'Other University', leadStatus: 'New', priority: 'Medium', archivalStatus: 'Active',
   }),
   fixture('students/qa-legacy-lead', {
     id: 'qa-legacy-lead', studentId: 'HA-2026-100001', fullName: 'Existing Fixture Lead',

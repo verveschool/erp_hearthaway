@@ -2,27 +2,14 @@
 
 import { PasswordField } from '@/components/PasswordField';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useHearthAway } from '@/lib/context';
 import { UserRole, AppUser } from '@/lib/types';
 import { Mail, Key, LogIn, AlertCircle, ArrowLeft, Send, CheckCircle2 } from 'lucide-react';
 
 function getDashboardForRole(role: UserRole): string {
-  switch (role) {
-    case 'partner':
-      return '/partners';
-    case 'portfolio_owner':
-      return '/portfolio';
-    case 'sales':
-      return '/sales';
-    case 'finance':
-      return '/finance';
-    case 'management':
-    case 'admin':
-    default:
-      return '/portfolio';
-  }
+  return role === 'finance' ? '/finance/payments' : '/partners';
 }
 
 const roleDisplayLabels: Record<string, string> = {
@@ -38,6 +25,7 @@ export default function HomePage() {
   const router = useRouter();
   const {
     currentUser,
+    authInitialized,
     canAccessRoute,
     isAuthenticated,
     loginWithUser,
@@ -57,15 +45,22 @@ export default function HomePage() {
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
 
+  const pendingRedirect = useRef('');
+
   // If already authenticated, redirect directly to the user's designated workspace
   useEffect(() => {
-    if (isAuthenticated && currentUser?.uid) {
+    if (authInitialized && isAuthenticated && currentUser?.uid) {
       const targetRoute = getDashboardForRole(currentUser.role);
       const requested = new URLSearchParams(window.location.search).get('returnTo');
-      const workspaces = ['/portfolio', '/sales', '/finance', '/management', '/archive', '/partners'];
-      router.replace(requested && workspaces.includes(requested) && canAccessRoute(requested).allowed ? requested : targetRoute);
+      const workspaces = ['/sales', '/activity', '/finance', '/management', '/archive', '/partners'];
+      if (!canAccessRoute(targetRoute).allowed) return;
+      const destination = requested && workspaces.includes(requested) && canAccessRoute(requested).allowed ? requested : targetRoute;
+      if (pendingRedirect.current !== destination) {
+        pendingRedirect.current = destination;
+        window.location.replace(destination);
+      }
     }
-  }, [isAuthenticated, currentUser, router, canAccessRoute]);
+  }, [authInitialized, isAuthenticated, currentUser, router, canAccessRoute]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();

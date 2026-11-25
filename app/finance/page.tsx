@@ -12,6 +12,8 @@ import { WorkspaceMetric } from '@/components/WorkspaceMetric';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useHearthAway } from '@/lib/context';
 import {
   CreditCard,
@@ -34,6 +36,12 @@ import {
 } from 'lucide-react';
 import { exportToCSV } from '@/lib/export-csv';
 
+const FINANCE_TABS = [
+  { id: 'payments', label: 'Payments' },
+  { id: 'bookings', label: 'Bookings' },
+  { id: 'commissions', label: 'Commissions' },
+] as const;
+
 export default function FinancePage() {
   const {
     bookings,
@@ -46,7 +54,8 @@ export default function FinancePage() {
     setSelectedStudentId,
   } = useHearthAway();
 
-  const [activeTab, setActiveTab] = useWorkspaceView<'payments' | 'bookings' | 'commissions'>(currentUser.uid, 'activeTab', 'payments');
+  const pathname = usePathname();
+  const activeTab = FINANCE_TABS.find(({ id }) => pathname === `/finance/${id}`)?.id || 'payments';
   const [searchQuery, setSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'searchQuery', '');
   const [filterPaymentStatus, setFilterPaymentStatus] = useWorkspaceView<string>(currentUser.uid, 'filterPaymentStatus', 'All');
   const [bookingSearch, setBookingSearch] = useWorkspaceView<string>(currentUser.uid, 'bookingSearch', '');
@@ -249,17 +258,6 @@ export default function FinancePage() {
                 Finance
               </h1>
             </div>
-
-            <button
-              onClick={() => {
-                setRecordStudentId((id) => students.some((student) => student.studentId === id) ? id : students[0]?.studentId || '');
-                setShowRecordModal(true);
-              }}
-              className="ha-primary-action workspace-primary" title="Record payment" aria-label="Record payment"
-            >
-              <Plus size={21} aria-hidden="true" />
-              <span className="workspace-action-text">Record payment</span>
-            </button>
           </div>
 
           {/* Metrics Ribbon */}
@@ -270,42 +268,14 @@ export default function FinancePage() {
             <WorkspaceMetric label="Partner Payouts Payable">£{metrics.totalPartnerPayouts.toLocaleString()}</WorkspaceMetric>
           </dl>
 
-          {/* Sub-Tabs */}
-          <div className="ha-tabs workspace-tabs mt-2 text-sm font-semibold">
-            <button
-              aria-pressed={activeTab === 'payments'}
-              onClick={() => setActiveTab('payments')}
-              className={`pb-3 transition-colors border-b-2 flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'payments'
-                  ? 'border-[#00319D] text-[#00319D]'
-                  : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
-              }`}
-            >
-              Payments
-            </button>
-            <button
-              aria-pressed={activeTab === 'bookings'}
-              onClick={() => setActiveTab('bookings')}
-              className={`pb-3 transition-colors border-b-2 flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'bookings'
-                  ? 'border-[#00319D] text-[#00319D]'
-                  : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
-              }`}
-            >
-              Bookings
-            </button>
-            <button
-              aria-pressed={activeTab === 'commissions'}
-              onClick={() => setActiveTab('commissions')}
-              className={`pb-3 transition-colors border-b-2 flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'commissions'
-                  ? 'border-[#00319D] text-[#00319D]'
-                  : 'border-transparent text-[#6B6860] hover:text-[#1A1A1A]'
-              }`}
-            >
-              Commissions
-            </button>
-          </div>
+          <nav aria-label="Finance" className="ha-tabs workspace-tabs mt-2 text-sm font-semibold">
+            {FINANCE_TABS.map(({ id, label }) => (
+              <Link key={id} href={`/finance/${id}`} aria-current={activeTab === id ? 'page' : undefined}
+                className={`inline-flex min-h-11 items-center justify-center pb-3 border-b-2 transition-colors ${activeTab === id ? 'border-ha-blue text-ha-blue' : 'border-transparent text-ha-secondary hover:text-ha-ink'}`}>
+                {label}
+              </Link>
+            ))}
+          </nav>
         </div>
       </div>
 
@@ -314,7 +284,16 @@ export default function FinancePage() {
         {activeTab === 'payments' && (
           <div className="space-y-4">
             <div className="workspace-toolbar finance-toolbar">
-              <WorkspaceSearch label="Search payments" placeholder="Search payments" value={searchQuery} onChange={setSearchQuery} />
+              <div className="finance-payment-search">
+                <WorkspaceSearch label="Search payments" placeholder="Search payments" value={searchQuery} onChange={setSearchQuery} />
+                <button type="button" aria-label="Record payment" title="Record payment" className="workspace-icon-button workspace-add"
+                  onClick={() => {
+                    setRecordStudentId(id => students.some(student => student.studentId === id) ? id : students[0]?.studentId || '');
+                    setShowRecordModal(true);
+                  }}>
+                  <Plus size={20} aria-hidden="true" />
+                </button>
+              </div>
 
               <div className="flex flex-wrap items-center gap-2">
                 <select

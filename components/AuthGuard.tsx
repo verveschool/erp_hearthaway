@@ -120,16 +120,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   // Case 2: Insufficient Role (403 Forbidden)
-  const defaultAllowedRoute =
-    currentUser.role === 'partner'
-      ? '/partners'
-      : currentUser.role === 'portfolio_owner'
-      ? '/portfolio'
-      : currentUser.role === 'finance'
-      ? '/finance'
-      : currentUser.role === 'management' || currentUser.role === 'admin'
-      ? '/portfolio'
-      : '/sales';
+  const defaultAllowedRoute = '/partners';
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center py-12 px-4 sm:px-6">

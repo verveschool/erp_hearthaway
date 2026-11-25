@@ -99,7 +99,6 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
     payments,
     bookings,
     currentUser,
-    availableUsers,
     leadOwnerOptions,
     updateStudentDecoupledStatus,
     uploadPaymentTransaction,
@@ -203,6 +202,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
     if (canLeave()) onClose();
   }
 
+  const canAccessFinance = currentUser.role === 'admin' || currentUser.role === 'finance';
   const isManagementUser = currentUser.role === 'management' || currentUser.role === 'admin';
 
   // Expected Revenue calculation (Hook must be top-level before early returns)
@@ -604,7 +604,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
               {contactError && <p role="alert" className="text-xs text-rose-700">{contactError}</p>}
               <div className="lead-assignment-fields mt-3 grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg border border-ha-line bg-white p-3">
                 {(() => {
-                  const salesUsers = leadOwnerOptions.length ? leadOwnerOptions : availableUsers.filter((u) => u.role === 'sales');
+                  const salesUsers = leadOwnerOptions;
 
                   return (
                     <>
@@ -675,13 +675,13 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
             <div role="tablist" aria-label="Lead records" className="lead-record-tabs mt-2 flex gap-3" onKeyDown={event => {
               const tabs = Array.from(event.currentTarget.querySelectorAll('button'));
               const index = tabs.indexOf(event.target as HTMLButtonElement);
-              const next = { ArrowLeft: (index + 2) % 3, ArrowRight: (index + 1) % 3, Home: 0, End: 2 }[event.key];
+              const next = { ArrowLeft: (index + tabs.length - 1) % tabs.length, ArrowRight: (index + 1) % tabs.length, Home: 0, End: tabs.length - 1 }[event.key];
               if (next === undefined) return;
               event.preventDefault();
               tabs[next].focus();
               tabs[next].click();
             }}>
-              {([['timeline', 'Activity', studentActivities.length], ['bookings', 'Bookings', studentBookings.length], ['payments', 'Payments', studentPayments.length]] as const).map(([id, label, count]) =>
+              {([['timeline', 'Activity', studentActivities.length], ['bookings', 'Bookings', studentBookings.length], ['payments', 'Payments', studentPayments.length]] as const).filter(([id]) => id === 'timeline' || canAccessFinance).map(([id, label, count]) =>
                 <button key={id} id={`lead-tab-${id}`} role="tab" aria-controls="lead-tab-panel" aria-selected={activeTab === id}
                   tabIndex={activeTab === id ? 0 : -1} onClick={() => setActiveTab(id)}>{label} ({count})</button>)}
             </div>
@@ -693,7 +693,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
             {/* ========================================================= */}
             {/* TAB: PROPERTY BOOKINGS */}
             {/* ========================================================= */}
-            {activeTab === 'bookings' && (
+            {canAccessFinance && activeTab === 'bookings' && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1252,7 +1252,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
             {/* ========================================================= */}
             {/* TAB: PAYMENTS & PROOF UPLOADS */}
             {/* ========================================================= */}
-            {activeTab === 'payments' && (
+            {canAccessFinance && activeTab === 'payments' && (
               <div className="space-y-6">
                 {/* Upload Terminal: Record Payment Transaction */}
                 <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-5 shadow-xs">

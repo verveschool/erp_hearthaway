@@ -1,6 +1,7 @@
 'use client';
 
 import { persistLeadActivity, persistNewBooking, persistBookingEdit } from './crm-record-writes';
+import { writeActivity } from './operational-activity';
 
 import { conversionText, validateConversion } from './payment-money';
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -57,6 +58,8 @@ import {
   updateDoc,
   onSnapshot,
   getDocsFromServer,
+  query,
+  where,
   runTransaction,
   serverTimestamp,
   writeBatch,
@@ -119,7 +122,7 @@ interface HearthAwayContextType {
     phone?: string;
     university?: string;
     avatarUrl?: string;
-  }) => AppUser;
+  }) => Promise<AppUser>;
   updateCurrentUserProfile: (updates: Partial<AppUser>) => Promise<void>;
   canAccessRoute: (pathname?: string | null) => AccessCheckResult;
 
@@ -129,6 +132,7 @@ interface HearthAwayContextType {
   bookings: Booking[];
   payments: Payment[];
   activities: Activity[];
+  activityError: boolean;
 
   // Workflows & Mutations with Audit Logs
   reassignPartnerPortfolioOwner: (partnerId: string, newOwnerId: string, newOwnerName: string) => Promise<void>;
@@ -137,6 +141,7 @@ interface HearthAwayContextType {
   editLeadDetails: (studentId: string, details: LeadDetails) => Promise<void>;
   archiveLead: (studentId: string, reason: string) => Promise<void>;
   leadOperationsRole: string;
+  internalRole: 'admin' | 'management' | '';
   leadOwnerOptions: Array<{ uid: string; displayName: string }>;
   portfolioOwnerOptions: Array<{ uid: string; displayName: string }>;
   setPartnerLeadTarget: (partnerId: string, season: string, promised: number) => Promise<void>;
@@ -267,10 +272,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [activityError, setActivityError] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [hideTestRecords, setHideTestRecords] = useState<boolean>(false);
-  const [operationsIdentity, setOperationsIdentity] = useState<{ uid: string; role: string } | null>(null);
-  const leadOperationsRole = operationsIdentity?.uid === currentUser.uid ? operationsIdentity?.role || '' : '';
+  const [operationsIdentity, setOperationsIdentity] = useState<{ uid: string; role: string; finance: boolean; internalRole: 'admin' | 'management' | '' } | null>(null);
+  const internalRole = operationsIdentity?.uid === currentUser.uid ? operationsIdentity.internalRole : '';
+  const hasFinanceRole = operationsIdentity?.uid === currentUser.uid && operationsIdentity.finance && currentUser.role === 'finance';
+  const leadOperationsRole = internalRole ? 'management' : '';
   const [leadOwnerOptions, setLeadOwnerOptions] = useState<Array<{ uid: string; displayName: string }>>([]);
   const [portfolioOwnerOptions, setPortfolioOwnerOptions] = useState<Array<{ uid: string; displayName: string }>>([]);
 
@@ -284,7 +292,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       }
       void getIdTokenResult(user).then(({ claims }) => {
         if (revision === currentRevision && auth.currentUser?.uid === user.uid) {
-          setOperationsIdentity({ uid: user.uid, role: typeof claims.leadOperationsRole === 'string' ? claims.leadOperationsRole : '' });
+          setOperationsIdentity({ uid: user.uid, finance: claims.internalRole === 'finance', role: typeof claims.leadOperationsRole === 'string' ? claims.leadOperationsRole : '', internalRole: claims.internalRole === 'admin' || claims.internalRole === 'management' ? claims.internalRole : (claims.internalRole === undefined || claims.internalRole === '') ? (claims.leadOperationsRole === 'management' ? 'admin' : claims.leadOperationsRole === 'sales' || claims.leadOperationsRole === 'portfolio_owner' ? 'management' : '') : '' });
         }
       }).catch(() => {});
     });
@@ -292,19 +300,23 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    if (leadOperationsRole !== 'management' && leadOperationsRole !== 'sales') return;
-    const watch = (directory: string, setOptions: typeof setLeadOwnerOptions) =>
-      onSnapshot(collection(db, directory), (snapshot) => {
-        if (auth.currentUser?.uid !== currentUser.uid) return;
-        setOptions(snapshot.docs.flatMap((entry) => {
-          const name = entry.data().displayName;
-          return typeof name === 'string' && name.trim() ? [{ uid: entry.id, displayName: name }] : [];
-        }).sort((a, b) => a.displayName.localeCompare(b.displayName)));
-      }, () => setOptions([]));
-    const stopLeadOwners = watch('leadOwnerDirectory', setLeadOwnerOptions);
-    const stopPortfolioOwners = leadOperationsRole === 'management'
-      ? watch('portfolioOwnerDirectory', setPortfolioOwnerOptions) : null;
-    return () => { stopLeadOwners(); stopPortfolioOwners?.(); };
+    if (leadOperationsRole !== 'management') return;
+    const directories: Record<string, Array<{ uid: string; displayName: string }>> = {};
+    const watch = (directory: string) => onSnapshot(collection(db, directory), (snapshot) => {
+      if (auth.currentUser?.uid !== currentUser.uid) return;
+      directories[directory] = snapshot.docs.flatMap((entry) => {
+        const name = entry.data().displayName;
+        return typeof name === 'string' && name.trim() ? [{ uid: entry.id, displayName: name }] : [];
+      });
+      const combined = Array.from(new Map(Object.values(directories).flat().map(item => [item.uid, item])).values())
+        .sort((a, b) => a.displayName.localeCompare(b.displayName));
+      setLeadOwnerOptions(combined);
+      setPortfolioOwnerOptions(combined);
+    }, () => { directories[directory] = []; });
+    const stopLeadOwners = watch('leadOwnerDirectory');
+    const stopPortfolioOwners = watch('portfolioOwnerDirectory');
+    return () => { stopLeadOwners(); stopPortfolioOwners(); };
+
   }, [leadOperationsRole, currentUser.uid]);
 
   // Resolve the Firebase identity before subscribing to workspace data.
@@ -342,14 +354,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       if (fbUser) {
         try {
           const cleanEmail = (fbUser.email || '').toLowerCase().trim();
-          const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com';
           const userRef = doc(db, 'users', fbUser.uid);
           const snap = await getDoc(userRef);
           if (!isCurrent()) return;
 
           if (snap.exists()) {
             const storedProfile = snap.data() as AppUser;
-            if (storedProfile.status === 'deleted' || storedProfile.deletedAt) {
+            if (storedProfile.status === 'deleted' || storedProfile.status === 'disabled' || storedProfile.deletedAt) {
               await signOut(auth);
               return;
             }
@@ -358,11 +369,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
               isApproved: storedProfile.isApproved ?? true,
               status: storedProfile.status ?? 'approved',
             };
-            if (isSuperAdmin && profile.role !== 'partner') {
-              profile.role = 'management';
-              await setDoc(userRef, { role: 'management' }, { merge: true });
-              if (!isCurrent()) return;
-            }
             setCurrentUser(profile);
             setIsAuthenticated(true);
             try {
@@ -374,7 +380,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
               uid: fbUser.uid,
               email: cleanEmail,
               displayName: fbUser.displayName || cleanEmail.split('@')[0] || 'User',
-              role: isSuperAdmin ? 'management' : 'portfolio_owner',
+              role: 'partner',
               avatarUrl: fbUser.photoURL || undefined,
               isApproved: true,
               status: 'approved',
@@ -410,13 +416,17 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    if (!firebaseSessionUid || auth.currentUser?.uid !== firebaseSessionUid) return;
+    if (!firebaseSessionUid || auth.currentUser?.uid !== firebaseSessionUid || operationsIdentity?.uid !== firebaseSessionUid) return;
     let active = true;
     const isCurrent = () => active && auth.currentUser?.uid === firebaseSessionUid;
 
     // Firestore stops a listener after a permission failure. Start fresh for each authenticated session.
+    const partnerScope = !internalRole && !hasFinanceRole;
+    const scoped = (name: string) => partnerScope
+      ? query(collection(db, name), where('partnerId', '==', currentUser.partnerId || '__unlinked__'))
+      : collection(db, name);
     const unsubStudents = onSnapshot(
-      collection(db, 'students'),
+      scoped('students'),
       (snapshot) => {
         if (!isCurrent()) return;
         const list = snapshot.docs.flatMap((docSnap) => {
@@ -438,7 +448,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     );
 
     const unsubPartners = onSnapshot(
-      collection(db, 'partners'),
+      scoped('partners'),
       (snapshot) => {
         if (!isCurrent()) return;
         const list = snapshot.docs.map((docSnap) => ({
@@ -453,7 +463,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       }
     );
 
-    const unsubBookings = onSnapshot(
+    const financeAccess = internalRole === 'admin' || hasFinanceRole;
+    const unsubBookings = financeAccess ? onSnapshot(
       collection(db, 'bookings'),
       (snapshot) => {
         if (!isCurrent()) return;
@@ -463,9 +474,9 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       (err) => {
         console.warn('Bookings listener status:', err.message);
       }
-    );
+    ) : () => {};
 
-    const unsubPayments = onSnapshot(
+    const unsubPayments = financeAccess ? onSnapshot(
       collection(db, 'payments'),
       (snapshot) => {
         if (!isCurrent()) return;
@@ -475,22 +486,31 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       (err) => {
         console.warn('Payments listener status:', err.message);
       }
-    );
+    ) : () => {};
 
-    const unsubActivities = onSnapshot(
-      collection(db, 'activities'),
-      (snapshot) => {
-        if (!isCurrent()) return;
-        const list = snapshot.docs.map((docSnap) => docSnap.data() as Activity);
-        setActivities(list);
+    const feeds = new Map<string, Activity[]>();
+    const failedFeeds = new Set<string>();
+    const publish = () => {
+      if (!isCurrent()) return;
+      setActivityError(failedFeeds.size > 0);
+      setActivities(Array.from(feeds.values()).flat());
+    };
+    const watchFeed = (name: string, notesOnly = false) => onSnapshot(
+      notesOnly ? query(collection(db, name), where('activityType', '==', 'Internal Note Added')) : collection(db, name),
+      snapshot => {
+        failedFeeds.delete(name);
+        feeds.set(name, snapshot.docs.map(entry => ({ description: '', ...entry.data(), id: entry.id } as Activity)));
+        publish();
       },
-      (err) => {
-        console.warn('Activities listener status:', err.message);
-      }
+      () => { failedFeeds.add(name); feeds.delete(name); publish(); }
     );
+    const stopFeeds = internalRole === 'management'
+      ? [watchFeed('operationalActivities'), watchFeed('activities', true)]
+      : internalRole === 'admin' ? [watchFeed('activities')] : [];
+    publish();
 
-    const unsubUsers = onSnapshot(
-      collection(db, 'users'),
+    const unsubUsers = internalRole ? onSnapshot(
+      internalRole === 'admin' ? collection(db, 'users') : query(collection(db, 'users'), where('role', 'in', ['partner', 'sales', 'portfolio_owner', 'management'])),
       (snapshot) => {
         if (!isCurrent()) return;
         const list = snapshot.docs
@@ -501,25 +521,31 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       (err) => {
         console.warn('Users listener status:', err.message);
       }
-    );
+    ) : () => {};
 
     return () => {
       active = false;
+      setStudents([]);
+      setPartners([]);
+      setBookings([]);
+      setPayments([]);
+      setAvailableUsers([]);
+      setActivities([]);
       unsubStudents();
       unsubPartners();
       unsubBookings();
       unsubPayments();
-      unsubActivities();
+      stopFeeds.forEach(stop => stop());
       unsubUsers();
     };
-  }, [firebaseSessionUid]);
+  }, [firebaseSessionUid, operationsIdentity?.uid, internalRole, currentUser.partnerId, hasFinanceRole]);
 
   const openAuthModal = (tab: 'signin' | 'signup' | 'manage' = 'signin') => {
     setAuthModalTab(tab);
     setIsLoginModalOpen(true);
   };
 
-  const createAccount = (data: {
+  const createAccount = async (data: {
     displayName: string;
     email: string;
     role: UserRole;
@@ -527,70 +553,55 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     phone?: string;
     university?: string;
     avatarUrl?: string;
-  }): AppUser => {
-    const isPartner = data.role === 'partner';
-    const partnerId = isPartner ? `PART-${Math.floor(10000 + Math.random() * 90000)}` : undefined;
-    // Use the Firebase Auth UID so Firestore ownership rules can authorize the write.
-    const uid = auth.currentUser?.uid || `user-${Date.now()}`;
+  }): Promise<AppUser> => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) throw new Error('Sign in before registering your agency.');
+    const partnerId = `PART-U-${uid}`;
     const cleanEmail = data.email.toLowerCase().trim();
-    const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com' || data.role === 'management' || data.role === 'admin';
     const newUser: AppUser = {
       uid,
       email: cleanEmail,
       displayName: data.displayName,
-      role: data.role,
+      role: 'partner',
       isApproved: true,
       status: 'approved',
-      ...(isPartner ? {
-        partnerId,
-        partnerName: data.partnerName || 'Independent Partner',
-      } : {}),
+      partnerId,
+      partnerName: data.partnerName || 'Independent Partner',
       ...(data.avatarUrl ? { avatarUrl: data.avatarUrl } : {}),
     };
 
+    const partnerRecord: Partner = {
+      id: partnerId,
+      partnerId,
+      accountUid: uid,
+      companyName: data.partnerName || data.displayName,
+      type: 'Study Abroad Consultant',
+      contactPerson: data.displayName,
+      email: cleanEmail,
+      phone: data.phone || '',
+      city: 'Mumbai',
+      state: 'Maharashtra',
+      country: 'India',
+      countries: ['India'],
+      cities: ['Mumbai'],
+      portfolioOwnerId: '',
+      portfolioOwnerName: '',
+      assignedManagerId: '',
+      assignedManagerName: '',
+      agreementStatus: 'Pending Review',
+      agreementType: 'Master Services Agreement (MSA)',
+      agreementTerms: '40% Commission, 120-day payment window',
+      agreementDocumentUrl: '',
+      status: 'Onboarding',
+      onboardingDate: new Date().toISOString().split('T')[0],
+      commissionRate: 40,
+    };
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'partners', partnerRecord.id), partnerRecord);
+    batch.set(doc(db, 'users', uid), newUser);
+    await batch.commit();
     setCurrentUser(newUser);
     setIsAuthenticated(true);
-    try {
-      localStorage.setItem('hearthaway_auth_uid', newUser.uid);
-      localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(newUser));
-    } catch (e) {}
-
-    setDoc(doc(db, 'users', uid), newUser).catch((err) => {
-      handleFirestoreError(err, OperationType.WRITE, `users/${uid}`);
-    });
-
-    if (isPartner) {
-      const partnerRecord: Partner = {
-        id: `part-${partnerId!.toLowerCase()}`,
-        partnerId: partnerId!,
-        accountUid: uid,
-        companyName: data.partnerName || data.displayName,
-        type: 'Study Abroad Consultant',
-        contactPerson: data.displayName,
-        email: cleanEmail,
-        phone: data.phone || '',
-        city: 'Mumbai',
-        state: 'Maharashtra',
-        country: 'India',
-        countries: ['India'],
-        cities: ['Mumbai'],
-        portfolioOwnerId: '',
-        portfolioOwnerName: '',
-        assignedManagerId: '',
-        assignedManagerName: '',
-        agreementStatus: 'Pending Review',
-        agreementType: 'Master Services Agreement (MSA)',
-        agreementTerms: '40% Commission, 120-day payment window',
-        agreementDocumentUrl: '',
-        status: 'Onboarding',
-        onboardingDate: new Date().toISOString().split('T')[0],
-        commissionRate: 40,
-      };
-      setDoc(doc(db, 'partners', partnerRecord.id), partnerRecord, { merge: true }).catch((err) => {
-        handleFirestoreError(err, OperationType.WRITE, `partners/${partnerRecord.id}`);
-      });
-    }
-
     setIsLoginModalOpen(false);
     return newUser;
   };
@@ -615,14 +626,12 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const updateUserRole = async (uid: string, role: UserRole) => {
-    if (uid === currentUser.uid) return;
-    await setDoc(doc(db, 'users', uid), { role }, { merge: true });
-    setAvailableUsers((previous) => previous.map((user) => user.uid === uid ? { ...user, role } : user));
+  const updateUserRole = async (_uid: string, _role: UserRole) => {
+    throw new Error('Access must be provisioned by an administrator.');
   };
 
   const deleteUser = async (uid: string) => {
-    if (!uid || uid === currentUser.uid || currentUser.role !== 'management' && currentUser.role !== 'admin') return;
+    if (!uid || uid === currentUser.uid || !internalRole) throw new Error('You cannot remove this account.');
     await setDoc(doc(db, 'users', uid), {
       status: 'deleted',
       deletedAt: new Date().toISOString(),
@@ -677,14 +686,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   };
 
-  const loginWithUser = (user: AppUser) => {
-    setCurrentUser(user);
-    setIsAuthenticated(true);
-    try {
-      localStorage.setItem('hearthaway_auth_uid', user.uid);
-      localStorage.setItem('hearthaway_current_user_profile', JSON.stringify(user));
-    } catch (e) {}
-    setIsLoginModalOpen(false);
+  const loginWithUser = (_user: AppUser) => {
+    throw new Error('Sign in with your Firebase account.');
   };
 
   const loginWithGoogle = async () => {
@@ -701,23 +704,21 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         if (snap.exists()) {
           profile = snap.data() as AppUser;
         } else {
-          const isSuperAdmin = userEmail === 'tribeverve@gmail.com';
           profile = {
             uid: user.uid,
             email: userEmail,
             displayName: user.displayName || 'Authenticated User',
-            role: isSuperAdmin ? 'management' : 'portfolio_owner',
+            role: 'partner',
             avatarUrl: user.photoURL || undefined,
           };
           await setDoc(userRef, profile);
         }
       } catch {
-        const isSuperAdmin = userEmail === 'tribeverve@gmail.com';
         profile = {
           uid: user.uid,
           email: userEmail,
           displayName: user.displayName || 'Authenticated User',
-          role: isSuperAdmin ? 'management' : 'portfolio_owner',
+          role: 'partner',
           avatarUrl: user.photoURL || undefined,
         };
       }
@@ -749,12 +750,11 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         if (snap.exists()) {
           profile = snap.data() as AppUser;
         } else {
-          const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com';
           profile = {
             uid: fbUser.uid,
             email: cleanEmail,
             displayName: fbUser.displayName || cleanEmail.split('@')[0],
-            role: isSuperAdmin ? 'management' : 'portfolio_owner',
+            role: 'partner',
           };
           await setDoc(userRef, profile);
         }
@@ -799,49 +799,32 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       return { allowed: true, requiredRoles: [] };
     }
 
-    if (!isAuthenticated || !currentUser?.uid) {
+    if (!isAuthenticated || !currentUser?.uid || auth.currentUser?.uid !== currentUser.uid || firebaseSessionUid !== currentUser.uid) {
       return { allowed: false, requiredRoles: [], reason: 'unauthenticated' };
     }
 
-    const cleanEmail = (currentUser.email || '').toLowerCase().trim();
-    const isSuperAdmin = cleanEmail === 'tribeverve@gmail.com' || currentUser.role === 'admin' || currentUser.role === 'management';
-
+    if (currentUser.status === 'disabled' || currentUser.status === 'deleted' || currentUser.deletedAt || currentUser.status === 'pending' || currentUser.isApproved === false) {
+      return { allowed: false, requiredRoles: [], reason: 'pending_approval' };
+    }
     const role = currentUser.role;
 
-    if (path === '/archive') {
-      const allowed = leadOperationsRole === 'management';
-      return { allowed, requiredRoles: ['management'], reason: allowed ? undefined : 'insufficient_role' };
-    }
-
-    if (role === 'admin' || role === 'management') {
-      return { allowed: true, requiredRoles: [] };
-    }
-
-    if (path.startsWith('/portfolio') || path.startsWith('/internal/management')) {
-      const requiredRoles: UserRole[] = ['admin', 'management', 'portfolio_owner'];
-      const allowed = requiredRoles.includes(role);
-      return { allowed, requiredRoles, reason: allowed ? undefined : 'insufficient_role' };
-    }
-
-    if (path.startsWith('/partners') || path.startsWith('/partner')) {
-      const requiredRoles: UserRole[] = ['admin', 'management', 'portfolio_owner', 'partner'];
-      const allowed = requiredRoles.includes(role);
-      return { allowed, requiredRoles, reason: allowed ? undefined : 'insufficient_role' };
-    }
-
-    if (path.startsWith('/sales') || path.startsWith('/internal/sales')) {
-      const requiredRoles: UserRole[] = ['admin', 'management', 'sales'];
-      const allowed = requiredRoles.includes(role);
-      return { allowed, requiredRoles, reason: allowed ? undefined : 'insufficient_role' };
-    }
-
+    const isInternal = internalRole === 'admin' || internalRole === 'management';
     if (path.startsWith('/finance') || path.startsWith('/internal/finance')) {
-      const requiredRoles: UserRole[] = ['admin', 'management', 'finance'];
-      const allowed = requiredRoles.includes(role);
-      return { allowed, requiredRoles, reason: allowed ? undefined : 'insufficient_role' };
+      const allowed = internalRole === 'admin' || hasFinanceRole;
+      return { allowed, requiredRoles: ['admin', 'finance'], reason: allowed ? undefined : 'insufficient_role' };
     }
-
-    return { allowed: true, requiredRoles: [] };
+    if (path.startsWith('/management')) {
+      const allowed = isInternal;
+      return { allowed, requiredRoles: ['admin','management'], reason: allowed ? undefined : 'insufficient_role' };
+    }
+    if (path.startsWith('/activity') || path.startsWith('/sales') || path.startsWith('/internal/sales') || path.startsWith('/archive') || path.startsWith('/portfolio') || path.startsWith('/internal/management')) {
+      return { allowed: isInternal, requiredRoles: ['admin', 'management'], reason: isInternal ? undefined : 'insufficient_role' };
+    }
+    if (path.startsWith('/partners') || path.startsWith('/partner')) {
+      const allowed = isInternal || role === 'partner';
+      return { allowed, requiredRoles: ['admin', 'management', 'partner'], reason: allowed ? undefined : 'insufficient_role' };
+    }
+    return { allowed: false, requiredRoles: [], reason: 'insufficient_role' };
   };
 
   const buildActivity = (
@@ -868,8 +851,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       timestamp: formattedTimestamp,
       performedBy: {
         userId: currentUser.uid || 'system',
-        name: currentUser.displayName || 'System User',
-        role: currentUser.role || 'management',
+        name: (internalRole && leadOwnerOptions.find((owner) => owner.uid === currentUser.uid)?.displayName) || currentUser.displayName || '',
+        role: internalRole && leadOwnerOptions.some((owner) => owner.uid === currentUser.uid) ? internalRole : (['admin', 'management'].includes(currentUser.role) ? 'unverified' : currentUser.role),
       },
       activityType,
       description,
@@ -906,13 +889,13 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         portfolioOwnerId: newOwnerId, portfolioOwnerName: newOwnerName,
         assignedManagerId: newOwnerId, assignedManagerName: newOwnerName,
       });
-      transaction.set(doc(db, 'activities', activity.id), activity);
+      writeActivity(transaction, db, activity);
     });
   };
 
   const updateLeadOwner = async (studentId: string, kind: 'lead' | 'sales', ownerId: string, ownerName: string) => {
     const student = students.find((entry) => entry.studentId === studentId);
-    if (!student || !['admin', 'management', 'sales'].includes(currentUser.role)) throw new Error('You cannot assign this lead.');
+    if (!student || !internalRole) throw new Error('You cannot assign this lead.');
     const nextName = ownerId ? ownerName : 'Unassigned';
     const label = kind === 'sales' ? 'Sales Owner' : 'Lead Owner';
     await runTransaction(db, async (transaction) => {
@@ -929,7 +912,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         assignedSalesExecutiveId: ownerId, assignedSalesExecutiveName: nextName,
       };
       transaction.update(reference, { ...changes, updatedAt: activity.timestamp });
-      transaction.set(doc(db, 'activities', activity.id), activity);
+      writeActivity(transaction, db, activity);
     });
   };
 
@@ -1042,12 +1025,11 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const intakeLock = doc(db, 'leadOperations', 'intake');
 
   function resolveLeadPartner(partnerId?: string) {
-    if (currentUser.role === 'partner') {
+    if (!internalRole) {
       if (!currentUser.partnerId) throw new Error('Your account has no linked partner.');
       return partners.find((partner) => partner.partnerId === currentUser.partnerId) ??
         { partnerId: currentUser.partnerId, companyName: currentUser.partnerName || 'Partner agency' };
     }
-    if (!['management', 'admin', 'sales'].includes(currentUser.role)) throw new Error('You cannot submit new leads.');
     if (!partnerId || partnerId === 'direct') return { partnerId: 'direct', companyName: 'Direct lead' };
     const partner = partners.find((entry) => entry.partnerId === partnerId);
     if (!partner) throw new Error('The selected partner is no longer available.');
@@ -1055,23 +1037,34 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   }
 
   async function getActiveLeads() {
-    const snapshot = await getDocsFromServer(collection(db, 'students'));
+    const snapshot = await getDocsFromServer(internalRole ? collection(db, 'students') : query(collection(db, 'students'), where('partnerId', '==', currentUser.partnerId || '__unlinked__')));
     return snapshot.docs.flatMap((entry) => {
       const lead = entry.data() as Student;
       return lead.archivalStatus === 'Archived' ? [] : [{ ...lead, id: entry.id }];
     });
   }
 
-  function makeLead(details: LeadDetails, partner: { partnerId: string; companyName: string }, existing: Student[], bulk: boolean) {
+  async function checkPartnerIntake(contacts: Pick<LeadDetails, 'email' | 'phone'>[], excludeId?: string) {
+    if (internalRole) return [];
+    const token = await auth.currentUser?.getIdToken();
+    const response = await fetch('/api/lead-intake/check', {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contacts: contacts.map(({ email, phone }) => ({ email, phone })), excludeId }),
+    });
+    if (!response.ok) throw new Error('Could not verify lead availability. Please retry.');
+    return await response.json() as { email: boolean; phone: boolean; studentId: string }[];
+  }
+
+  function makeLead(details: LeadDetails, partner: { partnerId: string; companyName: string }, existing: Student[], bulk: boolean, reservedId?: string) {
     const id = doc(collection(db, 'students')).id;
     const usedIds = new Set(existing.map((lead) => lead.studentId));
     const year = new Date().getFullYear();
     let studentId: string;
     do {
-      studentId = `HA-${year}-${Math.floor(100000 + Math.random() * 900000)}`;
-    } while (usedIds.has(studentId));
+      studentId = reservedId || `HA-${year}-${Math.floor(100000 + Math.random() * 900000)}`;
+    } while (!reservedId && usedIds.has(studentId));
     const [firstName, ...names] = details.fullName.split(/\s+/);
-    const activity = buildActivity(studentId, 'Lead Submitted', bulk ? 'Lead imported from CSV.' : 'Lead created individually.');
+    const activity = buildActivity(studentId, 'Lead Submitted', `${bulk ? 'Lead imported from CSV' : 'Lead created individually'}. Source: ${partner.companyName} (${partner.partnerId}).`);
     const record: Student = {
       id, studentId, firstName, lastName: names.join(' '), fullName: details.fullName,
       email: details.email, phone: details.phone, whatsApp: details.whatsApp || details.phone,
@@ -1110,13 +1103,14 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           const saved: Student[] = [];
           let duplicates = 0;
           let invalid = 0;
-          for (const item of chunk) {
+          const checks = await checkPartnerIntake(chunk);
+          for (const [index, item] of chunk.entries()) {
             const parsed = leadDetailsSchema.safeParse(item);
             if (!parsed.success) { invalid++; continue; }
-            if (leadConflictMessage(leadContactConflicts(parsed.data, existing))) { duplicates++; continue; }
-            const { record, activity } = makeLead(parsed.data, partner, existing, true);
+            if (checks[index]?.email || checks[index]?.phone || leadConflictMessage(leadContactConflicts(parsed.data, existing))) { duplicates++; continue; }
+            const { record, activity } = makeLead(parsed.data, partner, existing, true, checks[index]?.studentId);
             transaction.set(doc(db, 'students', record.id), record);
-            transaction.set(doc(db, 'activities', activity.id), activity);
+            writeActivity(transaction, db, activity, record.id);
             existing.push(record);
             saved.push(record);
           }
@@ -1142,11 +1136,12 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     return runTransaction(db, async (transaction) => {
       await transaction.get(intakeLock);
       const existing = await getActiveLeads();
-      const conflict = leadConflictMessage(leadContactConflicts(details, existing));
+      const [check] = await checkPartnerIntake([details]);
+      const conflict = leadConflictMessage(check || leadContactConflicts(details, existing));
       if (conflict) throw new Error(conflict);
-      const { record, activity } = makeLead(details, partner, existing, false);
+      const { record, activity } = makeLead(details, partner, existing, false, check?.studentId);
       transaction.set(doc(db, 'students', record.id), record);
-      transaction.set(doc(db, 'activities', activity.id), activity);
+      writeActivity(transaction, db, activity, record.id);
       transaction.set(intakeLock, { updatedAt: serverTimestamp() });
       return record;
     });
@@ -1163,11 +1158,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       const snapshot = await transaction.get(reference);
       if (!snapshot.exists()) throw new Error('This lead is no longer active.');
       const current = snapshot.data() as Student;
-      const partner = partners.find((entry) => entry.partnerId === current.partnerId);
-      const role = currentUser.role;
-      if (!['admin', 'management', 'sales'].includes(role) &&
-          !(role === 'partner' && currentUser.partnerId === current.partnerId) &&
-          !(role === 'portfolio_owner' && partner?.portfolioOwnerId === currentUser.uid)) {
+      if (!internalRole && (!currentUser.partnerId || currentUser.partnerId !== current.partnerId)) {
         throw new Error('You cannot edit this lead.');
       }
       const changedEmail = fields.email !== (current.email || '').trim().toLowerCase();
@@ -1181,7 +1172,8 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       const whatsApp = fields.whatsApp ? normalizeLeadPhone(fields.whatsApp) : '';
       if (changedWhatsApp && whatsApp === null) throw new Error('Enter a complete WhatsApp number or leave it blank.');
       if (changedEmail || (changedPhone && phone !== normalizeLeadPhone(current.phone))) {
-        const conflicts = leadContactConflicts(fields, (await getActiveLeads()).filter((entry) => entry.id !== lead.id));
+        const [check] = await checkPartnerIntake([fields], lead.id);
+        const conflicts = check || leadContactConflicts(fields, (await getActiveLeads()).filter((entry) => entry.id !== lead.id));
         const message = leadConflictMessage({ email: changedEmail && conflicts.email, phone: changedPhone && conflicts.phone });
         if (message) throw new Error(message);
       }
@@ -1196,7 +1188,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       if (!Object.keys(changed).length) return;
       const activity = buildActivity(studentId, 'Lead Details Updated', `Edited fields: ${Object.keys(changed).join(', ')}.`);
       transaction.update(reference, { ...changed, updatedAt: activity.timestamp });
-      transaction.set(doc(db, 'activities', activity.id), activity);
+      writeActivity(transaction, db, activity, lead.id);
       transaction.set(intakeLock, { updatedAt: serverTimestamp() });
     });
   };
@@ -1215,7 +1207,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         archivalReason: reason.trim(), archivedAt: new Date().toISOString(), archivedBy: currentUser.uid,
       });
       transaction.delete(source);
-      transaction.set(doc(db, 'activities', activity.id), activity);
+      writeActivity(transaction, db, activity);
       transaction.set(intakeLock, { updatedAt: serverTimestamp() });
     });
     setSelectedStudentId(null);
@@ -1223,8 +1215,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
   const setPartnerLeadTarget = async (partnerId: string, season: string, promised: number) => {
     const partner = partners.find((entry) => entry.partnerId === partnerId);
-    if (!partner || (leadOperationsRole !== 'management' &&
-        !(leadOperationsRole === 'portfolio_owner' && partner.portfolioOwnerId === currentUser.uid))) {
+    if (!partner || leadOperationsRole !== 'management') {
       throw new Error('You cannot edit this target.');
     }
     if (!intakeKey(season) || !Number.isSafeInteger(promised) || promised < 0) throw new Error('Enter a season and a whole number of leads.');
@@ -1282,7 +1273,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
           student.studentId, `${label} Change`,
           `Changed ${description} from "${previous}" to "${next}"`, previous, next
         );
-        transaction.set(doc(db, 'activities', activity.id), activity);
+        writeActivity(transaction, db, activity);
       }
       transaction.update(reference, { ...updates, updatedAt: new Date().toISOString() });
     });
@@ -1541,7 +1532,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       const audit = buildActivity(stored.studentId, `Payment ${decision}`,
         `Payment ${stored.paymentId} (${stored.currency} ${stored.amount}, ${conversionText(stored)}) was ${decision.toLowerCase()} by ${currentUser.displayName}. ${remarks || ''}`,
         stored.paymentStatus, decision);
-      transaction.set(doc(db, 'activities', audit.id), audit);
+      writeActivity(transaction, db, audit);
       transaction.update(paymentRef, {
         paymentStatus: decision, verifiedBy: `${currentUser.displayName} (${currentUser.role})`,
         verificationTimestamp: formattedTimestamp, remarks: remarks ? [stored.remarks, remarks].filter(Boolean).join(' | ') : stored.remarks || '',
@@ -1550,7 +1541,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         for (const [label, previous, next] of [['Booking Status', lead.bookingStatus, 'Booked'], ['Commission Status', lead.commissionStatus, 'Due']]) {
           if (previous === next) continue;
           const change = buildActivity(stored.studentId, label + ' Change', `Changed ${label} from "${previous || 'Unset'}" to "${next}"`, previous, next);
-          transaction.set(doc(db, 'activities', change.id), change);
+          writeActivity(transaction, db, change);
         }
         transaction.update(studentRef, { bookingStatus: 'Booked', commissionStatus: 'Due', updatedAt: formattedTimestamp, lastActivityAt: formattedTimestamp });
       } else if (student) {
@@ -1614,11 +1605,11 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   return (
     <HearthAwayContext.Provider
       value={{
-        currentUser,
+        currentUser: { ...currentUser, role: internalRole || (hasFinanceRole ? 'finance' : 'partner') },
         setCurrentUser,
         availableUsers,
     isAuthenticated,
-    authInitialized,
+    authInitialized: authInitialized && (!firebaseSessionUid || operationsIdentity?.uid === firebaseSessionUid),
     loginWithUser,
         loginWithGoogle,
         loginWithEmailPassword,
@@ -1641,12 +1632,14 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         bookings,
         payments,
         activities,
+        activityError,
         reassignPartnerPortfolioOwner,
         reassignLeadOwner,
         assignSalesOwner,
         editLeadDetails,
         archiveLead,
         leadOperationsRole,
+        internalRole,
         leadOwnerOptions,
         portfolioOwnerOptions,
         setPartnerLeadTarget,

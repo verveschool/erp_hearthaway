@@ -14,13 +14,13 @@ async function run() {
   const db = getFirestore(app);
   connectFirestoreEmulator(db, '127.0.0.1', 48081);
   try {
-    const { user } = await signInWithEmailAndPassword(auth, 'qa-sales@example.invalid', 'only-local-fixtures');
+    const { user } = await signInWithEmailAndPassword(auth, 'qa-admin@example.invalid', 'only-local-fixtures');
     const studentRef = doc(db, 'students', 'qa-legacy-lead');
     const student = (await getDocFromServer(studentRef)).data() as Student;
     assert.ok(student);
     const activity = (studentId: string, activityType: string, description: string, previous?: string, next?: string): Activity => ({
       id: `qa-${randomUUID()}`, activityId: `ACT-${randomUUID()}`, studentId, timestamp: new Date().toISOString(),
-      performedBy: { userId: user.uid, name: 'QA Sales', role: 'sales' }, activityType, description,
+      performedBy: { userId: user.uid, name: 'QA Admin', role: 'admin' }, activityType, description,
       ...(previous === undefined ? {} : { oldValue: previous }), ...(next === undefined ? {} : { newValue: next }),
     });
     const booking = { id: `qa-${randomUUID()}`, bookingId: 'QA-BOOKING', studentId: student.studentId, bookingStatus: 'Confirmed', propertyName: 'QA Property' } as Booking;

@@ -13,11 +13,11 @@ import type { AppUser, UserRole } from '@/lib/types';
 const roles: UserRole[] = ['management', 'portfolio_owner', 'sales', 'finance', 'partner'];
 
 export default function ManagementPage() {
-  const { currentUser, availableUsers, updateUserRole, deleteUser } = useHearthAway();
+  const { currentUser, availableUsers, internalRole, deleteUser } = useHearthAway();
   const [target, setTarget] = useState<AppUser | null>(null);
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useWorkspaceView<string>(currentUser.uid, 'search', '');
-  const isManagement = currentUser.role === 'management' || currentUser.role === 'admin';
+  const isManagement = !!internalRole;
 
   if (!isManagement) return <section className="p-8">You do not have access to user management.</section>;
   const visibleUsers = availableUsers.filter(user => [user.displayName, user.email, user.role.replace('_', ' ')].some(value => value?.toLowerCase().includes(search.trim().toLowerCase())));
@@ -28,6 +28,7 @@ export default function ManagementPage() {
       <div className="ha-page-header">
         <h1 className="ha-title">Users</h1>
       </div>
+      <p className="text-sm text-ha-secondary">Access is managed by a workspace administrator. Profile roles shown below do not grant permissions.</p>
       <div className="workspace-toolbar users-toolbar"><WorkspaceSearch label="Search users" placeholder="Search by name, email or role" value={search} onChange={setSearch} /><span role="status" className="text-sm text-ha-secondary">{visibleUsers.length} {visibleUsers.length === 1 ? 'user' : 'users'}</span></div>
       <div className="overflow-hidden rounded-xl border border-ha-line bg-white">
         <div className="hidden md:grid md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,.7fr)_auto] gap-4 border-b border-ha-line bg-ha-canvas px-4 py-2.5 text-xs font-semibold text-ha-secondary">
@@ -36,10 +37,7 @@ export default function ManagementPage() {
         {visibleUsers.map((user) => (
           <div key={user.uid} className="grid grid-cols-[minmax(0,1fr)_minmax(44px,auto)] md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,.7fr)_auto] items-center gap-x-3 gap-y-1.5 border-b border-ha-line px-4 py-2.5 last:border-0">
             <div className="min-w-0 break-words"><p className="font-medium text-ha-ink">{user.displayName || user.email}</p>{user.displayName && user.displayName !== user.email && <p className="text-xs text-ha-secondary">{user.email}</p>}</div>
-            <LeadFieldSelect aria-label={`Role for ${user.email}`} value={user.role} disabled={user.uid === currentUser.uid || target?.uid === user.uid}
-              onSave={role => updateUserRole(user.uid, role as UserRole)} className="min-w-0 rounded-lg border border-slate-300 px-2 py-2 text-sm">
-              {roles.map((role) => <option key={role} value={role}>{role.replace('_', ' ')}</option>)}
-            </LeadFieldSelect>
+            <span className="text-sm capitalize text-ha-secondary">{user.role.replace('_', ' ')} <span className="text-xs">(profile)</span></span>
             <span className="user-row-status text-sm capitalize text-ha-secondary">{user.status || (user.isApproved === false ? 'pending' : 'approved')}</span>
             <div className="user-row-action">
               {user.uid === currentUser.uid ? <span className="text-xs text-ha-secondary">You</span> : (
