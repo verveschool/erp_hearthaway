@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { connectAuthEmulator, getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { connectFirestoreEmulator, doc, getDocFromServer, getFirestore, serverTimestamp, setDoc, terminate, updateDoc } from 'firebase/firestore';
+import { collection, getDocsFromServer, query, where, connectFirestoreEmulator, doc, getDocFromServer, getFirestore, serverTimestamp, setDoc, terminate, updateDoc } from 'firebase/firestore';
 
 // This suite targets only the disposable demo project and loopback emulators.
 async function run() {
@@ -20,7 +20,7 @@ async function run() {
     const missingDirectoryOwner = await login('qa-no-directory');
     const partner = await login('qa-partner');
     const lead = doc(db, 'students', 'qa-access-lead');
-    await setDoc(lead, { studentId: 'HA-2026-100002', fullName: 'QA Intake', intake: 'Sep-27', leadStatus: 'New', archivalStatus: 'Active' });
+    await setDoc(lead, { studentId: 'HA-2026-100002', fullName: 'QA Intake', partnerId: 'PART-00001', intake: 'Sep-27', leadStatus: 'New', archivalStatus: 'Active' });
     assert.equal((await getDocFromServer(lead)).data()?.intake, 'Sep-27');
     await denied(updateDoc(lead, { leadOwnerId: validOwner.uid, assignedSalesExecutiveId: validOwner.uid }));
     await denied(getDocFromServer(doc(db, 'payments', 'private')));
@@ -28,7 +28,19 @@ async function run() {
     await denied(getDocFromServer(doc(db, 'operationalActivities', 'private')));
     await denied(setDoc(doc(db, 'users', partner.uid), { role: 'admin' }, { merge: true }));
 
+    await login('qa-partner-two');
+    await denied(getDocFromServer(lead));
+    await denied(updateDoc(lead, { intake: 'Sep-28' }));
+    await denied(getDocsFromServer(collection(db, 'students')));
+    const own = query(collection(db, 'students'), where('partnerId', '==', 'PART-00002'));
+    assert.deepEqual((await getDocsFromServer(own)).docs.map(d => d.id), ['qa-other-lead']);
+    await login('qa-finance');
+    await getDocFromServer(doc(db, 'payments', 'private'));
     await login('qa-management');
+    const note = doc(db, 'activities', 'qa-note');
+    await setDoc(note, { activityType: 'Internal Note Added', description: 'Saved note', performedBy: { userId: manager.uid } });
+    const notes = await getDocsFromServer(query(collection(db, 'activities'), where('activityType', '==', 'Internal Note Added')));
+    assert.ok(notes.docs.some(entry => entry.id === note.id && entry.data().description === 'Saved note'));
     await updateDoc(lead, { leadOwnerId: validOwner.uid, assignedSalesExecutiveId: validOwner.uid });
     await denied(updateDoc(lead, { leadOwnerId: disabledOwner.uid, assignedSalesExecutiveId: disabledOwner.uid }));
     await denied(updateDoc(lead, { leadOwnerId: missingDirectoryOwner.uid, assignedSalesExecutiveId: missingDirectoryOwner.uid }));

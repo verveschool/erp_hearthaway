@@ -75,7 +75,7 @@ export default function SignUpPage() {
       await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
 
       // Create account in application context & sync to Firestore
-      const newUser = createAccount({
+      const newUser = await createAccount({
         displayName: fullName.trim(),
         email: email.trim().toLowerCase(),
         role: selectedRole,

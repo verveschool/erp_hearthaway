@@ -17,7 +17,7 @@ async function request(url, method, body, headers = {}) {
 }
 
 async function profile(alias, role, name, claim, partnerId) {
-  const email = `${alias}@example.invalid`;
+  const email = alias.includes('@') ? alias : `${alias}@example.invalid`;
   const credentials = { email, password, returnSecureToken: true };
   let uid;
   try {
@@ -28,9 +28,10 @@ async function profile(alias, role, name, claim, partnerId) {
   }
   if (claim) {
     await request(`${auth}/identitytoolkit.googleapis.com/v1/projects/${project}/accounts:update`, 'POST', {
-      localId: uid, customAttributes: JSON.stringify({ internalRole: claim }),
+      localId: uid, customAttributes: JSON.stringify(claim === 'lookup' ? { intakeLookup: true } : { internalRole: claim }),
     }, admin);
   }
+  if (claim === 'lookup') return uid;
   await fixture(`users/${uid}`, {
     uid, email, displayName: name, role, isApproved: true, status: 'approved',
     ...(partnerId ? { partnerId, partnerName: 'Example Education' } : {}),
@@ -56,6 +57,7 @@ function fixture(path, values) {
   }, admin);
 }
 
+await profile('lead-intake-reader@system.hearthaway.invalid', '', '', 'lookup');
 const adminUser = await profile('qa-admin', 'admin', 'QA Admin', 'admin');
 const manager = await profile('qa-management', 'management', 'QA Management', 'management');
 const owner = await profile('qa-portfolio', 'management', 'QA Portfolio Owner', 'management');
@@ -65,7 +67,8 @@ const secondRep = await profile('qa-sales-two', 'management', 'QA Sales Two', 'm
 const disabled = await profile('qa-disabled', 'management', 'QA Disabled', 'management');
 await profile('qa-no-directory', 'management', 'QA No Directory', 'management');
 const partner = await profile('qa-partner', 'partner', 'QA Partner', undefined, 'PART-00001');
-await profile('qa-finance', 'finance', 'QA Finance');
+await profile('qa-partner-two', 'partner', 'Other Agency', undefined, 'PART-00002');
+await profile('qa-finance', 'finance', 'QA Finance', 'finance');
 
 await Promise.all([
   fixture(`leadOwnerDirectory/${adminUser}`, { displayName: 'QA Admin' }),
@@ -90,6 +93,11 @@ await Promise.all([
     phone: '+44 7700 900002', city: 'Bristol', state: 'Bristol', country: 'United Kingdom',
     portfolioOwnerId: other, portfolioOwnerName: 'QA Other Portfolio', agreementStatus: 'Active',
     status: 'Active', onboardingDate: '2026-01-01', commissionRate: 20,
+  }),
+  fixture('students/qa-other-lead', {
+    id: 'qa-other-lead', studentId: 'HA-2026-100099', fullName: 'Other Fixture Lead', firstName: 'Other', lastName: 'Fixture Lead',
+    email: 'other@example.invalid', phone: '+44 7700 900099', partnerId: 'PART-00002', pipelineStage: 'New',
+    destinationCity: 'Bristol', university: 'Other University', leadStatus: 'New', priority: 'Medium', archivalStatus: 'Active',
   }),
   fixture('students/qa-legacy-lead', {
     id: 'qa-legacy-lead', studentId: 'HA-2026-100001', fullName: 'Existing Fixture Lead',

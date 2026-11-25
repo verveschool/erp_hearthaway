@@ -236,7 +236,7 @@ export type AgreementStatus = z.infer<typeof AgreementStatusSchema>;
 
 export const PartnerSchema = z.object({
   id: z.string(),
-  partnerId: z.string().regex(/^PART-\d{5}$/), // e.g. PART-00482
+  partnerId: z.string().regex(/^PART-(?:\d{5}|U-[A-Za-z0-9_-]+)$/), // e.g. PART-00482
   accountUid: z.string().optional(),
   companyName: z.string(),
   type: PartnerTypeSchema,

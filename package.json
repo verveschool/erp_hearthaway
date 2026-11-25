@@ -14,7 +14,7 @@
     "staging:emulators": "firebase emulators:start --only auth,firestore --project demo-hearthaway-qa --config firebase.emulators.json",
     "staging:seed": "node scripts/seed-firebase-emulators.mjs",
     "staging:web": "NEXT_PUBLIC_FIREBASE_MODE=emulator NEXT_TELEMETRY_DISABLED=1 next dev -H 127.0.0.1 -p 4329",
-    "test:access-controls": "tsc --module commonjs --moduleResolution node --target es2022 --skipLibCheck --esModuleInterop --outDir .next/qa-access-controls tests/access-controls.emulator.ts && firebase emulators:exec --only auth,firestore --project demo-hearthaway-qa --config firebase.emulators.json \"npm run staging:seed && node .next/qa-access-controls/tests/access-controls.emulator.js\""
+    "test:access-controls": "tsc --module commonjs --moduleResolution node --target es2022 --skipLibCheck --esModuleInterop --outDir .next/qa-access-controls tests/access-controls.emulator.ts && firebase emulators:exec --only auth,firestore --project demo-hearthaway-qa --config firebase.emulators.json \"npm run staging:seed && node .next/qa-access-controls/access-controls.emulator.js\""
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

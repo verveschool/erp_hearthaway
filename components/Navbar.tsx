@@ -91,9 +91,13 @@ export function Navbar() {
     );
     if (internalRole === 'admin') navItems.push(
       { name: 'Finance', href: '/finance', icon: CreditCard, active: pathname.startsWith('/finance') },
+    );
+    navItems.push(
       { name: 'Users', href: '/management', icon: Users, active: pathname.startsWith('/management') },
     );
     navItems.push({ name: 'Data archive', href: '/archive', icon: Archive, active: pathname === '/archive' });
+  } else if (currentUser.role === 'finance') {
+    navItems.push({ name: 'Finance', href: '/finance/payments', icon: CreditCard, active: pathname.startsWith('/finance') });
   } else if (currentUser.role === 'partner') {
     navItems.push({ name: 'Partners', href: '/partners', icon: Users, active: pathname.startsWith('/partner') });
   }

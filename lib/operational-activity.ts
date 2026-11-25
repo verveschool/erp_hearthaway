@@ -25,8 +25,8 @@ export function operationalActivity(activity: Activity) {
 }
 
 // The audit and sanitized projection share the surrounding transaction or batch.
-export function writeActivity(writer: Transaction | WriteBatch, db: Firestore, activity: Activity) {
-  (writer as WriteBatch).set(doc(db, 'activities', activity.id), activity);
+export function writeActivity(writer: Transaction | WriteBatch, db: Firestore, activity: Activity, leadDocumentId?: string) {
+  (writer as WriteBatch).set(doc(db, 'activities', activity.id), leadDocumentId ? { ...activity, leadDocumentId } : activity);
   // Deploy rules before enabling publication in the frontend build.
   const safe = process.env.NEXT_PUBLIC_OPERATIONAL_ACTIVITY_ENABLED === 'true' ? operationalActivity(activity) : null;
   if (safe) (writer as WriteBatch).set(doc(db, 'operationalActivities', activity.id), safe);

@@ -17,7 +17,7 @@ export default function ManagementPage() {
   const [target, setTarget] = useState<AppUser | null>(null);
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useWorkspaceView<string>(currentUser.uid, 'search', '');
-  const isManagement = internalRole === 'admin';
+  const isManagement = !!internalRole;
 
   if (!isManagement) return <section className="p-8">You do not have access to user management.</section>;
   const visibleUsers = availableUsers.filter(user => [user.displayName, user.email, user.role.replace('_', ' ')].some(value => value?.toLowerCase().includes(search.trim().toLowerCase())));

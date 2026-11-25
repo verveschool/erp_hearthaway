@@ -12,6 +12,8 @@ import { WorkspaceMetric } from '@/components/WorkspaceMetric';
 import { WorkspaceDialog } from '@/components/WorkspaceDialog';
 
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useHearthAway } from '@/lib/context';
 import {
   CreditCard,
@@ -52,7 +54,8 @@ export default function FinancePage() {
     setSelectedStudentId,
   } = useHearthAway();
 
-  const [activeTab, setActiveTab] = useWorkspaceView<'payments' | 'bookings' | 'commissions'>(currentUser.uid, 'activeTab', 'payments');
+  const pathname = usePathname();
+  const activeTab = FINANCE_TABS.find(({ id }) => pathname === `/finance/${id}`)?.id || 'payments';
   const [searchQuery, setSearchQuery] = useWorkspaceView<string>(currentUser.uid, 'searchQuery', '');
   const [filterPaymentStatus, setFilterPaymentStatus] = useWorkspaceView<string>(currentUser.uid, 'filterPaymentStatus', 'All');
   const [bookingSearch, setBookingSearch] = useWorkspaceView<string>(currentUser.uid, 'bookingSearch', '');
@@ -265,28 +268,18 @@ export default function FinancePage() {
             <WorkspaceMetric label="Partner Payouts Payable">£{metrics.totalPartnerPayouts.toLocaleString()}</WorkspaceMetric>
           </dl>
 
-          <div role="tablist" aria-label="Finance" className="ha-tabs workspace-tabs mt-2 text-sm font-semibold"
-            onKeyDown={event => {
-              const index = FINANCE_TABS.findIndex(tab => tab.id === activeTab);
-              const count = FINANCE_TABS.length;
-              const next = { ArrowLeft: (index + count - 1) % count, ArrowRight: (index + 1) % count, Home: 0, End: count - 1 }[event.key];
-              if (next === undefined) return;
-              event.preventDefault();
-              setActiveTab(FINANCE_TABS[next].id);
-              event.currentTarget.querySelectorAll('button')[next]?.focus();
-            }}>
+          <nav aria-label="Finance" className="ha-tabs workspace-tabs mt-2 text-sm font-semibold">
             {FINANCE_TABS.map(({ id, label }) => (
-              <button key={id} id={`finance-tab-${id}`} type="button" role="tab" aria-selected={activeTab === id}
-                aria-controls="finance-panel" tabIndex={activeTab === id ? 0 : -1} onClick={() => setActiveTab(id)}
-                className={`pb-3 border-b-2 transition-colors ${activeTab === id ? 'border-ha-blue text-ha-blue' : 'border-transparent text-ha-secondary hover:text-ha-ink'}`}>
+              <Link key={id} href={`/finance/${id}`} aria-current={activeTab === id ? 'page' : undefined}
+                className={`inline-flex min-h-11 items-center justify-center pb-3 border-b-2 transition-colors ${activeTab === id ? 'border-ha-blue text-ha-blue' : 'border-transparent text-ha-secondary hover:text-ha-ink'}`}>
                 {label}
-              </button>
+              </Link>
             ))}
-          </div>
+          </nav>
         </div>
       </div>
 
-      <div id="finance-panel" role="tabpanel" aria-labelledby={`finance-tab-${activeTab}`} tabIndex={0} className="workspace-content">
+      <div className="workspace-content">
         {/* TAB 1: PAYMENTS LEDGER */}
         {activeTab === 'payments' && (
           <div className="space-y-4">

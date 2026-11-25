@@ -7,7 +7,7 @@ const database = args.find(x => x.startsWith('--database='))?.slice(11);
 const apply = args.includes('--apply');
 const manifestPath = args.find(x => x.startsWith('--manifest='))?.slice(11);
 const manifest = manifestPath ? JSON.parse(readFileSync(manifestPath, 'utf8')) : {};
-if (!manifest || Array.isArray(manifest) || typeof manifest !== 'object' || Object.values(manifest).some(role => !['admin', 'management'].includes(role))) throw new Error('Manifest must be a JSON object mapping exact Firebase UIDs to admin or management.');
+if (!manifest || Array.isArray(manifest) || typeof manifest !== 'object' || Object.values(manifest).some(role => !['admin', 'management', 'finance'].includes(role))) throw new Error('Manifest must be a JSON object mapping exact Firebase UIDs to admin, management or finance.');
 if (!project || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(project)
     || !database || (database !== '(default)' && !/^[a-z][a-z0-9-]{2,61}[a-z0-9]$/.test(database))
     || args.filter(x => x.startsWith('--project=')).length !== 1
@@ -44,9 +44,22 @@ for (const user of users) {
   const claims = JSON.parse(user.customAttributes || '{}');
   const legacyMapped = mapping[claims.leadOperationsRole];
   const reviewed = Object.prototype.hasOwnProperty.call(manifest, user.localId) ? manifest[user.localId] : undefined;
-  const mapped = legacyMapped || reviewed;
+  const mapped = legacyMapped || reviewed || claims.internalRole;
+  if (!mapped && !user.disabled && !claims.leadOperationsRole && !claims.internalRole) {
+    // Old clients could create their own profile. Surface candidates for review
+    // without granting privileges based solely on that historical value.
+    const response = await fetch(`${store}/users/${encodeURIComponent(user.localId)}`, { headers, signal: AbortSignal.timeout(30000) });
+    if (response.status !== 404) {
+      if (!response.ok) throw new Error(`Cannot inspect account profile (${response.status})`);
+      const fields = (await response.json()).fields || {};
+      const role = fields.role?.stringValue;
+      if (['management', 'sales', 'portfolio_owner', 'finance'].includes(role)) {
+        console.log(`REVIEW ${user.localId}: profile ${role}; proposed ${mapping[role] || role}. Verify identity before including in manifest.`);
+      }
+    }
+  }
   // Existing new claims may have been deliberately changed since migration.
-  if (!mapped || user.disabled || (reviewed && legacyMapped && reviewed !== legacyMapped) || (claims.leadOperationsRole && !legacyMapped) || (claims.internalRole && claims.internalRole !== mapped)) {
+  if (!['admin', 'management', 'finance'].includes(mapped) || user.disabled || (reviewed && legacyMapped && reviewed !== legacyMapped) || (claims.leadOperationsRole && !legacyMapped) || (claims.internalRole && claims.internalRole !== mapped)) {
     if (claims.leadOperationsRole || claims.internalRole) console.log(`SKIP ${user.localId}: disabled, unknown legacy role, or conflicting new claim`);
     skipped++;
     continue;
@@ -55,8 +68,11 @@ for (const user of users) {
   try { profile = await api(`${store}/users/${encodeURIComponent(user.localId)}`); }
   catch (error) { console.log(`SKIP ${user.localId}: profile unavailable (${error.message})`); skipped++; continue; }
   const fields = profile.fields || {};
-  if (fields.role?.stringValue === 'partner' || (fields.status?.stringValue && fields.status.stringValue !== 'approved') || fields.isApproved?.booleanValue === false || fields.deletedAt) {
+  if ((mapped === 'finance' && fields.role?.stringValue !== 'finance') || fields.role?.stringValue === 'partner' || (fields.status?.stringValue && fields.status.stringValue !== 'approved') || fields.isApproved?.booleanValue === false || fields.deletedAt) {
     console.log(`SKIP ${user.localId}: external, unapproved or deleted profile`); skipped++; continue;
+  }
+  if (claims.internalRole === mapped && fields.roleMigrationVersion?.integerValue === '1' && fields.role?.stringValue === mapped) {
+    console.log(`UNCHANGED ${user.localId}: ${mapped}`); continue;
   }
   const displayName = fields.displayName?.stringValue || user.displayName || user.email || user.localId;
   console.log(`${apply ? 'APPLY' : 'PLAN'} ${user.localId}: ${claims.leadOperationsRole || 'reviewed manifest'} -> ${mapped}; profile and both owner directories`);
@@ -66,8 +82,8 @@ for (const user of users) {
   // failed directory/profile write cannot grant access. A failed claim update
   // can be safely retried, after reviewing the partial result.
   const docName = `projects/${project}/databases/${database}/documents`;
-  const writes = [{ update: { name: `${docName}/users/${user.localId}`, fields: { role: { stringValue: mapped } } }, updateMask: { fieldPaths: ['role'] }, currentDocument: { updateTime: profile.updateTime } }];
-  for (const directory of ['leadOwnerDirectory', 'portfolioOwnerDirectory']) {
+  const writes = [{ update: { name: `${docName}/users/${user.localId}`, fields: { role: { stringValue: mapped }, roleMigrationVersion: { integerValue: '1' } } }, updateMask: { fieldPaths: ['role','roleMigrationVersion'] }, currentDocument: { updateTime: profile.updateTime } }];
+  for (const directory of mapped === 'finance' ? [] : ['leadOwnerDirectory', 'portfolioOwnerDirectory']) {
     writes.push({ update: { name: `${docName}/${directory}/${user.localId}`, fields: { displayName: { stringValue: displayName } } }, updateMask: { fieldPaths: ['displayName'] } });
   }
   await api(`${store}:commit`, 'POST', { writes });

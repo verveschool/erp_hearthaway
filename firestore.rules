@@ -9,7 +9,7 @@ service cloud.firestore {
 
     // Helper functions
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.get('intakeLookup', false) != true;
     }
 
     // Get user document safely
@@ -44,6 +44,15 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && internalRole() == 'admin' && isActiveInternal();
+    }
+
+    function isFinance() {
+      return isActiveInternal() && getUserDoc().get('role', '') == 'finance' && internalRole() == 'finance';
+    }
+
+    function ownPartnerRecord(data) {
+      return isActiveInternal() && getUserDoc().get('role', '') == 'partner'
+        && getUserDoc().get('partnerId', '') != '' && data.partnerId == getUserDoc().partnerId;
     }
 
     function ownsPartner() {
@@ -96,11 +105,22 @@ service cloud.firestore {
     // Profiles are client-created, but each authenticated user can only access
     // the profile whose document ID matches their Firebase Auth UID.
     match /users/{userId} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
-      allow create: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == userId)
+        || (isInternal() && resource.data.role in ['partner','management','sales','portfolio_owner']);
+      allow create: if isAdmin() || (isSignedIn() && request.auth.uid == userId
+        && request.resource.data.role == 'partner' && request.resource.data.get('partnerId', '') in ['', 'PART-U-' + request.auth.uid]);
       allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId
+        && resource.data.role == 'partner' && resource.data.get('partnerId', '') == ''
+        && request.resource.data.partnerId == 'PART-U-' + request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role','isApproved','status','deletedAt']))
+        || (isSignedIn() && request.auth.uid == userId
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-          ['role', 'isApproved', 'status', 'deletedAt', 'partnerId']));
+          ['role', 'isApproved', 'status', 'deletedAt', 'partnerId', 'roleMigrationVersion']));
+      allow update: if isInternal() && request.auth.uid != userId
+        && resource.data.role in ['partner','sales','portfolio_owner','management']
+        && (resource.data.role != 'management' || resource.data.get('roleMigrationVersion', 0) == 1)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','deletedAt','isApproved'])
+        && request.resource.data.status == 'deleted' && request.resource.data.isApproved == false;
       allow delete: if isAdmin();
     }
 
@@ -131,14 +151,15 @@ service cloud.firestore {
     }
 
     match /students/{studentId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn()
+      allow read: if request.auth != null && request.auth.token.get('intakeLookup', false) == true;
+      allow read: if isInternal() || isFinance() || ownPartnerRecord(resource.data);
+      allow create: if (isInternal() || ownPartnerRecord(request.resource.data))
         && request.resource.data.get('archivalStatus', 'Active') != 'Archived'
         && request.resource.data.get('leadStatus', 'New') != 'Inactive'
         && request.resource.data.get('salesOwnerId', '') == ''
         && request.resource.data.get('leadOwnerId', '') == ''
         && request.resource.data.get('assignedSalesExecutiveId', '') == '';
-      allow update: if isSignedIn()
+      allow update: if (isInternal() || isFinance() || (ownPartnerRecord(resource.data) && ownPartnerRecord(request.resource.data) && request.resource.data.studentId == resource.data.studentId))
         && request.resource.data.get('archivalStatus', 'Active') != 'Archived'
         && request.resource.data.get('leadStatus', 'New') != 'Inactive'
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['salesOwnerId', 'salesOwnerName'])
@@ -151,7 +172,7 @@ service cloud.firestore {
 
       // Activities audit trail - Append only
       match /activities/{activityId} {
-        allow read, create: if isSignedIn();
+        allow read, create: if isInternal() || ownPartnerRecord(get(/databases/$(database)/documents/students/$(studentId)).data);
         allow update, delete: if false;
       }
     }
@@ -159,9 +180,11 @@ service cloud.firestore {
     // Top-level Activities audit log
     // Legacy events mix financial and operational details.
     match /activities/{activityId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || (isInternal() && resource.data.activityType == 'Internal Note Added');
       allow update, delete: if false;
-      allow create: if isSignedIn()
+      allow create: if (isInternal() || isFinance() || (request.resource.data.activityType in ['Lead Submitted', 'Lead Details Updated']
+          && ownPartnerRecord(getAfter(/databases/$(database)/documents/students/$(request.resource.data.leadDocumentId)).data)
+          && getAfter(/databases/$(database)/documents/students/$(request.resource.data.leadDocumentId)).data.studentId == request.resource.data.studentId))
         && request.resource.data.get('performedBy', {}).get('userId', '') == request.auth.uid;
     }
 
@@ -196,22 +219,23 @@ service cloud.firestore {
 
     // Payments collection
     match /payments/{paymentId} {
-      allow read, create, update, delete: if isAdmin();
+      allow read, create, update, delete: if isAdmin() || isFinance();
     }
 
     // Partners collection
     match /partners/{partnerId} {
-      allow read: if isSignedIn();
+      allow read: if isInternal() || isFinance() || ownPartnerRecord(resource.data);
       allow create: if !request.resource.data.keys().hasAny(['leadTargets'])
         && (request.resource.data.get('portfolioOwnerId', '') == '' || eligibleOwner(request.resource.data.portfolioOwnerId, 'portfolioOwnerDirectory'))
         && (isInternal() || (isSignedIn() && request.resource.data.get('portfolioOwnerId', '') == ''
+          && partnerId == 'PART-U-' + request.auth.uid && request.resource.data.partnerId == partnerId
           && request.resource.data.get('accountUid', '') == request.auth.uid));
       allow update: if (isInternal()
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['portfolioOwnerId'])
           || request.resource.data.get('portfolioOwnerId', '') == ''
           || eligibleOwner(request.resource.data.portfolioOwnerId, 'portfolioOwnerDirectory')))
         || (ownsPartner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leadTargets']))
-        || (isSignedIn() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['leadTargets', 'portfolioOwnerId']));
+        || (ownPartnerRecord(resource.data) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['leadTargets', 'portfolioOwnerId', 'accountUid', 'partnerId']));
       allow delete: if isInternal();
     }
 
@@ -223,17 +247,16 @@ service cloud.firestore {
 
     // Bookings collection
     match /bookings/{bookingId} {
-      allow read, create, update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow read, create, update, delete: if isAdmin() || isFinance();
     }
 
     // Commissions & Payouts
     match /commissions/{commissionId} {
-      allow read, create, update, delete: if isAdmin();
+      allow read, create, update, delete: if isAdmin() || isFinance();
     }
 
     match /partnerPayouts/{payoutId} {
-      allow read, create, update, delete: if isAdmin();
+      allow read, create, update, delete: if isAdmin() || isFinance();
     }
   }
 }

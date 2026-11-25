@@ -35,3 +35,35 @@ test('explicit default database is supported', () => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /databases\/\(default\)\/documents\/users\/test-user/);
 });
+
+test('migration applies each trusted mapping once across two runs', async () => {
+  const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'role-migration-'));
+  try {
+    const statePath = join(dir, 'state.json');
+    const manifestPath = join(dir, 'manifest.json');
+    const expected = { oldManager: 'admin', salesperson: 'management', portfolio: 'management', accountant: 'finance' };
+    writeFileSync(manifestPath, JSON.stringify({ accountant: 'finance' }));
+    const roles = { oldManager: 'management', salesperson: 'sales', portfolio: 'portfolio_owner', accountant: 'finance' };
+    writeFileSync(statePath, JSON.stringify(Object.fromEntries(Object.entries(roles).map(([id, role]) => [id, {
+      role, claims: role === 'finance' ? {} : { leadOperationsRole: role }, directories: [],
+    }]))));
+    const apply = () => spawnSync(process.execPath, ['--require','./tests/fixtures/role-migration-fetch.cjs',
+      './scripts/migrate-internal-roles.mjs', project, database, '--apply', '--manifest=' + manifestPath], {
+      encoding: 'utf8', env: { ...process.env, GOOGLE_OAUTH_ACCESS_TOKEN: 'test', MIGRATION_FIXTURE: statePath },
+    });
+    const first = apply();
+    assert.equal(first.status, 0, first.stderr);
+    const snapshot = readFileSync(statePath, 'utf8');
+    for (const [id, user] of Object.entries(JSON.parse(snapshot))) {
+      assert.equal(user.role, expected[id]); assert.equal(user.claims.internalRole, expected[id]);
+      assert.equal(user.directories.length, user.role === 'finance' ? 0 : 2);
+    }
+    const again = apply();
+    assert.equal(again.status, 0, again.stderr);
+    assert.match(again.stdout, /Applied 0/);
+    assert.equal(readFileSync(statePath, 'utf8'), snapshot);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
