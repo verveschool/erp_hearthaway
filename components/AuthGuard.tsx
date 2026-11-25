@@ -120,7 +120,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   // Case 2: Insufficient Role (403 Forbidden)
-  const defaultAllowedRoute = '/partners';
+  const defaultAllowedRoute = ['/sales', '/payments', '/partners'].find(route => canAccessRoute(route).allowed) || '/';
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center py-12 px-4 sm:px-6">

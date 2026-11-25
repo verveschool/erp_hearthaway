@@ -5,16 +5,21 @@ import { z } from 'zod';
 // ==========================================
 export const PipelineStageSchema = z.enum([
   'New',
+  'No Response',
   'Active',
   'Qualified',
   'Option Shared',
   'Payment',
   'Fulfilment',
+  'Short Stay',
   'Closed Won',
   'Disqualified',
   'Cancelled',
 ]);
 export type PipelineStage = z.infer<typeof PipelineStageSchema>;
+
+export const PIPELINE_STAGES = PipelineStageSchema.options;
+export const PIPELINE_FLOW_STAGES = PIPELINE_STAGES.filter(stage => stage !== 'Disqualified' && stage !== 'Cancelled');
 
 export const ExitReasonSchema = z.enum([
   'No response',

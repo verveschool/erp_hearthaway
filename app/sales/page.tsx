@@ -17,17 +17,8 @@ import { SalesLeadWorkspace } from '@/components/SalesLeadWorkspace';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { parseLeadPhone, leadPhoneCsv } from '@/lib/lead-phone';
 import { exportToCSV } from '@/lib/export-csv';
-import type { PipelineStage } from '@/lib/types';
-
-const PIPELINE_STAGES = [
-  { key: 'New', label: 'New', hint: 'Lead enters CRM' },
-  { key: 'Active', label: 'Active', hint: 'First contact made' },
-  { key: 'Qualified', label: 'Qualified', hint: 'Details confirmed' },
-  { key: 'Option Shared', label: 'Option shared', hint: 'Options sent' },
-  { key: 'Payment', label: 'Payment', hint: 'Holding / service fee' },
-  { key: 'Fulfilment', label: 'Fulfilment', hint: 'Docs and tenancy' },
-  { key: 'Closed Won', label: 'Closed won', hint: 'Student moved in' },
-] as const;
+import { PIPELINE_FLOW_STAGES, PIPELINE_STAGES, type PipelineStage } from '@/lib/types';
+import { MetricsToggle } from '@/components/WorkspaceMetrics';
 
 type PipelineFilter = PipelineStage | 'All';
 
@@ -74,6 +65,8 @@ export default function SalesPage() {
   const [filterPartner, setFilterPartner] = useWorkspaceView<string>(currentUser.uid, 'filterPartner', 'All');
   const [sortColumn, setSortColumn] = useWorkspaceView<'createdAt' | 'lastActivity'>(currentUser.uid, 'sortColumn', 'lastActivity');
   const [sortDirection, setSortDirection] = useWorkspaceView<'asc' | 'desc'>(currentUser.uid, 'sortDirection', 'desc');
+  const [metricsOpen, setMetricsOpen] = useState(false);
+  const metricsToggle = useRef<HTMLButtonElement>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sourceFiltersOpen, setSourceFiltersOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -235,6 +228,9 @@ export default function SalesPage() {
         } else if (filtersOpen && filterToggle.current?.offsetWidth) {
           setFiltersOpen(false);
           filterToggle.current.focus();
+        } else if (metricsOpen && metricsToggle.current?.offsetWidth) {
+          setMetricsOpen(false);
+          metricsToggle.current.focus();
         }
       }}>
         <div className="sales-overview">
@@ -245,9 +241,15 @@ export default function SalesPage() {
             </div>
 
             <div className="sales-toolbar-actions">
+              <MetricsToggle buttonRef={metricsToggle} label="Pipeline metrics" controls="sales-pipeline-metrics"
+                expanded={metricsOpen} onClick={() => {
+                  setSearchOpen(false);
+                  setFiltersOpen(false);
+                  setMetricsOpen(open => !open);
+                }} />
               <button ref={searchToggle} type="button" aria-label={searchQuery.trim() ? 'Search leads (active)' : 'Search leads'}
                 aria-expanded={searchOpen} aria-controls="sales-search-field" data-active={Boolean(searchQuery.trim())}
-                onClick={toggleMobileSearch}>
+                onClick={() => { setMetricsOpen(false); toggleMobileSearch(); }}>
                 <Search size={22} aria-hidden="true" />
               </button>
               <button type="button" aria-label="Add Sales Lead" onClick={() => setShowAddLeadModal(true)}>
@@ -257,6 +259,7 @@ export default function SalesPage() {
                 aria-label={`Filter leads (${activeFilters} active)`} aria-expanded={filtersOpen} aria-controls="sales-filter-fields"
                 onClick={() => {
                   setSearchOpen(false);
+                  setMetricsOpen(false);
                   setFiltersOpen(!filtersOpen);
                 }}>
                 <ListFilter size={22} aria-hidden="true" />
@@ -268,21 +271,17 @@ export default function SalesPage() {
             </div>
           </div>
 
-          <div className="sales-pipeline-cards grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-            {PIPELINE_STAGES.map((stage) => {
-              const count = visibleStudents.filter((student) => (student.pipelineStage || 'New') === stage.key).length;
-              const isActive = filterStage === stage.key;
+          <div id="sales-pipeline-metrics" className="sales-pipeline-cards workspace-metrics-panel"
+            data-open={metricsOpen} role="group" aria-label="Pipeline stage counts">
+            {PIPELINE_FLOW_STAGES.map((stage) => {
+              const count = visibleStudents.filter(student => (student.pipelineStage || 'New') === stage).length;
+              const isActive = filterStage === stage;
               return (
-                <button
-                  key={stage.key}
-                  type="button"
-                  onClick={() => setFilterStage(isActive ? 'All' : stage.key)}
-                  className={`min-h-19 rounded-lg border px-3 py-2 text-left transition-colors ${isActive ? 'border-ha-blue/50 bg-ha-blue/5' : 'border-ha-line bg-white hover:border-ha-blue/40'}`}
-                  aria-pressed={isActive}
-                >
-                  <span className="block text-lg font-semibold tabular-nums text-ha-blue">{count}</span>
-                  <span className="block text-xs font-semibold">{stage.label}</span>
-                  <span className="sr-only">{stage.hint}</span>
+                <button key={stage} type="button" onClick={() => {
+                  setFilterStage(isActive ? 'All' : stage);
+                }} aria-pressed={isActive}>
+                  <span className="block text-base font-bold tabular-nums">{count}</span>
+                  <span className="block text-xs font-semibold">{stage}</span>
                 </button>
               );
             })}
@@ -327,11 +326,7 @@ export default function SalesPage() {
                 className="rounded-lg border border-[#E8E6E1] bg-[#FFFFFF] px-2.5 py-2 text-xs font-medium text-[#1A1A1A] focus:outline-none focus:border-[#00319D]"
               >
                 <option value="All">{isMobile ? 'All stages' : 'All pipeline stages'}</option>
-                {PIPELINE_STAGES.map((stage) => (
-                  <option key={stage.key} value={stage.key}>{stage.label}</option>
-                ))}
-                <option value="Disqualified">Disqualified</option>
-                <option value="Cancelled">Cancelled</option>
+                {PIPELINE_STAGES.map(stage => <option key={stage} value={stage}>{stage}</option>)}
               </select>
 
               {/* Priority Filter */}
@@ -494,9 +489,7 @@ export default function SalesPage() {
                           onSave={(value) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: value as PipelineStage })}
                           className="rounded-md border border-[#E8E6E1] bg-white px-2 py-1 text-xs font-bold text-[#00319D] focus:border-[#00319D] focus:outline-none"
                         >
-                          {PIPELINE_STAGES.map((stage) => <option key={stage.key} value={stage.key}>{stage.label}</option>)}
-                          <option value="Disqualified">Disqualified</option>
-                          <option value="Cancelled">Cancelled</option>
+                          {PIPELINE_STAGES.map(stage => <option key={stage} value={stage}>{stage}</option>)}
                         </LeadFieldSelect>
                       </td>
 

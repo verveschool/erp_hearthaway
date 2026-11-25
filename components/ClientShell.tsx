@@ -17,7 +17,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         <main id="workspace" tabIndex={-1} className="ha-frame flex-1 py-4 sm:py-6">
           <AuthGuard>{children}</AuthGuard>
         </main>
-        <footer className="border-t border-[#E8E6E1] bg-[#FFFFFF] py-6 text-xs text-[#6B6860]">
+        <footer className="ha-footer border-t border-[#E8E6E1] bg-[#FFFFFF] py-6 text-xs text-[#6B6860]">
           <div className="ha-frame flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Image

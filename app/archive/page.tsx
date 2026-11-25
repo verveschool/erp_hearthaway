@@ -40,8 +40,8 @@ function ArchivedLeads() {
     <section className="ha-workspace workspace-compact archive-workspace">
       <header className="ha-page-header">
         <h1 className="ha-title">Data archive</h1>
-      </header>
       <div className="workspace-toolbar"><WorkspaceSearch label="Search archived leads" value={search} onChange={setSearch} /></div>
+      </header>
       {error ? <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p> :
         !visible ? <p role="status" className="mt-4 text-sm">Loading archive…</p> :
         visible.length === 0 ? <div className="ha-empty-state mt-4"><Archive size={24} aria-hidden="true" /><strong>{term ? 'No matching leads' : 'No archived leads'}</strong>{term && <p>Try another name or clear your search.</p>}{term && <button className="ha-text-action" onClick={() => setSearch('')}>Clear search</button>}</div> :

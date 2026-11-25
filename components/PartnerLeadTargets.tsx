@@ -33,7 +33,7 @@ export function PartnerLeadTargets({ partner, leads, canEdit, onSave }: {
       {targets.length > 0 && (
         <ul className="space-y-1">
           {targets.map((target) => {
-            const received = leads.filter((lead) => intakeKey(lead.intake) === intakeKey(target.season)).length;
+            const received = leads.filter((lead) => lead.intake && intakeKey(lead.intake) === intakeKey(target.season)).length;
             return (
               <li key={intakeKey(target.season)} className="flex items-baseline justify-between gap-3">
                 {canEdit

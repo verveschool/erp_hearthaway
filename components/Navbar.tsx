@@ -83,22 +83,21 @@ export function Navbar() {
 
   const isInternal = internalRole === 'admin' || internalRole === 'management';
   const navItems = [];
-  if (isInternal) {
-    navItems.push(
-      { name: 'Partners', href: '/partners', icon: Users, active: pathname.startsWith('/partners') },
-      { name: 'Sales', href: '/sales', icon: Briefcase, active: pathname.startsWith('/sales') },
-      { name: 'Activity', href: '/activity', icon: Activity, active: pathname.startsWith('/activity') },
-    );
-    if (internalRole === 'admin') navItems.push(
-      { name: 'Finance', href: '/finance', icon: CreditCard, active: pathname.startsWith('/finance') },
-    );
-    navItems.push(
-      { name: 'Users', href: '/management', icon: Users, active: pathname.startsWith('/management') },
-    );
-    navItems.push({ name: 'Data archive', href: '/archive', icon: Archive, active: pathname === '/archive' });
-  } else if (currentUser.role === 'finance') {
-    navItems.push({ name: 'Finance', href: '/finance/payments', icon: CreditCard, active: pathname.startsWith('/finance') });
-  } else if (currentUser.role === 'partner') {
+  if (isInternal) navItems.push(
+    { name: 'Sales', href: '/sales', icon: Briefcase, active: pathname.startsWith('/sales') },
+    { name: 'Partners', href: '/partners', icon: Users, active: pathname.startsWith('/partners') },
+  );
+  if (internalRole === 'admin' || currentUser.role === 'finance') navItems.push(
+    { name: 'Payments', href: '/payments', icon: CreditCard, active: pathname === '/payments' },
+    { name: 'Bookings', href: '/bookings', icon: Briefcase, active: pathname === '/bookings' },
+    { name: 'Commission', href: '/commission', icon: CreditCard, active: pathname === '/commission' },
+  );
+  if (isInternal) navItems.push(
+    { name: 'Activity', href: '/activity', icon: Activity, active: pathname.startsWith('/activity') },
+    { name: 'Users', href: '/management', icon: Users, active: pathname.startsWith('/management') },
+    { name: 'Data archive', href: '/archive', icon: Archive, active: pathname === '/archive' },
+  );
+  if (!isInternal && currentUser.role === 'partner') {
     navItems.push({ name: 'Partners', href: '/partners', icon: Users, active: pathname.startsWith('/partner') });
   }
 
@@ -122,8 +121,8 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-[100] w-full border-b border-[#E8E6E1] bg-[#FFFFFF]/95 backdrop-blur-md">
-      <div className="ha-frame flex h-16 items-center justify-between gap-3">
+    <header className="ha-navigation sticky top-0 z-[100] w-full border-b border-ha-line bg-white">
+      <div className="ha-frame ha-navigation-row flex items-center justify-between gap-3">
         {/* Brand Anchor: Official Attached Transparent Icon */}
         <div className="flex min-w-0 items-center gap-3 lg:gap-6">
           <Link href="/" className="flex items-center focus:outline-none group" title="HearthAway Workspace">
@@ -139,9 +138,8 @@ export function Navbar() {
             </div>
           </Link>
 
-          {/* Role-Based Module Navigation: Portfolio | Partners | Sales | Finance */}
           {isAuthenticated && navItems.length > 0 && (
-            <nav aria-label="Workspaces" className="hidden lg:flex items-center gap-1 border-l border-ha-line pl-3 lg:pl-6">
+            <nav aria-label="Workspaces" className="hidden xl:flex items-center gap-1 border-l border-ha-line pl-3 lg:pl-6">
               {navItems.map((item) => {
                 const IconComponent = item.icon;
                 return (
@@ -149,7 +147,7 @@ export function Navbar() {
                     key={item.name}
                     href={item.href}
                     aria-current={item.active ? 'page' : undefined}
-                    className={`ha-nav-link flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                    className={`ha-nav-link flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-sm font-semibold transition-colors ${
                       item.active
                         ? 'bg-ha-canvas text-ha-blue'
                         : 'text-[#6B6860] hover:text-[#1A1A1A] hover:bg-[#F7F6F3]'
@@ -164,7 +162,7 @@ export function Navbar() {
           )}
 
           {isAuthenticated && navItems.length > 0 && (
-            <div className="lg:hidden">
+            <div className="xl:hidden">
               <button
                 type="button"
                 ref={navToggle}
@@ -326,7 +324,7 @@ export function Navbar() {
         <nav
           id="mobile-module-navigation"
           aria-label="Workspaces"
-          className="lg:hidden border-t border-[#E8E6E1] bg-[#FFFFFF] px-4 py-3 shadow-sm"
+          className="xl:hidden border-t border-[#E8E6E1] bg-[#FFFFFF] px-4 py-3 shadow-sm"
         >
           <div className="grid grid-cols-2 gap-2">
             {navItems.map((item) => {

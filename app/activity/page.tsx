@@ -1,5 +1,7 @@
 'use client';
 
+import { WorkspaceMetrics } from '@/components/WorkspaceMetrics';
+
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Clock, Download, ListFilter, User } from 'lucide-react';
 import type { Activity } from '@/lib/types';
@@ -82,16 +84,14 @@ export default function ActivityPage() {
     requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true }));
   }
   if (!internalRole) return null;
-  return <section className="ha-workspace workspace-compact activity-workspace space-y-4">
+  return <section className="ha-workspace workspace-compact activity-workspace">
     <div className="ha-page-header">
-      <h1 className="ha-title">Activity</h1>
-      <dl className="ha-metrics workspace-metrics mt-2">
+      <WorkspaceMetrics label="Activity metrics" heading={<h1 className="ha-title">Activity</h1>}>
         <WorkspaceMetric label="Total audit entries">{metrics.total}</WorkspaceMetric>
         <WorkspaceMetric label="Owner reassignments">{metrics.owners}</WorkspaceMetric>
         <WorkspaceMetric label="Lead and status updates">{metrics.updates}</WorkspaceMetric>
         <WorkspaceMetric label="Payment activity">{metrics.payments}</WorkspaceMetric>
-      </dl>
-    </div>
+      </WorkspaceMetrics>
     <div className="workspace-toolbar">
       <div className="workspace-filter-bar">
         <WorkspaceSearch label="Search activity" placeholder="Search activity, record or person" value={search} onChange={setSearch} />
@@ -143,6 +143,7 @@ export default function ActivityPage() {
           setTo('');
         }}>Clear filters</button>}
       </div>
+    </div>
     </div>
     {activityError && <p role="alert" className="text-sm text-rose-700">Activity could not be loaded. Please try again or contact an administrator.</p>}
     <SalesLeadWorkspace studentId={selectedId} userId={currentUser.uid} onClose={closeLead} registerLeaveGuard={registerLeaveGuard}>

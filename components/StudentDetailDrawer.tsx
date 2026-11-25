@@ -45,6 +45,7 @@ import {
   Tag,
 } from 'lucide-react';
 import {
+  PIPELINE_STAGES,
   Booking,
   Student,
   Payment,
@@ -639,15 +640,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                           onSave={(value) => updateStudentDecoupledStatus(student.studentId, { pipelineStage: value as NonNullable<Student['pipelineStage']> })}
                           className="w-full min-w-0 bg-transparent text-sm font-semibold text-[#00319D] focus-visible:outline-ha-blue cursor-pointer"
                         >
-                          <option>New</option>
-                          <option>Active</option>
-                          <option>Qualified</option>
-                          <option>Option Shared</option>
-                          <option>Payment</option>
-                          <option>Fulfilment</option>
-                          <option>Closed Won</option>
-                          <option>Disqualified</option>
-                          <option>Cancelled</option>
+                          {PIPELINE_STAGES.map(stage => <option key={stage} value={stage}>{stage}</option>)}
                         </LeadFieldSelect>
                       </label>
                       {/* Priority */}
@@ -1690,9 +1683,7 @@ function StudentDetail({ student, embedded, onClose, registerLeaveGuard }: {
                     <Clock className="h-4 w-4 text-ha-blue" aria-hidden="true" />
                     Activity timeline<span className="lead-desktop-metadata"> ({studentActivities.length})</span>
                   </h3>
-                  <span className="lead-desktop-metadata rounded border border-ha-line bg-ha-canvas px-2 py-0.5 text-xs text-ha-secondary">
-                    ABAC Log Guard Active
-                  </span>
+
                 </div>
 
                 <div className="rounded-xl border border-[#E8E6E1] bg-[#F7F6F3] p-3.5 text-xs text-[#1A1A1A]">

@@ -21,21 +21,37 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function assignmentPath(uid) {
+      return /databases/$(database)/documents/roleAssignments/$(uid);
+    }
+
+    match /roleAssignments/{uid} {
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow create, update: if isAdmin() && request.auth.uid != uid
+        && request.resource.data.keys().hasOnly(['role'])
+        && request.resource.data.role in ['admin', 'management', 'finance', 'partner']
+        && existsAfter(/databases/$(database)/documents/users/$(uid))
+        && getAfter(/databases/$(database)/documents/users/$(uid)).data.role == request.resource.data.role;
+    }
+
     // New claims take precedence. Legacy management meant administrator.
     function internalRole() {
       let current = request.auth.token.get('internalRole', '');
       let legacy = request.auth.token.get('leadOperationsRole', '');
-      return current != '' ? current : legacy == 'management' ? 'admin'
+      let assigned = exists(assignmentPath(request.auth.uid)) ? get(assignmentPath(request.auth.uid)).data.role : '';
+      return assigned != '' ? assigned : current != '' ? current : legacy == 'management' ? 'admin'
         : legacy in ['sales', 'portfolio_owner'] ? 'management' : '';
     }
 
     // A revoked, pending, or deleted profile must lose access without waiting
     // for the next token refresh. Missing legacy approval fields stay compatible.
+    function approved(profile) {
+      return profile.get('status', 'approved') == 'approved'
+        && profile.get('isApproved', true) == true && profile.get('deletedAt', null) == null;
+    }
+
     function isActiveInternal() {
-      return hasUserDoc()
-        && getUserDoc().get('status', 'approved') == 'approved'
-        && getUserDoc().get('isApproved', true) == true
-        && getUserDoc().get('deletedAt', null) == null;
+      return hasUserDoc() && approved(getUserDoc());
     }
 
     function isInternal() {
@@ -47,12 +63,21 @@ service cloud.firestore {
     }
 
     function isFinance() {
-      return isActiveInternal() && getUserDoc().get('role', '') == 'finance' && internalRole() == 'finance';
+      return isSignedIn() && internalRole() == 'finance' && isActiveInternal() && getUserDoc().get('role', '') == 'finance';
+    }
+
+    function matchesPartner(data, profile) {
+      return profile.get('role', '') == 'partner' && profile.get('partnerId', '') != ''
+        && data.partnerId == profile.partnerId;
     }
 
     function ownPartnerRecord(data) {
-      return isActiveInternal() && getUserDoc().get('role', '') == 'partner'
-        && getUserDoc().get('partnerId', '') != '' && data.partnerId == getUserDoc().partnerId;
+      return isActiveInternal() && matchesPartner(data, getUserDoc()) && internalRole() in ['', 'partner'];
+    }
+
+    function canReadLead(data) {
+      let role = internalRole();
+      return isActiveInternal() && (role in ['admin', 'management'] || (role == 'finance' && getUserDoc().get('role', '') == 'finance') || matchesPartner(data, getUserDoc()));
     }
 
     function ownsPartner() {
@@ -69,10 +94,22 @@ service cloud.firestore {
 
     match /leadOwnerDirectory/{uid} {
       allow read: if isInternal();
+      allow create, update: if isAdmin() && request.auth.uid != uid
+        && existsAfter(assignmentPath(uid)) && getAfter(assignmentPath(uid)).data.role in ['admin','management']
+        && request.resource.data.keys().hasOnly(['displayName'])
+        && request.resource.data.displayName is string;
+      allow delete: if isAdmin() && request.auth.uid != uid
+        && existsAfter(assignmentPath(uid)) && getAfter(assignmentPath(uid)).data.role in ['finance','partner'];
     }
 
     match /portfolioOwnerDirectory/{uid} {
       allow read: if isInternal();
+      allow create, update: if isAdmin() && request.auth.uid != uid
+        && existsAfter(assignmentPath(uid)) && getAfter(assignmentPath(uid)).data.role in ['admin','management']
+        && request.resource.data.keys().hasOnly(['displayName'])
+        && request.resource.data.displayName is string;
+      allow delete: if isAdmin() && request.auth.uid != uid
+        && existsAfter(assignmentPath(uid)) && getAfter(assignmentPath(uid)).data.role in ['finance','partner'];
     }
 
     match /partnerAgreements/{partnerId} {
@@ -118,54 +155,56 @@ service cloud.firestore {
           ['role', 'isApproved', 'status', 'deletedAt', 'partnerId', 'roleMigrationVersion']));
       allow update: if isInternal() && request.auth.uid != userId
         && resource.data.role in ['partner','sales','portfolio_owner','management']
-        && (resource.data.role != 'management' || resource.data.get('roleMigrationVersion', 0) == 1)
+        && (resource.data.role != 'management' || resource.data.get('roleMigrationVersion', 0) in [1, 2])
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','deletedAt','isApproved'])
         && request.resource.data.status == 'deleted' && request.resource.data.isApproved == false;
       allow delete: if isAdmin();
     }
 
     // A directory entry alone can be stale after an account is disabled.
-    function eligibleOwner(uid, directory) {
+    function eligibleOwner(uid) {
+      let path = /databases/$(database)/documents/users/$(uid);
       return uid is string && uid.size() > 0
         && (exists(/databases/$(database)/documents/leadOwnerDirectory/$(uid))
           || exists(/databases/$(database)/documents/portfolioOwnerDirectory/$(uid)))
-        && exists(/databases/$(database)/documents/users/$(uid))
-        && get(/databases/$(database)/documents/users/$(uid)).data.get('role', '') in ['admin', 'management', 'sales', 'portfolio_owner']
-        && get(/databases/$(database)/documents/users/$(uid)).data.get('status', 'approved') == 'approved'
-        && get(/databases/$(database)/documents/users/$(uid)).data.get('isApproved', true) == true
-        && get(/databases/$(database)/documents/users/$(uid)).data.get('deletedAt', null) == null;
+        && exists(path) && approved(get(path).data)
+        && get(path).data.role in ['admin', 'management', 'sales', 'portfolio_owner'];
     }
 
-    // Students master collection
-    function canChangeSalesOwner() {
-      let nextOwnerId = request.resource.data.get('salesOwnerId', '');
-      let managesOwners = isInternal();
-      return managesOwners && (nextOwnerId == ''
-        || eligibleOwner(nextOwnerId, 'leadOwnerDirectory'));
+    function validPipelineStage(stage) {
+      return stage in ['New', 'No Response', 'Active', 'Qualified', 'Option Shared', 'Payment',
+        'Fulfilment', 'Short Stay', 'Closed Won', 'Disqualified', 'Cancelled'];
     }
 
-    function canChangeLeadOwner() {
-      let id = request.resource.data.get('leadOwnerId', '');
-      return isInternal() && request.resource.data.get('assignedSalesExecutiveId', '') == id
-        && (id == '' || eligibleOwner(id, 'leadOwnerDirectory'));
+    function canUpdateLead() {
+      let role = internalRole();
+      let internal = role in ['admin', 'management'];
+      let next = request.resource.data;
+      let changed = next.diff(resource.data).affectedKeys();
+      let salesOwner = next.get('salesOwnerId', '');
+      let leadOwner = next.get('leadOwnerId', '');
+      return isActiveInternal()
+        && (internal || (role == 'finance' && getUserDoc().get('role', '') == 'finance') || (matchesPartner(resource.data, getUserDoc())
+          && !changed.hasAny(['partnerId','studentId'])))
+        && (!changed.hasAny(['pipelineStage']) || validPipelineStage(next.get('pipelineStage', '')))
+        && next.get('archivalStatus', 'Active') != 'Archived'
+        && next.get('leadStatus', 'New') != 'Inactive'
+        && (!changed.hasAny(['salesOwnerId','salesOwnerName']) || (internal && (salesOwner == '' || eligibleOwner(salesOwner))))
+        && (!changed.hasAny(['leadOwnerId','leadOwnerName','assignedSalesExecutiveId','assignedSalesExecutiveName'])
+          || (internal && next.get('assignedSalesExecutiveId', '') == leadOwner && (leadOwner == '' || eligibleOwner(leadOwner))));
     }
 
     match /students/{studentId} {
       allow read: if request.auth != null && request.auth.token.get('intakeLookup', false) == true;
-      allow read: if isInternal() || isFinance() || ownPartnerRecord(resource.data);
+      allow read: if isSignedIn() && canReadLead(resource.data);
       allow create: if (isInternal() || ownPartnerRecord(request.resource.data))
+        && validPipelineStage(request.resource.data.get('pipelineStage', 'New'))
         && request.resource.data.get('archivalStatus', 'Active') != 'Archived'
         && request.resource.data.get('leadStatus', 'New') != 'Inactive'
         && request.resource.data.get('salesOwnerId', '') == ''
         && request.resource.data.get('leadOwnerId', '') == ''
         && request.resource.data.get('assignedSalesExecutiveId', '') == '';
-      allow update: if (isInternal() || isFinance() || (ownPartnerRecord(resource.data) && ownPartnerRecord(request.resource.data) && request.resource.data.studentId == resource.data.studentId))
-        && request.resource.data.get('archivalStatus', 'Active') != 'Archived'
-        && request.resource.data.get('leadStatus', 'New') != 'Inactive'
-        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['salesOwnerId', 'salesOwnerName'])
-          || canChangeSalesOwner())
-        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['leadOwnerId', 'leadOwnerName', 'assignedSalesExecutiveId', 'assignedSalesExecutiveName'])
-          || canChangeLeadOwner());
+      allow update: if isSignedIn() && canUpdateLead();
       allow delete: if isInternal()
         && !exists(/databases/$(database)/documents/archivedStudents/$(studentId))
         && existsAfter(/databases/$(database)/documents/archivedStudents/$(studentId));
@@ -224,16 +263,16 @@ service cloud.firestore {
 
     // Partners collection
     match /partners/{partnerId} {
-      allow read: if isInternal() || isFinance() || ownPartnerRecord(resource.data);
+      allow read: if isSignedIn() && canReadLead(resource.data);
       allow create: if !request.resource.data.keys().hasAny(['leadTargets'])
-        && (request.resource.data.get('portfolioOwnerId', '') == '' || eligibleOwner(request.resource.data.portfolioOwnerId, 'portfolioOwnerDirectory'))
+        && (request.resource.data.get('portfolioOwnerId', '') == '' || eligibleOwner(request.resource.data.portfolioOwnerId))
         && (isInternal() || (isSignedIn() && request.resource.data.get('portfolioOwnerId', '') == ''
           && partnerId == 'PART-U-' + request.auth.uid && request.resource.data.partnerId == partnerId
           && request.resource.data.get('accountUid', '') == request.auth.uid));
       allow update: if (isInternal()
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['portfolioOwnerId'])
           || request.resource.data.get('portfolioOwnerId', '') == ''
-          || eligibleOwner(request.resource.data.portfolioOwnerId, 'portfolioOwnerDirectory')))
+          || eligibleOwner(request.resource.data.portfolioOwnerId)))
         || (ownsPartner() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leadTargets']))
         || (ownPartnerRecord(resource.data) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['leadTargets', 'portfolioOwnerId', 'accountUid', 'partnerId']));
       allow delete: if isInternal();

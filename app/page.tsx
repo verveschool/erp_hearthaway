@@ -9,7 +9,8 @@ import { UserRole, AppUser } from '@/lib/types';
 import { Mail, Key, LogIn, AlertCircle, ArrowLeft, Send, CheckCircle2 } from 'lucide-react';
 
 function getDashboardForRole(role: UserRole): string {
-  return role === 'finance' ? '/finance/payments' : '/partners';
+  if (role === 'finance') return '/payments';
+  return role === 'admin' || role === 'management' ? '/sales' : '/partners';
 }
 
 const roleDisplayLabels: Record<string, string> = {
@@ -52,7 +53,7 @@ export default function HomePage() {
     if (authInitialized && isAuthenticated && currentUser?.uid) {
       const targetRoute = getDashboardForRole(currentUser.role);
       const requested = new URLSearchParams(window.location.search).get('returnTo');
-      const workspaces = ['/sales', '/activity', '/finance', '/management', '/archive', '/partners'];
+      const workspaces = ['/sales', '/activity', '/payments', '/bookings', '/commission', '/management', '/archive', '/partners'];
       if (!canAccessRoute(targetRoute).allowed) return;
       const destination = requested && workspaces.includes(requested) && canAccessRoute(requested).allowed ? requested : targetRoute;
       if (pendingRedirect.current !== destination) {
