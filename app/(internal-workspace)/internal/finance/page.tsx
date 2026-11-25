@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
-export default function InternalFinanceRedirect() {
-  redirect('/finance');
+export default function LegacyLedgerPage() {
+  redirect('/payments');
 }

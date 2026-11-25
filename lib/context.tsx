@@ -276,8 +276,15 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [hideTestRecords, setHideTestRecords] = useState<boolean>(false);
   const [operationsIdentity, setOperationsIdentity] = useState<{ uid: string; role: string; finance: boolean; internalRole: 'admin' | 'management' | '' } | null>(null);
-  const internalRole = operationsIdentity?.uid === currentUser.uid ? operationsIdentity.internalRole : '';
-  const hasFinanceRole = operationsIdentity?.uid === currentUser.uid && operationsIdentity.finance && currentUser.role === 'finance';
+  const [assignment, setAssignment] = useState<{ uid: string; role?: UserRole }>();
+  const assignedRole = assignment?.uid === currentUser.uid ? assignment.role : undefined;
+  const resolvedRole = assignedRole ?? (operationsIdentity?.uid === currentUser.uid
+    ? operationsIdentity.internalRole || (operationsIdentity.finance && currentUser.role === 'finance' ? 'finance' : 'partner')
+    : 'partner');
+  const activeAccount = !currentUser.deletedAt && currentUser.isApproved !== false &&
+    (!currentUser.status || currentUser.status === 'approved');
+  const internalRole = activeAccount && (resolvedRole === 'admin' || resolvedRole === 'management') ? resolvedRole : '';
+  const hasFinanceRole = activeAccount && resolvedRole === 'finance';
   const leadOperationsRole = internalRole ? 'management' : '';
   const [leadOwnerOptions, setLeadOwnerOptions] = useState<Array<{ uid: string; displayName: string }>>([]);
   const [portfolioOwnerOptions, setPortfolioOwnerOptions] = useState<Array<{ uid: string; displayName: string }>>([]);
@@ -416,7 +423,20 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    if (!firebaseSessionUid || auth.currentUser?.uid !== firebaseSessionUid || operationsIdentity?.uid !== firebaseSessionUid) return;
+    if (!firebaseSessionUid) return;
+    const uid = firebaseSessionUid;
+    const stopAssignment = onSnapshot(doc(db, 'roleAssignments', uid), snapshot => {
+      setAssignment({ uid, role: snapshot.data()?.role });
+    });
+    const stopProfile = onSnapshot(doc(db, 'users', uid), snapshot => {
+      if (snapshot.exists()) setCurrentUser({ ...snapshot.data(), uid } as AppUser);
+      else void signOut(auth);
+    });
+    return () => { stopAssignment(); stopProfile(); };
+  }, [firebaseSessionUid]);
+
+  useEffect(() => {
+    if (!firebaseSessionUid || auth.currentUser?.uid !== firebaseSessionUid || operationsIdentity?.uid !== firebaseSessionUid || assignment?.uid !== firebaseSessionUid || !activeAccount) return;
     let active = true;
     const isCurrent = () => active && auth.currentUser?.uid === firebaseSessionUid;
 
@@ -538,7 +558,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
       stopFeeds.forEach(stop => stop());
       unsubUsers();
     };
-  }, [firebaseSessionUid, operationsIdentity?.uid, internalRole, currentUser.partnerId, hasFinanceRole]);
+  }, [firebaseSessionUid, operationsIdentity?.uid, assignment?.uid, activeAccount, internalRole, currentUser.partnerId, hasFinanceRole]);
 
   const openAuthModal = (tab: 'signin' | 'signup' | 'manage' = 'signin') => {
     setAuthModalTab(tab);
@@ -626,8 +646,33 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const updateUserRole = async (_uid: string, _role: UserRole) => {
-    throw new Error('Access must be provisioned by an administrator.');
+  const updateUserRole = async (uid: string, role: UserRole) => {
+    if (internalRole !== 'admin' || uid === currentUser.uid || !['admin','management','finance','partner'].includes(role)) {
+      throw new Error('An Admin must change another account’s type.');
+    }
+    const account = availableUsers.find(user => user.uid === uid);
+    if (!account) throw new Error('This account is unavailable.');
+    const batch = writeBatch(db);
+    const needsAgency = role === 'partner' && !account.partnerId;
+    const partnerId = `PART-U-${uid}`;
+    if (needsAgency) {
+      batch.set(doc(db, 'partners', partnerId), {
+        id: partnerId, partnerId, accountUid: uid, companyName: account.displayName || account.email,
+        contactPerson: account.displayName || '', email: account.email, status: 'Onboarding',
+        agreementStatus: 'Pending Review', portfolioOwnerId: '',
+      });
+    }
+    batch.update(doc(db, 'users', uid), {
+      role, roleMigrationVersion: 2,
+      ...(needsAgency ? { partnerId, partnerName: account.displayName || account.email } : {}),
+    });
+    batch.set(doc(db, 'roleAssignments', uid), { role });
+    for (const directory of ['leadOwnerDirectory', 'portfolioOwnerDirectory']) {
+      const entry = doc(db, directory, uid);
+      if (role === 'admin' || role === 'management') batch.set(entry, { displayName: account.displayName || account.email });
+      else batch.delete(entry);
+    }
+    await batch.commit();
   };
 
   const deleteUser = async (uid: string) => {
@@ -806,10 +851,10 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
     if (currentUser.status === 'disabled' || currentUser.status === 'deleted' || currentUser.deletedAt || currentUser.status === 'pending' || currentUser.isApproved === false) {
       return { allowed: false, requiredRoles: [], reason: 'pending_approval' };
     }
-    const role = currentUser.role;
+    const role = resolvedRole;
 
     const isInternal = internalRole === 'admin' || internalRole === 'management';
-    if (path.startsWith('/finance') || path.startsWith('/internal/finance')) {
+    if (['/payments', '/bookings', '/commission'].includes(path) || path.startsWith('/finance') || path.startsWith('/internal/finance')) {
       const allowed = internalRole === 'admin' || hasFinanceRole;
       return { allowed, requiredRoles: ['admin', 'finance'], reason: allowed ? undefined : 'insufficient_role' };
     }
@@ -1609,7 +1654,7 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
         setCurrentUser,
         availableUsers,
     isAuthenticated,
-    authInitialized: authInitialized && (!firebaseSessionUid || operationsIdentity?.uid === firebaseSessionUid),
+    authInitialized: authInitialized && (!firebaseSessionUid || (operationsIdentity?.uid === firebaseSessionUid && assignment?.uid === firebaseSessionUid)),
     loginWithUser,
         loginWithGoogle,
         loginWithEmailPassword,

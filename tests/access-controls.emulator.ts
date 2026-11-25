@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { connectAuthEmulator, getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { collection, getDocsFromServer, query, where, connectFirestoreEmulator, doc, getDocFromServer, getFirestore, serverTimestamp, setDoc, terminate, updateDoc } from 'firebase/firestore';
+import { collection, getDocsFromServer, query, where, connectFirestoreEmulator, doc, getDocFromServer, getFirestore, serverTimestamp, writeBatch, setDoc, terminate, updateDoc } from 'firebase/firestore';
 
 // This suite targets only the disposable demo project and loopback emulators.
 async function run() {
@@ -41,6 +41,11 @@ async function run() {
     await setDoc(note, { activityType: 'Internal Note Added', description: 'Saved note', performedBy: { userId: manager.uid } });
     const notes = await getDocsFromServer(query(collection(db, 'activities'), where('activityType', '==', 'Internal Note Added')));
     assert.ok(notes.docs.some(entry => entry.id === note.id && entry.data().description === 'Saved note'));
+    for (const pipelineStage of ['No Response', 'Short Stay', 'Closed Won']) {
+      await updateDoc(lead, { pipelineStage });
+      assert.equal((await getDocFromServer(lead)).data()?.pipelineStage, pipelineStage);
+    }
+    await denied(updateDoc(lead, { pipelineStage: 'Unknown' }));
     await updateDoc(lead, { leadOwnerId: validOwner.uid, assignedSalesExecutiveId: validOwner.uid });
     await denied(updateDoc(lead, { leadOwnerId: disabledOwner.uid, assignedSalesExecutiveId: disabledOwner.uid }));
     await denied(updateDoc(lead, { leadOwnerId: missingDirectoryOwner.uid, assignedSalesExecutiveId: missingDirectoryOwner.uid }));
@@ -60,6 +65,23 @@ async function run() {
     await login('qa-admin');
     await getDocFromServer(doc(db, 'payments', 'private'));
     await getDocFromServer(doc(db, 'activities', 'private'));
+    const roleAssignment = doc(db, 'roleAssignments', partner.uid);
+    const profile = doc(db, 'users', partner.uid);
+    const payment = doc(db, 'payments', 'private');
+    const setAccountType = async (role: 'finance' | 'partner') => {
+      const batch = writeBatch(db);
+      batch.update(profile, { role });
+      batch.set(roleAssignment, { role });
+      await batch.commit();
+    };
+    await setAccountType('finance');
+    await login('qa-partner');
+    await getDocFromServer(payment);
+    await login('qa-admin');
+    await setAccountType('partner');
+    await login('qa-partner');
+    await denied(getDocFromServer(payment));
+    assert.equal((await getDocFromServer(lead)).exists(), true);
     console.log('PASS: intake, role gates, owner eligibility, and operational activity restrictions.');
   } finally {
     await signOut(auth);

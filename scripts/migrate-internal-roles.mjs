@@ -68,6 +68,9 @@ for (const user of users) {
   try { profile = await api(`${store}/users/${encodeURIComponent(user.localId)}`); }
   catch (error) { console.log(`SKIP ${user.localId}: profile unavailable (${error.message})`); skipped++; continue; }
   const fields = profile.fields || {};
+  if (Number(fields.roleMigrationVersion?.integerValue) >= 2) {
+    console.log(`UNCHANGED ${user.localId}: account type assigned by an administrator`); continue;
+  }
   if ((mapped === 'finance' && fields.role?.stringValue !== 'finance') || fields.role?.stringValue === 'partner' || (fields.status?.stringValue && fields.status.stringValue !== 'approved') || fields.isApproved?.booleanValue === false || fields.deletedAt) {
     console.log(`SKIP ${user.localId}: external, unapproved or deleted profile`); skipped++; continue;
   }

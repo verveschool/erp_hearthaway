@@ -1,5 +1,8 @@
 'use client';
 
+import { WorkspaceMetrics } from '@/components/WorkspaceMetrics';
+import { partnerPerformance, partnershipSeasons } from '@/lib/partner-performance';
+
 import { WorkspaceMetric } from '@/components/WorkspaceMetric';
 import { WorkspaceSearch } from '@/components/WorkspaceSearch';
 import { matchesSearch } from '@/lib/utils';
@@ -178,25 +181,26 @@ export default function PartnersPage() {
     });
   }, [partners, searchQuery, filterType, filterPortfolioOwner, filterStatus, filterState, filterCity, filterAgreement]);
 
-  const portfolioMetrics = useMemo(() => {
-    if (!isManagement) return null;
-    const scopedPartners = partners.filter(partner =>
-      filterPortfolioOwner === 'All' || partner.portfolioOwnerId === filterPortfolioOwner
-    );
-    const partnerIds = new Set(scopedPartners.map(partner => partner.partnerId));
-    const leads = students.filter(student => student.partnerId && partnerIds.has(student.partnerId) &&
-      (!hideTestRecords || (!student.isTestRecord && student.archivalStatus !== 'Flagged For Archival'))
-    );
-    const qualified = leads.filter(student => student.leadStatus === 'Qualified').length;
-    const tenancies = leads.filter(student => student.bookingStatus === 'Booked' || student.bookingStatus === 'Move-in Confirmed').length;
-    return {
-      partners: scopedPartners.length,
-      leads: leads.length,
-      qualified,
-      tenancies,
-      conversion: leads.length ? (tenancies / leads.length * 100).toFixed(1) : '0.0',
-    };
-  }, [isManagement, partners, students, filterPortfolioOwner, hideTestRecords]);
+  const [selectedSeason, setSelectedSeason] = useState('');
+  const performancePartners = partners.filter(partner => isPartner
+    ? partner.partnerId === activePartnerId
+    : filterPortfolioOwner === 'All' || partner.portfolioOwnerId === filterPortfolioOwner);
+  const seasons = partnershipSeasons(performancePartners);
+  const season = seasons.some(([key]) => key === selectedSeason) ? selectedSeason : seasons[0]?.[0] || '';
+  const performance = partnerPerformance(performancePartners, students, season);
+  const committed = performance.filter(row => (row.target ?? 0) > 0);
+  const totalTarget = committed.reduce((sum, row) => sum + (row.target ?? 0), 0);
+  const leadsAgainstTarget = committed.reduce((sum, row) => sum + row.seasonal, 0);
+  const overall = isPartner ? seasons.flatMap(([key]) => partnerPerformance(performancePartners, students, key)) : [];
+  const overallTarget = overall.reduce((sum, row) => sum + (row.target ?? 0), 0);
+  const overallAchieved = overall.reduce((sum, row) => sum + Math.min(row.seasonal, row.target ?? 0), 0);
+  const totalReceived = performance.reduce((sum, row) => sum + row.total, 0);
+  const remaining = committed.reduce((sum, row) => sum + row.remaining, 0);
+  const progress = totalTarget > 0 ? Math.round(leadsAgainstTarget * 100 / totalTarget) : null;
+  const inactive = performance.filter(row => row.total === 0);
+  const belowTarget = committed.filter(row => row.remaining > 0);
+  const needsAttention = performance.filter(row => row.total === 0 || row.remaining > 0)
+    .sort((a, b) => Number(a.total !== 0) - Number(b.total !== 0) || b.remaining - a.remaining);
   const portfolioLabel = filterPortfolioOwner === 'All'
     ? 'All portfolio owners'
     : portfolioOwners.find(owner => owner.uid === filterPortfolioOwner)?.displayName || 'Selected portfolio owner';
@@ -676,6 +680,7 @@ export default function PartnersPage() {
       {/* Top Header */}
       <div className="ha-page-header">
         <div>
+          <WorkspaceMetrics label={isPartner ? 'Your lead commitments' : 'Partner performance'} heading={
           <div className="workspace-heading">
             <div>
               <h1 className="ha-title">
@@ -685,7 +690,7 @@ export default function PartnersPage() {
 
             {/* Action Buttons */}
             <div className="workspace-heading-actions">
-              {portfolioMetrics && (<select aria-label="Portfolio owner for partner performance" value={filterPortfolioOwner}
+              {isManagement && (<select aria-label="Portfolio owner for partner performance" value={filterPortfolioOwner}
                     onChange={event => setFilterPortfolioOwner(event.target.value)}
                     className="min-h-11 max-w-full rounded-lg border border-ha-line bg-white px-2.5 text-xs font-medium">
                     <option value="All">All portfolio owners</option>
@@ -713,194 +718,31 @@ export default function PartnersPage() {
               )}
             </div>
           </div>
-          {portfolioMetrics && (<dl aria-label={`Partner metrics for ${portfolioLabel}`} className="ha-metrics workspace-metrics mt-2 partner-performance-metrics">
-                  <WorkspaceMetric label="Partners">{portfolioMetrics.partners}</WorkspaceMetric>
-                  <WorkspaceMetric label="Leads">{portfolioMetrics.leads}</WorkspaceMetric>
-                  <WorkspaceMetric label="Qualified leads">{portfolioMetrics.qualified}</WorkspaceMetric>
-                  <WorkspaceMetric label="Tenancies">{portfolioMetrics.tenancies}</WorkspaceMetric>
-                  <WorkspaceMetric label="Lead conversion">{portfolioMetrics.conversion}%</WorkspaceMetric>
-                </dl>)}
+          } controls={
+            <label className="workspace-metrics-scope">Season
+              <select value={season} onChange={event => setSelectedSeason(event.target.value)}
+                className="min-h-11 rounded-lg border border-ha-line bg-white px-2">
+                {!seasons.length && <option value="">No agreed season</option>}
+                {seasons.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              </select>
+            </label>
+          }>
+            <WorkspaceMetric label={isPartner ? 'Total leads submitted' : 'Total leads received'}>{totalReceived}</WorkspaceMetric>
+            <WorkspaceMetric label={isPartner ? 'Agreed seasonal target' : 'Combined seasonal target'}>{totalTarget || (season ? 0 : '—')}</WorkspaceMetric>
+            <WorkspaceMetric label="Seasonal target achieved">{progress === null ? '—' : `${progress}%`}</WorkspaceMetric>
+            <WorkspaceMetric label="Seasonal leads remaining">{season ? remaining : '—'}</WorkspaceMetric>
+            {isPartner && <WorkspaceMetric label="Overall commitments achieved">
+              {overallTarget ? `${Math.round(overallAchieved * 100 / overallTarget)}%` : '—'}
+            </WorkspaceMetric>}
+            {isManagement && <>
+              <WorkspaceMetric label="Partners">{performance.length}</WorkspaceMetric>
+              <WorkspaceMetric label="Partners with no leads"><span className={inactive.length ? 'text-rose-700' : ''}>{inactive.length}</span></WorkspaceMetric>
+              <WorkspaceMetric label="Partners below seasonal target">{belowTarget.length}</WorkspaceMetric>
+            </>}
+          </WorkspaceMetrics>
         </div>
-      </div>
-
-      <div className="workspace-content">
-        {/* VIEW 1: PARTNER USER VIEW (Their agency dashboard) */}
-        {isPartner && (
-          <div className="space-y-6">
-            {/* Partner Agency Profile Card */}
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-xl bg-[#00319D] text-[#FFFFFF] flex items-center justify-center font-bold text-lg shadow-xs">
-                    {(currentPartnerRecord?.companyName || currentUser.partnerName || 'P').charAt(0)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-semibold tabular-nums text-[#1A1A1A]">
-                        {currentPartnerRecord?.companyName || currentUser.partnerName || 'Partner Agency'}
-                      </h2>
-                      {currentPartnerRecord?.partnerId && (
-                        <span className="font-mono text-xs font-bold bg-[#F7F6F3] text-[#00319D] px-2 py-0.5 rounded border border-[#E8E6E1]">
-                          {currentPartnerRecord.partnerId}
-                        </span>
-                      )}
-                      <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold border ${formatAgreementBadge(currentPartnerRecord?.agreementStatus)}`}>
-                        <FileCheck className="h-3 w-3" />
-                        Agreement: {currentPartnerRecord?.agreementStatus || 'Active'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#6B6860] mt-0.5">
-                      {currentPartnerRecord?.city || 'Mumbai'}, {currentPartnerRecord?.state || 'Maharashtra'} • {currentPartnerRecord?.type || 'Partner'} • Contact: {currentPartnerRecord?.contactPerson || currentUser.displayName} ({currentPartnerRecord?.email || currentUser.email})
-                    </p>
-                  </div>
-                </div>
-
-                {/* Sourcing & Portfolio Rollup Relation */}
-                <div className="bg-[#F7F6F3] px-4 py-2.5 rounded-xl border border-[#E8E6E1] text-xs">
-                  <span className="text-xs font-bold uppercase text-[#6B6860] block">
-                    Your HearthAway Portfolio Owner:
-                  </span>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="h-2 w-2 rounded-full bg-[#FCC20A]" />
-                    <strong className="text-[#1A1A1A]">
-                      {currentPartnerRecord?.portfolioOwnerName || 'Unassigned'}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-
-              {currentPartnerRecord && (
-                <div className="mt-4 rounded-lg border border-ha-line p-3">
-                  <h3 className="mb-2 text-xs font-semibold">Seasonal leads received / promised</h3>
-                  {seasonalTargets(currentPartnerRecord)}
-                </div>
-              )}
-
-              {/* Agency Quick Stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-[#E8E6E1]">
-                <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
-                  <span className="text-xs font-bold text-[#6B6860] uppercase block">Total Leads Submitted</span>
-                  <span className="text-lg font-semibold tabular-nums text-[#00319D]">{partnerLeads.length}</span>
-                </div>
-                <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
-                  <span className="text-xs font-bold text-[#6B6860] uppercase block">Active In Pipeline</span>
-                  <span className="text-lg font-semibold tabular-nums text-[#1A1A1A]">
-                    {partnerLeads.filter((s) => s.bookingStatus !== 'Booked' && s.leadStatus !== 'Lost').length}
-                  </span>
-                </div>
-                <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
-                  <span className="text-xs font-bold text-[#6B6860] uppercase block">Booked Tenancies</span>
-                  <span className="text-lg font-semibold tabular-nums text-emerald-700">
-                    {partnerLeads.filter((s) => s.bookingStatus === 'Booked' || s.bookingStatus === 'Move-in Confirmed').length}
-                  </span>
-                </div>
-                <div className="bg-[#F7F6F3] p-3 rounded-lg border border-[#E8E6E1]">
-                  <span className="text-xs font-bold text-[#6B6860] uppercase block">Commission Tier</span>
-                  <span className="text-lg font-semibold tabular-nums text-[#1A1A1A]">{currentPartnerRecord?.commissionRate ?? 20}%</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Submitted Leads Table for Partner */}
-            <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
-              <div className="px-5 py-4 border-b border-[#E8E6E1] flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-[#1A1A1A]">Your Sourced Student Leads</h3>
-                  <p className="text-xs text-[#6B6860]">
-                    Leads submitted by {currentPartnerRecord?.companyName || currentUser.partnerName || 'your agency'}.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-[#00319D]">
-                    {partnerLeads.length} Leads
-                  </span>
-                  <button
-                    onClick={handleExportPartnerLeadsCSV}
-                    disabled={partnerLeads.length === 0}
-                    className="flex items-center gap-1 rounded-md border border-[#00319D] bg-[#00319D]/5 px-2.5 py-1 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
-                    title="Export sourced leads to CSV"
-                  >
-                    <Download className="h-3 w-3" />
-                    Export CSV
-                  </button>
-                </div>
-              </div>
-
-              {partnerLeads.length === 0 ? (
-                <div className="p-12 text-center space-y-3">
-                  <Users className="h-8 w-8 text-[#6B6860] mx-auto" />
-                  <h4 className="text-xs font-bold text-[#1A1A1A]">No Leads Submitted Yet</h4>
-                  <p className="text-xs text-[#6B6860]">
-                    Use &quot;Submit Single Lead&quot; or &quot;Import student leads&quot; to send student requirements to the team.
-                  </p>
-                </div>
-              ) : (
-                <div className="ha-table-scroll">
-                  <table className="ha-table">
-                    <thead>
-                      <tr>
-                        <th scope="col" className="py-3 px-4 font-bold">Student Name</th>
-                        <th scope="col" className="py-3 px-4 font-bold">University &amp; City</th>
-                        <th scope="col" className="py-3 px-4 font-bold">Lead Owner</th>
-                        <th scope="col" className="py-3 px-4 font-bold">Lead Status</th>
-                        <th scope="col" className="py-3 px-4 font-bold">Booking Status</th>
-                        <th scope="col" className="py-3 px-4 font-bold">Intake</th>
-                        <th scope="col" className="py-3 px-4 font-bold text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#E8E6E1]">
-                      {partnerLeads.map((lead) => (
-                        <tr
-                          key={lead.id}
-                          className="hover:bg-[#F7F6F3]/50 cursor-pointer"
-                          onClick={() => setSelectedStudentId(lead.studentId)}
-                        >
-                          <td className="py-3.5 px-4">
-                            <div className="font-bold text-[#1A1A1A]">{lead.fullName}</div>
-                            <div className="font-mono text-xs text-[#00319D]">{lead.studentId}</div>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <div className="text-[#1A1A1A] font-medium">{lead.destinationCity}</div>
-                            <div className="text-xs text-[#6B6860]">{lead.university}</div>
-                          </td>
-                          <td className="py-3.5 px-4 font-bold text-[#1A1A1A]">
-                            {getLeadOwner(lead).name}
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <span className="inline-block px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800">
-                              {lead.leadStatus}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <span className="inline-block px-2 py-0.5 rounded text-xs font-bold bg-zinc-100 text-zinc-800">
-                              {lead.bookingStatus}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 text-[#6B6860]">{lead.intake}</td>
-                          <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => setSelectedStudentId(lead.studentId)}
-                              className="text-xs font-bold text-[#00319D] hover:underline cursor-pointer"
-                            >
-                              Inspect →
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 2: MANAGEMENT & DIRECTORY VIEW */}
-        {!isPartner && (
-          <div className="space-y-5">
-            {/* Multi-Dimensional Filters Bar (State, City, Agreement, PO, Type) */}
-            <div className="workspace-toolbar">
-              <div className="workspace-filter-bar">
+        {isManagement && (<div className="workspace-toolbar">
+              <div className="workspace-filter-bar partner-search-actions">
                 <WorkspaceSearch label="Search partners" value={searchQuery} onChange={setSearchQuery} />
 
               {isManagement && (
@@ -1027,8 +869,175 @@ export default function PartnersPage() {
                   setFilterState('All'); setFilterCity('All'); setFilterAgreement('All'); setFilterType('All'); setFilterPortfolioOwner('All');
                 }}>Clear filters</button>}
               </div>
+            </div>)}
+      </div>
+
+      <div className="workspace-content">
+        {/* VIEW 1: PARTNER USER VIEW (Their agency dashboard) */}
+        {isPartner && (
+          <div className="space-y-6">
+            {/* Partner Agency Profile Card */}
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-6 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-xl bg-[#00319D] text-[#FFFFFF] flex items-center justify-center font-bold text-lg shadow-xs">
+                    {(currentPartnerRecord?.companyName || currentUser.partnerName || 'P').charAt(0)}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold tabular-nums text-[#1A1A1A]">
+                        {currentPartnerRecord?.companyName || currentUser.partnerName || 'Partner Agency'}
+                      </h2>
+                      {currentPartnerRecord?.partnerId && (
+                        <span className="font-mono text-xs font-bold bg-[#F7F6F3] text-[#00319D] px-2 py-0.5 rounded border border-[#E8E6E1]">
+                          {currentPartnerRecord.partnerId}
+                        </span>
+                      )}
+                      <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold border ${formatAgreementBadge(currentPartnerRecord?.agreementStatus)}`}>
+                        <FileCheck className="h-3 w-3" />
+                        Agreement: {currentPartnerRecord?.agreementStatus || 'Active'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#6B6860] mt-0.5">
+                      {currentPartnerRecord?.city || 'Mumbai'}, {currentPartnerRecord?.state || 'Maharashtra'} • {currentPartnerRecord?.type || 'Partner'} • Contact: {currentPartnerRecord?.contactPerson || currentUser.displayName} ({currentPartnerRecord?.email || currentUser.email})
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sourcing & Portfolio Rollup Relation */}
+                <div className="bg-[#F7F6F3] px-4 py-2.5 rounded-xl border border-[#E8E6E1] text-xs">
+                  <span className="text-xs font-bold uppercase text-[#6B6860] block">
+                    Your HearthAway Portfolio Owner:
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="h-2 w-2 rounded-full bg-[#FCC20A]" />
+                    <strong className="text-[#1A1A1A]">
+                      {currentPartnerRecord?.portfolioOwnerName || 'Unassigned'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {currentPartnerRecord && (
+                <div className="mt-4 rounded-lg border border-ha-line p-3">
+                  <h3 className="mb-2 text-xs font-semibold">Seasonal leads received / promised</h3>
+                  {seasonalTargets(currentPartnerRecord)}
+                </div>
+              )}
+
             </div>
 
+            {/* Submitted Leads Table for Partner */}
+            <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#E8E6E1] flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-[#1A1A1A]">Your Sourced Student Leads</h3>
+                  <p className="text-xs text-[#6B6860]">
+                    Leads submitted by {currentPartnerRecord?.companyName || currentUser.partnerName || 'your agency'}.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-[#00319D]">
+                    {partnerLeads.length} Leads
+                  </span>
+                  <button
+                    onClick={handleExportPartnerLeadsCSV}
+                    disabled={partnerLeads.length === 0}
+                    className="flex items-center gap-1 rounded-md border border-[#00319D] bg-[#00319D]/5 px-2.5 py-1 text-xs font-bold text-[#00319D] hover:bg-[#00319D]/15 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+                    title="Export sourced leads to CSV"
+                  >
+                    <Download className="h-3 w-3" />
+                    Export CSV
+                  </button>
+                </div>
+              </div>
+
+              {partnerLeads.length === 0 ? (
+                <div className="p-12 text-center space-y-3">
+                  <Users className="h-8 w-8 text-[#6B6860] mx-auto" />
+                  <h4 className="text-xs font-bold text-[#1A1A1A]">No Leads Submitted Yet</h4>
+                  <p className="text-xs text-[#6B6860]">
+                    Use &quot;Submit Single Lead&quot; or &quot;Import student leads&quot; to send student requirements to the team.
+                  </p>
+                </div>
+              ) : (
+                <div className="ha-table-scroll">
+                  <table role="table" aria-label="Your sourced student leads" className="ha-table responsive-records">
+                    <thead role="rowgroup">
+                      <tr role="row">
+                        <th scope="col" className="py-3 px-4 font-bold">Student Name</th>
+                        <th scope="col" className="py-3 px-4 font-bold">University &amp; City</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Lead Owner</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Lead Status</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Booking Status</th>
+                        <th scope="col" className="py-3 px-4 font-bold">Intake</th>
+                        <th scope="col" className="py-3 px-4 font-bold text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody role="rowgroup" className="divide-y divide-[#E8E6E1]">
+                      {partnerLeads.map((lead) => (
+                        <tr role="row"
+                          key={lead.id}
+                          className="hover:bg-[#F7F6F3]/50 cursor-pointer"
+                          onClick={() => setSelectedStudentId(lead.studentId)}
+                        >
+                          <td role="cell" data-label="Student" className="py-3.5 px-4">
+                            <div className="font-bold text-[#1A1A1A]">{lead.fullName}</div>
+                            <div className="font-mono text-xs text-[#00319D]">{lead.studentId}</div>
+                          </td>
+                          <td role="cell" data-label="City and university" className="py-3.5 px-4">
+                            <div className="text-[#1A1A1A] font-medium">{lead.destinationCity}</div>
+                            <div className="text-xs text-[#6B6860]">{lead.university}</div>
+                          </td>
+                          <td role="cell" data-label="Lead owner" className="py-3.5 px-4 font-bold text-[#1A1A1A]">
+                            {getLeadOwner(lead).name}
+                          </td>
+                          <td role="cell" data-label="Lead status" className="py-3.5 px-4">
+                            <span className="inline-block px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800">
+                              {lead.leadStatus}
+                            </span>
+                          </td>
+                          <td role="cell" data-label="Booking status" className="py-3.5 px-4">
+                            <span className="inline-block px-2 py-0.5 rounded text-xs font-bold bg-zinc-100 text-zinc-800">
+                              {lead.bookingStatus}
+                            </span>
+                          </td>
+                          <td role="cell" data-label="Intake" className="py-3.5 px-4 text-[#6B6860]">{lead.intake}</td>
+                          <td role="cell" data-label="Actions" className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setSelectedStudentId(lead.studentId)}
+                              className="text-xs font-bold text-[#00319D] hover:underline cursor-pointer"
+                            >
+                              Inspect →
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 2: MANAGEMENT & DIRECTORY VIEW */}
+        {!isPartner && (
+          <div className="space-y-5">
+            {needsAttention.length > 0 && (
+              <section className="rounded-xl border border-ha-line bg-white p-3" aria-labelledby="partner-attention">
+                <h2 id="partner-attention" className="text-sm font-semibold">Partners needing attention</h2>
+                <ul className="mt-2 max-h-60 divide-y divide-ha-line overflow-y-auto">
+                  {needsAttention.map(({ partner, total, seasonal, target, remaining }) => (
+                    <li key={partner.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                      <button type="button" className="workspace-record-link" onClick={() => setInspectPartnerId(partner.partnerId)}>{partner.companyName}</button>
+                      <span>{total === 0 && <strong className="text-rose-700">No leads submitted</strong>}
+                      {remaining > 0 && <span className={total === 0 ? 'ml-3' : ''}>{seasonal} / {target} submitted · {remaining} remaining</span>}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             <div className="space-y-6">
               {Object.keys(partnersByStateAndCity).length === 0 ? (
                 <div className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] p-12 text-center space-y-2">
@@ -1047,45 +1056,25 @@ export default function PartnersPage() {
                       key={stateName}
                       className="rounded-xl border border-[#E8E6E1] bg-[#FFFFFF] shadow-2xs overflow-hidden"
                     >
-                      {/* State Group Header */}
-                      <div className="bg-[#F7F6F3] px-5 py-3.5 border-b border-[#E8E6E1] flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5">
-                          <div className="h-8 w-8 rounded-lg bg-[#00319D] text-[#FFFFFF] flex items-center justify-center font-bold text-xs shadow-xs">
-                            <MapPin className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-bold text-[#1A1A1A] flex items-center gap-2">
-                              {stateName}
-                              <span className="rounded bg-[#00319D]/10 px-2 py-0.5 text-xs font-bold text-[#00319D]">
-                                {stateTotalPartners} {stateTotalPartners === 1 ? 'Partner' : 'Partners'}
-                              </span>
-                            </h3>
-                          </div>
-                        </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-ha-line bg-ha-canvas px-4 py-3">
+                        <h3 className="text-sm font-bold">{stateName}</h3>
+                        <span className="text-xs text-ha-secondary">
+                          {stateTotalPartners} {stateTotalPartners === 1 ? 'partner' : 'partners'}
+                        </span>
                       </div>
 
-                      {/* Cities and Partner Cards within this State */}
-                      <div className="p-5 space-y-6">
+                      <div className="space-y-4 p-3 sm:p-4">
                         {Object.entries(cityDict).map(([cityName, cityPartners]) => (
-                          <div key={cityName} className="space-y-3">
-                            <div className="flex items-center gap-2">
-                              <span className="h-2 w-2 rounded-full bg-[#FCC20A]" />
-                              <h4 className="text-xs font-bold text-[#1A1A1A] uppercase tracking-wide">
-                                {cityName}
+                          <div key={cityName} className="space-y-2">
+                            {cityName.toLowerCase() !== stateName.toLowerCase() && (
+                              <h4 className="text-xs font-semibold text-ha-secondary">
+                                {cityName} · {cityPartners.length} {cityPartners.length === 1 ? 'agency' : 'agencies'}
                               </h4>
-                              <span className="text-xs text-[#6B6860] font-semibold">
-                                ({cityPartners.length} {cityPartners.length === 1 ? 'agency' : 'agencies'})
-                              </span>
-                            </div>
+                            )}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                               {cityPartners.map((partner) => {
                                 const leadsCount = students.filter((s) => s.partnerId === partner.partnerId).length;
-                                const bookingsCount = students.filter(
-                                  (s) =>
-                                    s.partnerId === partner.partnerId &&
-                                    (s.bookingStatus === 'Booked' || s.bookingStatus === 'Move-in Confirmed')
-                                ).length;
 
                                 return (
                                   <div
@@ -1106,19 +1095,19 @@ export default function PartnersPage() {
                                           <button type="button" onClick={() => handleOpenAgreementModal(partner)} disabled={!isManagement}
                                             className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs ${formatAgreementBadge(partner.agreementStatus)}`}
                                             aria-label={`Agreement for ${partner.companyName}`}>
-                                            <FileCheck className="h-3 w-3" aria-hidden="true" />{partner.agreementStatus || 'Active'}
+                                            <FileCheck className="h-3 w-3" aria-hidden="true" />{partner.agreementStatus || 'Not recorded'}
                                           </button>
                                         </div>
                                       </div>
 
                                       <p className="text-xs text-[#6B6860] mt-1.5 line-clamp-1">
-                                        Contact: {partner.contactPerson} ({partner.email})
+                                        {[partner.contactPerson, partner.email].filter(Boolean).join(' · ') || 'No contact recorded'}
                                       </p>
 
                                       <div className="mt-2.5 pt-2.5 border-t border-[#E8E6E1] text-xs flex items-center justify-between">
                                         <span className="text-[#6B6860]">Portfolio Owner:</span>
                                         <strong className="text-[#1A1A1A]">
-                                          {partner.portfolioOwnerName || 'Beatrice Vance'}
+                                          {partner.portfolioOwnerName || 'Unassigned'}
                                         </strong>
                                       </div>
                                     </div>
@@ -1126,7 +1115,6 @@ export default function PartnersPage() {
                                     <div className="space-y-2 border-t border-ha-line pt-2">
                                       {seasonalTargets(partner)}
                                       <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <span className="text-xs text-ha-secondary">Bookings <strong className="text-ha-ink">{bookingsCount}</strong></span>
                                         <button type="button" onClick={() => setInspectPartnerId(partner.partnerId)}
                                           className="ha-text-action partner-leads-action">
                                           Leads ({leadsCount})
