@@ -416,12 +416,6 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    setStudents([]);
-    setPartners([]);
-    setBookings([]);
-    setPayments([]);
-    setAvailableUsers([]);
-    setActivities([]);
     if (!firebaseSessionUid || auth.currentUser?.uid !== firebaseSessionUid || operationsIdentity?.uid !== firebaseSessionUid) return;
     let active = true;
     const isCurrent = () => active && auth.currentUser?.uid === firebaseSessionUid;
@@ -531,6 +525,12 @@ export function HearthAwayProvider({ children }: { children: React.ReactNode }) 
 
     return () => {
       active = false;
+      setStudents([]);
+      setPartners([]);
+      setBookings([]);
+      setPayments([]);
+      setAvailableUsers([]);
+      setActivities([]);
       unsubStudents();
       unsubPartners();
       unsubBookings();
